@@ -254,9 +254,7 @@ export default {
     entitlements: {
       columns: {
         type: union('boolean', 'integer', 'string'),
-        default_value: jsonRef('EntitlementValue', '#catalog/entitlements', [
-          'EntitlementValue',
-        ]),
+        default_value: jsonRef('EntitlementValue', '#catalog/entitlements', ['EntitlementValue']),
       },
     },
 
@@ -266,9 +264,7 @@ export default {
         billing: union('one_time', 'monthly', 'yearly'),
         license_term: union('perpetual', 'subscription', 'fixed_days'),
         is_public: boolean,
-        entitlements: jsonRef('EntitlementValues', '#catalog/entitlements', [
-          'EntitlementValues',
-        ]),
+        entitlements: jsonRef('EntitlementValues', '#catalog/entitlements', ['EntitlementValues']),
       },
     },
 

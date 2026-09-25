@@ -107,23 +107,38 @@ Webhooks stay under `/webhooks/creem`, as in the existing `webhook_controller.ts
 
 ## 4. Data model
 
-New tables. Money is stored as integer minor units plus `currency`. Every table has `id`, a `public_id` (nanoid, used in URLs and the API) and timestamps. JSON columns are `json` on SQLite and `jsonb` on Postgres.
+New tables. Every table has `id`, a `public_id` (nanoid, used in URLs and the API) and timestamps. The starter's portability rules in `server/CONTRIBUTING.md` apply:
+- Money is stored as integer `_cents` columns plus `currency`.
+- JSON goes through `table.json()` and the `jsonColumn` decorator.
+- No partial indexes, no column alters, no raw SQL. Uniqueness that depends on a row's state is enforced in a service behind a row lock.
 
 **Catalog**
-- `products`: `slug` (unique, used by SDKs), `name`, `description`, `status` (`draft|active|retired`), `kind` (`wordpress_plugin|app|library|other`), `key_prefix` (e.g. `WIPRO`), `homepage_url`, `docs_url`, and a `settings` json holding:
-  - `default_max_activations` (null means unlimited)
+The first three tables were **built in M1**:
+- `products`: `slug` (unique, used by SDKs), `name`, `description`, `status` (`draft|active|retired`), `kind` (`wordpress_plugin|app|library|other`), `key_prefix` (e.g. `WIPRO`), `homepage_url`, `docs_url`, plus three columns that make up the SDK policy:
   - `validation_interval_hours` (default 24)
   - `offline_grace_days` (default 7)
   - `count_dev_sites` (default false; see §5.4)
-  - `on_invalid` behaviour hints for SDKs: `disable_premium`, `disable_updates`
-- `plans`: `product_id`, `slug`, `name`, `billing` (`one_time|monthly|yearly`), `price_minor`, `currency`, `license_term` (`perpetual|subscription|fixed_days`), `term_days`, `updates_days` (for perpetual plans; null means forever), `max_activations` (overrides the product default), `provider_product_id` (the Creem product), `is_public`, `status`.
-- `entitlements`: `product_id`, `key` (e.g. `pdf_export`), `name`, `type` (`bool|int|string`).
-- `plan_entitlements`: `plan_id`, `entitlement_id`, `value` (json).
+- `plans`:
+  - Identity and status: `product_id`, `slug` (unique per product), `name`, `status` (`active|archived`), `is_public`, `sort_order`.
+  - Money: `billing` (`one_time|monthly|yearly`), `price_cents`, `currency`.
+  - License: `license_term` (`perpetual|subscription|fixed_days`), `term_days`, `updates_days` (perpetual only; null means forever).
+  - Limits: `max_activations` (**lives on the plan only**; null means unlimited).
+  - Provider: `provider_product_id` (unique; the Creem product).
+  - `entitlements`: a json map from key to value. It replaces the `plan_entitlements` join table.
+- `entitlements`: `product_id`, `key` (e.g. `pdf_export`; unique per product), `name`, `type` (`boolean|integer|string`), `default_value`, `description`.
+
+**Catalog rules** (in `CatalogService`):
+- **Permanent once shipped.** Product and plan slugs, and a plan's billing and license term, can change only while the product is `draft`. A product never returns to draft.
+- **Price is editable any time.** Licenses copy what they need when they are issued.
+- **Entitlement key and type are permanent.** Deleting a definition also removes its value from every plan.
+- **Resolution order:** license override → plan value → definition default → the type's zero value. The pure function is `#catalog/entitlements.resolveEntitlements`.
+- **Retiring** a product takes it off sale. Existing licenses keep validating.
+- **SDK `on_invalid` hints** are deferred to M6, when the SDK needs them.
 - `releases`: `product_id`, `version` (semver), `channel` (`stable|beta`), `changelog` (md), `requires` (json, e.g. `{wp:"6.5",php:"8.1"}`), `file_key` (drive/S3 path), `checksum_sha256`, `published_at`, `license_required`.
 
 **Commerce.** Customers are orgs (D1).
-- `orders`: `organization_id`, `status` (`pending|paid|refunded|partially_refunded|failed`), `total_minor`, `currency`, `provider`, `provider_checkout_id`, `provider_order_id`, `paid_at`.
-- `order_items`: `order_id`, `plan_id`, `quantity`, `unit_price_minor`.
+- `orders`: `organization_id`, `status` (`pending|paid|refunded|partially_refunded|failed`), `total_cents`, `currency`, `provider`, `provider_checkout_id`, `provider_order_id`, `paid_at`.
+- `order_items`: `order_id`, `plan_id`, `quantity`, `unit_price_cents`.
 - `subscriptions` and `payments`: **existing tables**. Add `plan_id` to both, `order_id` to `payments`, and `cancel_at_period_end` if it is missing.
 
 **Licensing**
@@ -133,7 +148,7 @@ New tables. Money is stored as integer minor units plus `currency`. Every table 
   - Status: `status` (`active|suspended|revoked`), `expires_at` (null means perpetual), `updates_until`, `support_until`.
   - Limits and entitlements: `max_activations` (a snapshot from the plan that staff can override), `entitlement_overrides` (json).
   - Other: `notes`.
-- `license_activations`: `license_id`, `instance_id` (a UUID generated by the client), `site_url`/`hostname` (normalized), `label`, `is_dev`, `ip`, `user_agent`, `client_version`, `activated_at`, `last_seen_at`, `deactivated_at`. There is a unique index on (`license_id`, `instance_id`) where `deactivated_at is null`.
+- `license_activations`: `license_id`, `instance_id` (a UUID generated by the client), `site_url`/`hostname` (normalized), `label`, `is_dev`, `ip`, `user_agent`, `client_version`, `activated_at`, `last_seen_at`, `deactivated_at`. Portability rule 5 forbids partial indexes, so "one live activation per (`license_id`, `instance_id`)" is enforced in `ActivationService` inside a transaction that locks the license row. Re-activating a deactivated instance reuses its row.
 - `license_events`: an append-only history (`created`, `extended`, `suspended`, `revoked`, `reissued`, `activation_added`, `activation_removed`, …) with `actor` (`system|staff:<id>|customer:<id>|webhook:<event>`). This complements the global audit log.
 
 **Why the key is both hashed and encrypted.** This changes `old-plan.md`, where keys were hash-only. Lookup uses the hash, so a DB dump alone does not reveal usable keys to anyone without `APP_KEY`. Customers still lose keys, though, and support then needs to show the key again. Reissuing a key rotates both columns.
@@ -380,10 +395,11 @@ Each milestone ends green in CI and can be demoed.
 - M4 moves billing from "one tier per org" to "subscriptions per license".
 - The system org for integration keys is seeded in M4, when the integration API arrives.
 
-**M1: Catalog (≈3 days)**
-- Add the products, plans, entitlements and plan_entitlements migrations, models, services and admin CRUD.
-- Staff pages under `/admin/catalog`. Nothing is removed yet; `config/plans.ts` stays until M4.
-- ✅ Staff can create "Invoice Pro" with Monthly, Yearly and Lifetime plans and their entitlements.
+**M1: Catalog (≈3 days)** ✅ done
+- Added the products, entitlements and plans migrations, the models and `#catalog/catalog_service`.
+- Staff pages at `/admin/products`. Support can read them; admins can edit (`StaffPolicy.manageCatalog`). Every write is audited.
+- Nothing is removed yet; `config/plans.ts` stays until M4.
+- ✅ 38 new tests (unit: resolution and plan shape; functional: access, products, plans, entitlements). Suite at 705/705.
 
 **M2: Licensing core (≈4 days)**
 - Add licenses, activations and license_events, plus key generation, hashing and encryption.

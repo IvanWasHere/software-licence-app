@@ -138,9 +138,7 @@ router
         router.get('/:id', [controllers.admin.Product, 'show']).as('admin.products.show')
         router.post('/:id', [controllers.admin.Product, 'update']).as('admin.products.update')
 
-        router
-          .get('/:id/plans/new', [controllers.admin.Plan, 'create'])
-          .as('admin.plans.create')
+        router.get('/:id/plans/new', [controllers.admin.Plan, 'create']).as('admin.plans.create')
         router.post('/:id/plans', [controllers.admin.Plan, 'store']).as('admin.plans.store')
         router
           .get('/:id/plans/:planId', [controllers.admin.Plan, 'edit'])

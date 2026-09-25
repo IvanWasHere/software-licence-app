@@ -96,10 +96,7 @@ export class CatalogService {
   }
 
   async findEntitlement(product: Product, publicId: string): Promise<Entitlement | null> {
-    return Entitlement.query()
-      .where('product_id', product.id)
-      .where('public_id', publicId)
-      .first()
+    return Entitlement.query().where('product_id', product.id).where('public_id', publicId).first()
   }
 
   async createProduct(input: ProductInput): Promise<Product> {
@@ -187,7 +184,8 @@ export class CatalogService {
         locked.slug = 'The slug is fixed once the product has left draft.'
       }
       if (input.billing !== plan.billing) {
-        locked.billing = 'Billing is fixed once the product has left draft. Archive this plan and add a new one.'
+        locked.billing =
+          'Billing is fixed once the product has left draft. Archive this plan and add a new one.'
       }
       if (input.licenseTerm !== plan.licenseTerm) {
         locked.licenseTerm = 'The license term is fixed once the product has left draft.'
@@ -250,7 +248,8 @@ export class CatalogService {
       const value = coerceEntitlementValue(definition.type, input)
 
       if (value === undefined) {
-        errors[`entitlements.${definition.key}`] = `${definition.name} must be ${articleFor(definition.type)}.`
+        errors[`entitlements.${definition.key}`] =
+          `${definition.name} must be ${articleFor(definition.type)}.`
         continue
       }
 
@@ -274,7 +273,9 @@ export class CatalogService {
       .first()
 
     if (existing) {
-      throw new CatalogError({ key: `${product.name} already has an entitlement called ${input.key}.` })
+      throw new CatalogError({
+        key: `${product.name} already has an entitlement called ${input.key}.`,
+      })
     }
 
     return Entitlement.create({
@@ -320,8 +321,9 @@ export class CatalogService {
 
       for (const plan of plans) {
         if (plan.entitlements && entitlement.key in plan.entitlements) {
-          const { [entitlement.key]: _removed, ...rest } = plan.entitlements
-          plan.entitlements = rest
+          const remaining = { ...plan.entitlements }
+          delete remaining[entitlement.key]
+          plan.entitlements = remaining
           await plan.save()
         }
       }

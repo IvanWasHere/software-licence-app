@@ -1,0 +1,223 @@
+{{--
+  One product (licence plan §8, M1): its settings, the plans that sell it and
+  the entitlements those plans grant.
+
+  Support sees all of it read-only; the forms render for admins only
+  (`StaffPolicy.manageCatalog`).
+--}}
+@component('layouts/admin', { title: product.name })
+  @pageHeader({ description: product.description || 'No description.' })
+    @slot('heading')
+      {{ product.name }}
+      @!badge({
+        text: product.status,
+        tone: product.status === 'active' ? 'success' : (product.status === 'draft' ? 'warning' : 'neutral'),
+      })
+    @end
+    @slot('actions')
+      <a class="btn btn-ghost btn-sm" href="{{ urlFor('admin.products.index') }}">All products</a>
+    @end
+  @end
+
+  {{-- Plans first: they are what somebody opening this screen usually wants. --}}
+  @panel.root({ title: 'Plans', flush: true })
+    @slot('actions')
+      @if(canManage)
+        <a class="btn btn-primary btn-sm" href="{{ urlFor('admin.plans.create', { id: product.publicId }) }}">New plan</a>
+      @end
+    @end
+
+    @if(product.plans.length)
+      <div class="table-scroll">
+        <table class="tx-table">
+          <thead>
+            <tr><th>Plan</th><th>Price</th><th>License</th><th>Activations</th><th>Provider product</th><th>State</th><th></th></tr>
+          </thead>
+          <tbody>
+            @each(plan in product.plans)
+              <tr>
+                <td>
+                  <a href="{{ urlFor('admin.plans.edit', { id: product.publicId, planId: plan.publicId }) }}">{{ plan.name }}</a>
+                  <div class="field-hint"><code>{{ plan.slug }}</code></div>
+                </td>
+                <td style="white-space: nowrap">
+                  {{ money(plan.priceCents, plan.currency) }}
+                  <span class="field-hint">{{ plan.billing === 'one_time' ? 'once' : (plan.billing === 'monthly' ? '/ month' : '/ year') }}</span>
+                </td>
+                <td>
+                  @if(plan.licenseTerm === 'perpetual')
+                    Perpetual{{ plan.updatesDays ? `, ${plan.updatesDays} days of updates` : '' }}
+                  @elseif(plan.licenseTerm === 'fixed_days')
+                    {{ plan.termDays }} days
+                  @else
+                    While subscribed
+                  @end
+                </td>
+                <td>{{ plan.activationsLabel }}</td>
+                <td>
+                  @if(plan.providerProductId)
+                    <code>{{ plan.providerProductId }}</code>
+                  @else
+                    <span class="field-hint">Not mapped</span>
+                  @end
+                </td>
+                <td>
+                  @if(plan.isArchived)
+                    @!badge({ text: 'Archived', tone: 'neutral' })
+                  @elseif(!plan.isPublic)
+                    @!badge({ text: 'Hidden', tone: 'info' })
+                  @else
+                    @!badge({ text: 'On sale', tone: 'success' })
+                  @end
+                </td>
+                <td>
+                  @if(canManage)
+                    @form({ route: 'admin.plans.archive', routeParams: { id: product.publicId, planId: plan.publicId }, method: 'POST' })
+                      @!button({ text: plan.isArchived ? 'Restore' : 'Archive', variant: 'outline', size: 'xs', type: 'submit' })
+                    @end
+                  @end
+                </td>
+              </tr>
+            @end
+          </tbody>
+        </table>
+      </div>
+    @else
+      @!emptyState({
+        icon: 'creditCard',
+        title: 'No plans yet',
+        description: 'A plan is a price plus the license it buys — for example Yearly, €149, 3 sites.',
+      })
+    @end
+  @end
+
+  @panel.root({ title: 'Entitlements', flush: true })
+    @if(product.entitlements.length)
+      <div class="table-scroll">
+        <table class="tx-table">
+          <thead>
+            <tr><th>Key</th><th>Name</th><th>Type</th><th>Default</th><th></th></tr>
+          </thead>
+          <tbody>
+            @each(entitlement in product.entitlements)
+              <tr>
+                <td><code>{{ entitlement.key }}</code></td>
+                <td>
+                  {{ entitlement.name }}
+                  @if(entitlement.description)
+                    <div class="field-hint">{{ entitlement.description }}</div>
+                  @end
+                </td>
+                <td>{{ entitlement.type }}</td>
+                <td>
+                  @if(entitlement.defaultValue === null || entitlement.defaultValue === undefined)
+                    <span class="field-hint">{{ entitlement.type === 'boolean' ? 'no' : (entitlement.type === 'integer' ? '0' : 'empty') }}</span>
+                  @else
+                    <code>{{ String(entitlement.defaultValue) }}</code>
+                  @end
+                </td>
+                <td>
+                  @if(canManage)
+                    <details>
+                      <summary class="btn btn-outline btn-xs">Edit</summary>
+                      @form({ route: 'admin.entitlements.update', routeParams: { id: product.publicId, entitlementId: entitlement.publicId }, method: 'POST' })
+                        <input class="field-input" name="name" value="{{ entitlement.name }}" aria-label="Name" />
+                        <input class="field-input" name="description" value="{{ entitlement.description ?? '' }}" placeholder="Description" aria-label="Description" />
+                        <input class="field-input" name="defaultValue" value="{{ entitlement.defaultValue === null || entitlement.defaultValue === undefined ? '' : String(entitlement.defaultValue) }}" placeholder="Default" aria-label="Default" />
+                        <div class="btn-row">
+                          @!button({ text: 'Save', size: 'xs', type: 'submit' })
+                        </div>
+                      @end
+                      @form({ route: 'admin.entitlements.destroy', routeParams: { id: product.publicId, entitlementId: entitlement.publicId }, method: 'POST' })
+                        @!button({ text: 'Delete', variant: 'danger', size: 'xs', type: 'submit' })
+                      @end
+                    </details>
+                  @end
+                </td>
+              </tr>
+            @end
+          </tbody>
+        </table>
+      </div>
+    @else
+      @!emptyState({
+        icon: 'key',
+        title: 'No entitlements',
+        description: 'Entitlements are the flags and limits a plan grants, e.g. pdf_export or max_projects. SDKs read them with license.has(…).',
+      })
+    @end
+  @end
+
+  @if(canManage)
+    <div class="settings-card">
+      <h2 class="section-title">Add an entitlement</h2>
+      <p class="section-desc">The key and type are permanent — customers' code reads the key.</p>
+
+      @form({ route: 'admin.entitlements.store', routeParams: { id: product.publicId }, method: 'POST' })
+        <div class="field-row" style="grid-template-columns: 1fr 1fr 1fr 1fr">
+          @field.root({ name: 'key' })
+            @!field.label({ text: 'Key' })
+            @!input.control({ placeholder: 'pdf_export' })
+            @!field.error()
+          @end
+          @field.root({ name: 'name' })
+            @!field.label({ text: 'Name' })
+            @!input.control({ placeholder: 'PDF export' })
+            @!field.error()
+          @end
+          @field.root({ name: 'type' })
+            @!field.label({ text: 'Type' })
+            @!select.control({ options: entitlementTypes.map((type) => ({ value: type, name: type })) })
+            @!field.error()
+          @end
+          @field.root({ name: 'defaultValue' })
+            @!field.label({ text: 'Default' })
+            @!input.control({ placeholder: 'optional' })
+            @!field.error()
+          @end
+        </div>
+        @field.root({ name: 'description' })
+          @!field.label({ text: 'Description' })
+          @!input.control({ placeholder: 'optional' })
+          @!field.error()
+        @end
+        <div class="btn-row">
+          @!button({ text: 'Add entitlement', type: 'submit', size: 'sm' })
+        </div>
+      @end
+    </div>
+
+    <div class="settings-card">
+      <h2 class="section-title">Settings</h2>
+      <p class="section-desc"><code>{{ product.publicId }}</code></p>
+
+      @form({ route: 'admin.products.update', routeParams: { id: product.publicId }, method: 'POST' })
+        @field.root({ name: 'status' })
+          @!field.label({ text: 'Status' })
+          @!select.control({
+            options: (product.isDraft ? [{ value: 'draft', name: 'Draft — not on sale, slug still editable', isSelected: true }] : []).concat([
+              { value: 'active', name: 'Active — on sale and validating', isSelected: product.status === 'active' },
+              { value: 'retired', name: 'Retired — not on sale; existing licenses keep validating', isSelected: product.status === 'retired' },
+            ]),
+          })
+          @!field.error()
+        @end
+
+        @include('pages/admin/products/_form')
+
+        <div class="btn-row">
+          @!button({ text: 'Save product', type: 'submit', size: 'sm' })
+        </div>
+      @end
+    </div>
+  @else
+    <div class="settings-card">
+      <h2 class="section-title">Settings</h2>
+      <p class="section-desc">
+        Slug <code>{{ product.slug }}</code> · key prefix <code>{{ product.keyPrefix }}</code> ·
+        re-validate every {{ product.validationIntervalHours }}h · {{ product.offlineGraceDays }} days offline grace ·
+        dev sites {{ product.countDevSites ? 'count' : 'free' }}
+      </p>
+    </div>
+  @end
+@end

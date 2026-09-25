@@ -1,0 +1,90 @@
+{{--
+  The product fields, shared by the create screen and the product screen.
+  `product` is null when creating.
+
+  The slug and key prefix say why they matter, because both end up in places
+  we can never edit again: shipped software and customers' license keys.
+--}}
+<div class="field-row" style="grid-template-columns: 2fr 1fr">
+  @field.root({ name: 'name' })
+    @!field.label({ text: 'Name' })
+    @!input.control({ value: product ? product.name : '', placeholder: 'Invoice Pro' })
+    @!field.error()
+  @end
+
+  @field.root({ name: 'kind' })
+    @!field.label({ text: 'Kind' })
+    @!select.control({
+      options: [
+        { value: 'wordpress_plugin', name: 'WordPress plugin', isSelected: product && product.kind === 'wordpress_plugin' },
+        { value: 'app', name: 'Application', isSelected: product && product.kind === 'app' },
+        { value: 'library', name: 'Library / SDK', isSelected: product && product.kind === 'library' },
+        { value: 'other', name: 'Other', isSelected: product && product.kind === 'other' },
+      ],
+    })
+    @!field.error()
+  @end
+</div>
+
+<div class="field-row" style="grid-template-columns: 2fr 1fr">
+  @field.root({ name: 'slug' })
+    @!field.label({ text: 'Slug' })
+    @!input.control({ value: product ? product.slug : '', placeholder: 'invoice-pro', readonly: product && !product.isDraft })
+    <p class="field-hint">
+      Sent by every SDK call. Editable only while the product is a draft.
+    </p>
+    @!field.error()
+  @end
+
+  @field.root({ name: 'keyPrefix' })
+    @!field.label({ text: 'Key prefix' })
+    @!input.control({ value: product ? product.keyPrefix : '', placeholder: 'WIPRO' })
+    <p class="field-hint">2–8 letters or digits. Starts every license key.</p>
+    @!field.error()
+  @end
+</div>
+
+@field.root({ name: 'description' })
+  @!field.label({ text: 'Description' })
+  @!textarea.control({ rows: 2, value: product ? product.description : '' })
+  @!field.error()
+@end
+
+<div class="field-row" style="grid-template-columns: 1fr 1fr">
+  @field.root({ name: 'homepageUrl' })
+    @!field.label({ text: 'Homepage' })
+    @!input.control({ value: product ? product.homepageUrl : '', placeholder: 'https://…' })
+    @!field.error()
+  @end
+
+  @field.root({ name: 'docsUrl' })
+    @!field.label({ text: 'Documentation' })
+    @!input.control({ value: product ? product.docsUrl : '', placeholder: 'https://…' })
+    @!field.error()
+  @end
+</div>
+
+<h3 class="section-title" style="margin-top: 1.5rem">Client policy</h3>
+<p class="section-desc">Sent to the SDKs with every validation, so changing it needs no new release.</p>
+
+<div class="field-row" style="grid-template-columns: 1fr 1fr">
+  @field.root({ name: 'validationIntervalHours' })
+    @!field.label({ text: 'Re-validate every (hours)' })
+    @!input.control({ type: 'number', min: 1, max: 720, value: product ? product.validationIntervalHours : 24 })
+    @!field.error()
+  @end
+
+  @field.root({ name: 'offlineGraceDays' })
+    @!field.label({ text: 'Offline grace (days)' })
+    @!input.control({ type: 'number', min: 0, max: 90, value: product ? product.offlineGraceDays : 7 })
+    <p class="field-hint">How long a client keeps working while it cannot reach us.</p>
+    @!field.error()
+  @end
+</div>
+
+<div class="check-row">
+  <input type="checkbox" name="countDevSites" value="1" id="count-dev-sites" {{ product && product.countDevSites ? 'checked' : '' }} />
+  <label for="count-dev-sites">
+    Count development and staging sites (localhost, *.test, staging.*) against the activation limit
+  </label>
+</div>

@@ -157,6 +157,19 @@ export type ScannedRoutes = {
     'admin.subscriptions.reconciliation': { paramsTuple?: []; params?: {} }
     'admin.subscriptions.sync': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.subscriptions.cancel': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.products.index': { paramsTuple?: []; params?: {} }
+    'admin.products.create': { paramsTuple?: []; params?: {} }
+    'admin.products.store': { paramsTuple?: []; params?: {} }
+    'admin.products.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.products.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.plans.create': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.plans.store': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.plans.edit': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'planId': ParamValue} }
+    'admin.plans.update': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'planId': ParamValue} }
+    'admin.plans.archive': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'planId': ParamValue} }
+    'admin.entitlements.store': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.entitlements.update': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'entitlementId': ParamValue} }
+    'admin.entitlements.destroy': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'entitlementId': ParamValue} }
     'admin.webhooks.index': { paramsTuple?: []; params?: {} }
     'admin.webhooks.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.webhooks.replay': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
@@ -259,6 +272,11 @@ export type ScannedRoutes = {
     'admin.users.index': { paramsTuple?: []; params?: {} }
     'admin.subscriptions.index': { paramsTuple?: []; params?: {} }
     'admin.subscriptions.reconciliation': { paramsTuple?: []; params?: {} }
+    'admin.products.index': { paramsTuple?: []; params?: {} }
+    'admin.products.create': { paramsTuple?: []; params?: {} }
+    'admin.products.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.plans.create': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.plans.edit': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'planId': ParamValue} }
     'admin.webhooks.index': { paramsTuple?: []; params?: {} }
     'admin.webhooks.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.notifications.index': { paramsTuple?: []; params?: {} }
@@ -354,6 +372,11 @@ export type ScannedRoutes = {
     'admin.users.index': { paramsTuple?: []; params?: {} }
     'admin.subscriptions.index': { paramsTuple?: []; params?: {} }
     'admin.subscriptions.reconciliation': { paramsTuple?: []; params?: {} }
+    'admin.products.index': { paramsTuple?: []; params?: {} }
+    'admin.products.create': { paramsTuple?: []; params?: {} }
+    'admin.products.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.plans.create': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.plans.edit': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'planId': ParamValue} }
     'admin.webhooks.index': { paramsTuple?: []; params?: {} }
     'admin.webhooks.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.notifications.index': { paramsTuple?: []; params?: {} }
@@ -438,6 +461,14 @@ export type ScannedRoutes = {
     'admin.impersonation.store': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.subscriptions.sync': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.subscriptions.cancel': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.products.store': { paramsTuple?: []; params?: {} }
+    'admin.products.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.plans.store': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.plans.update': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'planId': ParamValue} }
+    'admin.plans.archive': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'planId': ParamValue} }
+    'admin.entitlements.store': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.entitlements.update': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'entitlementId': ParamValue} }
+    'admin.entitlements.destroy': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'entitlementId': ParamValue} }
     'admin.webhooks.replay': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.notifications.store': { paramsTuple?: []; params?: {} }
     'admin.notifications.publish': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }

@@ -1,0 +1,18 @@
+@component('layouts/admin', { title: 'New product' })
+  <div class="settings-card">
+    <h2 class="section-title">New product</h2>
+    <p class="section-desc">
+      It starts as a draft: nothing can be bought and its slug can still change. Add plans, then set it
+      active.
+    </p>
+
+    @form({ route: 'admin.products.store', method: 'POST' })
+      @include('pages/admin/products/_form')
+
+      <div class="btn-row">
+        @!button({ text: 'Create product', type: 'submit', size: 'sm' })
+        <a class="btn btn-ghost btn-sm" href="{{ urlFor('admin.products.index') }}">Cancel</a>
+      </div>
+    @end
+  </div>
+@end

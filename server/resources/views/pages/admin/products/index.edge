@@ -1,0 +1,52 @@
+{{--
+  The catalog (licence plan §8, M1): everything we sell a license for.
+--}}
+@component('layouts/admin', { title: 'Products' })
+  @pageHeader({
+    title: 'Products',
+    description: 'Each product has its own plans, entitlements and license keys. SDKs identify a product by its slug.',
+  })
+    @slot('actions')
+      @if(canManage)
+        <a class="btn btn-primary btn-sm" href="{{ urlFor('admin.products.create') }}">New product</a>
+      @end
+    @end
+  @end
+
+  @panel.root({ flush: true })
+    @if(products.length)
+      <div class="table-scroll">
+        <table class="tx-table">
+          <thead>
+            <tr><th>Product</th><th>Slug</th><th>Kind</th><th>Key prefix</th><th>Plans on sale</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            @each(product in products)
+              <tr>
+                <td>
+                  <a href="{{ urlFor('admin.products.show', { id: product.publicId }) }}">{{ product.name }}</a>
+                </td>
+                <td><code>{{ product.slug }}</code></td>
+                <td>{{ product.kind.replace('_', ' ') }}</td>
+                <td><code>{{ product.keyPrefix }}</code></td>
+                <td>{{ product.$extras.plans_count }}</td>
+                <td>
+                  @!badge({
+                    text: product.status,
+                    tone: product.status === 'active' ? 'success' : (product.status === 'draft' ? 'warning' : 'neutral'),
+                  })
+                </td>
+              </tr>
+            @end
+          </tbody>
+        </table>
+      </div>
+    @else
+      @!emptyState({
+        icon: 'layers',
+        title: 'No products yet',
+        description: 'Create a product, give it plans and entitlements, and it can start issuing license keys.',
+      })
+    @end
+  @end
+@end

@@ -7,10 +7,13 @@ export const controllers = {
   admin: {
     AuditLog: () => import('#app/controllers/admin/audit_log_controller'),
     Dashboard: () => import('#app/controllers/admin/dashboard_controller'),
+    Entitlement: () => import('#app/controllers/admin/entitlement_controller'),
     Impersonation: () => import('#app/controllers/admin/impersonation_controller'),
     Job: () => import('#app/controllers/admin/job_controller'),
     Notification: () => import('#app/controllers/admin/notification_controller'),
     Organization: () => import('#app/controllers/admin/organization_controller'),
+    Plan: () => import('#app/controllers/admin/plan_controller'),
+    Product: () => import('#app/controllers/admin/product_controller'),
     Session: () => import('#app/controllers/admin/session_controller'),
     Staff: () => import('#app/controllers/admin/staff_controller'),
     Subscription: () => import('#app/controllers/admin/subscription_controller'),

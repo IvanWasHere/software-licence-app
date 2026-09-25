@@ -1,0 +1,165 @@
+{{--
+  Creating or editing one plan (licence plan §8, M1). `plan` is null when
+  creating.
+
+  Once the product has left draft, billing, license term and slug are shown
+  but refused on save by `CatalogService` — they are what existing customers
+  agreed to buy. Price is not: a new price applies to the next purchase.
+--}}
+@let(locked = plan && !product.isDraft)
+@let(entitlementValues = plan && plan.entitlements ? plan.entitlements : {})
+
+@component('layouts/admin', { title: plan ? `${product.name} · ${plan.name}` : `${product.name} · New plan` })
+  @pageHeader({
+    title: plan ? plan.name : 'New plan',
+    description: plan ? `${product.name} · ${plan.publicId}` : `A price, and the license it buys, for ${product.name}.`,
+  })
+    @slot('actions')
+      <a class="btn btn-ghost btn-sm" href="{{ urlFor('admin.products.show', { id: product.publicId }) }}">Back to {{ product.name }}</a>
+    @end
+  @end
+
+  <div class="settings-card">
+    @form({
+      route: plan ? 'admin.plans.update' : 'admin.plans.store',
+      routeParams: plan ? { id: product.publicId, planId: plan.publicId } : { id: product.publicId },
+      method: 'POST',
+    })
+      <fieldset {{ canManage ? '' : 'disabled' }} style="border: 0; padding: 0; margin: 0">
+        <div class="field-row" style="grid-template-columns: 2fr 1fr">
+          @field.root({ name: 'name' })
+            @!field.label({ text: 'Name' })
+            @!input.control({ value: plan ? plan.name : '', placeholder: 'Yearly' })
+            @!field.error()
+          @end
+
+          @field.root({ name: 'slug' })
+            @!field.label({ text: 'Slug' })
+            @!input.control({ value: plan ? plan.slug : '', placeholder: 'invoice-pro-yearly', readonly: locked })
+            @!field.error()
+          @end
+        </div>
+
+        <div class="field-row" style="grid-template-columns: 1fr 1fr 1fr">
+          @field.root({ name: 'billing' })
+            @!field.label({ text: 'Billing' })
+            @!select.control({
+              options: [
+                { value: 'yearly', name: 'Yearly subscription', isSelected: plan && plan.billing === 'yearly' },
+                { value: 'monthly', name: 'Monthly subscription', isSelected: plan && plan.billing === 'monthly' },
+                { value: 'one_time', name: 'One-time payment', isSelected: plan && plan.billing === 'one_time' },
+              ],
+            })
+            @!field.error()
+          @end
+
+          @field.root({ name: 'price' })
+            @!field.label({ text: 'Price' })
+            @!input.control({ value: plan ? (plan.priceCents / 100).toFixed(2) : '', placeholder: '149.00', inputmode: 'decimal' })
+            @!field.error()
+          @end
+
+          @field.root({ name: 'currency' })
+            @!field.label({ text: 'Currency' })
+            @!input.control({ value: plan ? plan.currency : 'EUR', maxlength: 3 })
+            @!field.error()
+          @end
+        </div>
+
+        <div class="field-row" style="grid-template-columns: 1fr 1fr 1fr">
+          @field.root({ name: 'licenseTerm' })
+            @!field.label({ text: 'License term' })
+            @!select.control({
+              options: [
+                { value: 'subscription', name: 'While the subscription is paid', isSelected: plan && plan.licenseTerm === 'subscription' },
+                { value: 'perpetual', name: 'Perpetual', isSelected: plan && plan.licenseTerm === 'perpetual' },
+                { value: 'fixed_days', name: 'Fixed number of days', isSelected: plan && plan.licenseTerm === 'fixed_days' },
+              ],
+            })
+            <p class="field-hint">Monthly and yearly plans always use the subscription.</p>
+            @!field.error()
+          @end
+
+          @field.root({ name: 'termDays' })
+            @!field.label({ text: 'Length (days)' })
+            @!input.control({ type: 'number', min: 1, value: plan && plan.termDays ? plan.termDays : '' })
+            <p class="field-hint">Fixed-length licenses only.</p>
+            @!field.error()
+          @end
+
+          @field.root({ name: 'updatesDays' })
+            @!field.label({ text: 'Updates for (days)' })
+            @!input.control({ type: 'number', min: 1, value: plan && plan.updatesDays ? plan.updatesDays : '' })
+            <p class="field-hint">Perpetual only. Empty means updates for ever.</p>
+            @!field.error()
+          @end
+        </div>
+
+        <div class="field-row" style="grid-template-columns: 1fr 2fr 1fr">
+          @field.root({ name: 'maxActivations' })
+            @!field.label({ text: 'Activations' })
+            @!input.control({ type: 'number', min: 1, value: plan && plan.maxActivations ? plan.maxActivations : '', placeholder: 'Unlimited' })
+            <p class="field-hint">Sites or installs. Empty means unlimited.</p>
+            @!field.error()
+          @end
+
+          @field.root({ name: 'providerProductId' })
+            @!field.label({ text: 'Payment-provider product id' })
+            @!input.control({ value: plan && plan.providerProductId ? plan.providerProductId : '', placeholder: 'prod_…' })
+            <p class="field-hint">The Creem product a checkout for this plan uses. Needed before it can be sold online.</p>
+            @!field.error()
+          @end
+
+          @field.root({ name: 'sortOrder' })
+            @!field.label({ text: 'Sort order' })
+            @!input.control({ type: 'number', min: 0, value: plan ? plan.sortOrder : 0 })
+            @!field.error()
+          @end
+        </div>
+
+        <div class="check-row">
+          <input type="checkbox" name="isPublic" value="1" id="is-public" {{ !plan || plan.isPublic ? 'checked' : '' }} />
+          <label for="is-public">Show on the pricing page. Hidden plans can still be issued by staff.</label>
+        </div>
+
+        <h3 class="section-title" style="margin-top: 1.5rem">Entitlements</h3>
+        @if(product.entitlements.length)
+          <p class="section-desc">Leave a value empty to use the entitlement's default.</p>
+          @each(entitlement in product.entitlements)
+            @let(errorKey = `entitlements.${entitlement.key}`)
+            @let(errors = flashMessages.get('inputErrorsBag', {})[errorKey])
+            @let(current = old(errorKey) !== undefined && old(errorKey) !== null ? old(errorKey) : (entitlementValues[entitlement.key] === undefined ? '' : String(entitlementValues[entitlement.key] === true ? '1' : (entitlementValues[entitlement.key] === false ? '0' : entitlementValues[entitlement.key]))))
+            <div class="field">
+              <label class="field-label" for="ent-{{ entitlement.key }}">
+                {{ entitlement.name }} <code>{{ entitlement.key }}</code>
+              </label>
+              @if(entitlement.type === 'boolean')
+                <select class="field-input" name="entitlements[{{ entitlement.key }}]" id="ent-{{ entitlement.key }}">
+                  <option value="" {{ current === '' ? 'selected' : '' }}>Default ({{ entitlement.defaultValue === true ? 'yes' : 'no' }})</option>
+                  <option value="1" {{ current === '1' ? 'selected' : '' }}>Yes</option>
+                  <option value="0" {{ current === '0' ? 'selected' : '' }}>No</option>
+                </select>
+              @else
+                <input class="field-input" name="entitlements[{{ entitlement.key }}]" id="ent-{{ entitlement.key }}" value="{{ current }}"
+                  placeholder="Default: {{ entitlement.defaultValue === null || entitlement.defaultValue === undefined ? (entitlement.type === 'integer' ? '0' : 'empty') : String(entitlement.defaultValue) }}" />
+              @end
+              @if(errors)
+                <div class="field-error"><span>{{ errors[0] }}</span></div>
+              @end
+            </div>
+          @end
+        @else
+          <p class="section-desc">
+            {{ product.name }} defines no entitlements yet. Add them on the product screen, then set values here.
+          </p>
+        @end
+      </fieldset>
+
+      @if(canManage)
+        <div class="btn-row">
+          @!button({ text: plan ? 'Save plan' : 'Create plan', type: 'submit', size: 'sm' })
+        </div>
+      @end
+    @end
+  </div>
+@end
