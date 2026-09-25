@@ -46,6 +46,9 @@ export const PUBLIC_ID_PREFIXES = {
   todo: 'tdo',
   supportTicket: 'tkt',
   supportMessage: 'msg',
+  product: 'prd',
+  plan: 'pln',
+  entitlement: 'ent',
 } as const
 
 export type PublicIdResource = keyof typeof PUBLIC_ID_PREFIXES

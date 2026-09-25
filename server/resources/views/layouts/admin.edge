@@ -92,6 +92,11 @@
             @!navItem({ route: 'admin.support.index', icon: 'lifebuoy', label: 'Support' })
           @end
 
+          @if(hasRoute('admin.products.index'))
+            <div class="nav-section-title">Catalog</div>
+            @!navItem({ route: 'admin.products.index', icon: 'layers', label: 'Products' })
+          @end
+
           @if(hasRoute('admin.subscriptions.index') || hasRoute('admin.webhooks.index') || hasRoute('admin.jobs.index') || hasRoute('admin.notifications.index') || hasRoute('admin.audit_logs.index'))
             <div class="nav-section-title">Operations</div>
           @end

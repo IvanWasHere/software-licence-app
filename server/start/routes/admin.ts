@@ -21,6 +21,7 @@ import router from '@adonisjs/core/services/router'
 import { middleware } from '#start/kernel'
 import { controllers } from '#generated/controllers'
 import { adminLoginThrottle, twoFactorThrottle } from '#start/limiter'
+import { publicIdMatcher } from '#models/public_id'
 
 router
   .group(() => {
@@ -123,6 +124,54 @@ router
     router
       .post('/subscriptions/:id/cancel', [controllers.admin.Subscription, 'cancel'])
       .as('admin.subscriptions.cancel')
+
+    /**
+     * The catalog (licence plan §8, M1). Support can read it — "what does the
+     * Pro plan include?" is a support question — and only an admin may change
+     * it, decided by `StaffPolicy.manageCatalog` inside each controller.
+     */
+    router
+      .group(() => {
+        router.get('/', [controllers.admin.Product, 'index']).as('admin.products.index')
+        router.get('/new', [controllers.admin.Product, 'create']).as('admin.products.create')
+        router.post('/', [controllers.admin.Product, 'store']).as('admin.products.store')
+        router.get('/:id', [controllers.admin.Product, 'show']).as('admin.products.show')
+        router.post('/:id', [controllers.admin.Product, 'update']).as('admin.products.update')
+
+        router
+          .get('/:id/plans/new', [controllers.admin.Plan, 'create'])
+          .as('admin.plans.create')
+        router.post('/:id/plans', [controllers.admin.Plan, 'store']).as('admin.plans.store')
+        router
+          .get('/:id/plans/:planId', [controllers.admin.Plan, 'edit'])
+          .as('admin.plans.edit')
+          .where('planId', publicIdMatcher('plan'))
+        router
+          .post('/:id/plans/:planId', [controllers.admin.Plan, 'update'])
+          .as('admin.plans.update')
+          .where('planId', publicIdMatcher('plan'))
+        router
+          .post('/:id/plans/:planId/archive', [controllers.admin.Plan, 'archive'])
+          .as('admin.plans.archive')
+          .where('planId', publicIdMatcher('plan'))
+
+        router
+          .post('/:id/entitlements', [controllers.admin.Entitlement, 'store'])
+          .as('admin.entitlements.store')
+        router
+          .post('/:id/entitlements/:entitlementId', [controllers.admin.Entitlement, 'update'])
+          .as('admin.entitlements.update')
+          .where('entitlementId', publicIdMatcher('entitlement'))
+        router
+          .post('/:id/entitlements/:entitlementId/delete', [
+            controllers.admin.Entitlement,
+            'destroy',
+          ])
+          .as('admin.entitlements.destroy')
+          .where('entitlementId', publicIdMatcher('entitlement'))
+      })
+      .prefix('/products')
+      .where('id', publicIdMatcher('product'))
 
     router.get('/webhooks', [controllers.admin.Webhook, 'index']).as('admin.webhooks.index')
     router.get('/webhooks/:id', [controllers.admin.Webhook, 'show']).as('admin.webhooks.show')

@@ -238,6 +238,40 @@ export default {
       },
     },
 
+    /**
+     * The catalog (licence plan §4). The closed sets are imported from
+     * `#catalog/*` rather than restated where that is possible, for the same
+     * reason `api_keys.scopes` is.
+     */
+    products: {
+      columns: {
+        status: union('draft', 'active', 'retired'),
+        kind: union('wordpress_plugin', 'app', 'library', 'other'),
+        count_dev_sites: boolean,
+      },
+    },
+
+    entitlements: {
+      columns: {
+        type: union('boolean', 'integer', 'string'),
+        default_value: jsonRef('EntitlementValue', '#catalog/entitlements', [
+          'EntitlementValue',
+        ]),
+      },
+    },
+
+    plans: {
+      columns: {
+        status: union('active', 'archived'),
+        billing: union('one_time', 'monthly', 'yearly'),
+        license_term: union('perpetual', 'subscription', 'fixed_days'),
+        is_public: boolean,
+        entitlements: jsonRef('EntitlementValues', '#catalog/entitlements', [
+          'EntitlementValues',
+        ]),
+      },
+    },
+
     jobs: {
       columns: {
         /**

@@ -31,6 +31,16 @@ export const AUDIT_ACTIONS = {
 
   webhookReplayed: 'webhook.replayed',
 
+  productCreated: 'catalog.product.created',
+  productUpdated: 'catalog.product.updated',
+  planCreated: 'catalog.plan.created',
+  planUpdated: 'catalog.plan.updated',
+  planArchived: 'catalog.plan.archived',
+  planRestored: 'catalog.plan.restored',
+  entitlementCreated: 'catalog.entitlement.created',
+  entitlementUpdated: 'catalog.entitlement.updated',
+  entitlementDeleted: 'catalog.entitlement.deleted',
+
   notificationCreated: 'notification.created',
   notificationPublished: 'notification.published',
   notificationDeleted: 'notification.deleted',

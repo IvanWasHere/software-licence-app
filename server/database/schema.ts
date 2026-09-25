@@ -6,8 +6,9 @@
 
 import { BaseModel, column } from '@adonisjs/lucid/orm'
 import { DateTime } from 'luxon'
-import { jsonColumn, bigIntColumn, encryptedColumn, encryptedJsonColumn, booleanColumn } from '#database/columns'
+import { jsonColumn, bigIntColumn, booleanColumn, encryptedColumn, encryptedJsonColumn } from '#database/columns'
 import type { ApiScope } from '#api/scopes'
+import type { EntitlementValue, EntitlementValues } from '#catalog/entitlements'
 
 export class ApiKeySchema extends BaseModel {
   static $columns = ['createdAt', 'createdByUserId', 'expiresAt', 'id', 'keyHash', 'lastUsedAt', 'name', 'organizationId', 'prefix', 'publicId', 'revokedAt', 'scopes', 'updatedAt'] as const
@@ -128,6 +129,31 @@ export class AuthTokenSchema extends BaseModel {
   declare type: 'verify_email' | 'reset_password'
   @column()
   declare userId: number
+}
+
+export class EntitlementSchema extends BaseModel {
+  static $columns = ['createdAt', 'defaultValue', 'description', 'id', 'key', 'name', 'productId', 'publicId', 'type', 'updatedAt'] as const
+  $columns = EntitlementSchema.$columns
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @jsonColumn()
+  declare defaultValue: EntitlementValue | null
+  @column()
+  declare description: string | null
+  @column({ isPrimary: true })
+  declare id: number
+  @column()
+  declare key: string
+  @column()
+  declare name: string
+  @column()
+  declare productId: number
+  @column()
+  declare publicId: string
+  @column()
+  declare type: 'boolean' | 'integer' | 'string'
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime | null
 }
 
 export class FileSchema extends BaseModel {
@@ -330,6 +356,84 @@ export class PaymentSchema extends BaseModel {
   declare subscriptionId: number | null
   @column.dateTime({ autoCreate: true, autoUpdate: true })
   declare updatedAt: DateTime | null
+}
+
+export class PlanSchema extends BaseModel {
+  static $columns = ['billing', 'createdAt', 'currency', 'entitlements', 'id', 'isPublic', 'licenseTerm', 'maxActivations', 'name', 'priceCents', 'productId', 'providerProductId', 'publicId', 'slug', 'sortOrder', 'status', 'termDays', 'updatedAt', 'updatesDays'] as const
+  $columns = PlanSchema.$columns
+  @column()
+  declare billing: 'one_time' | 'monthly' | 'yearly'
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column()
+  declare currency: string
+  @jsonColumn()
+  declare entitlements: EntitlementValues | null
+  @column({ isPrimary: true })
+  declare id: number
+  @booleanColumn()
+  declare isPublic: boolean
+  @column()
+  declare licenseTerm: 'perpetual' | 'subscription' | 'fixed_days'
+  @column()
+  declare maxActivations: number | null
+  @column()
+  declare name: string
+  @column()
+  declare priceCents: number
+  @column()
+  declare productId: number
+  @column()
+  declare providerProductId: string | null
+  @column()
+  declare publicId: string
+  @column()
+  declare slug: string
+  @column()
+  declare sortOrder: number
+  @column()
+  declare status: 'active' | 'archived'
+  @column()
+  declare termDays: number | null
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime | null
+  @column()
+  declare updatesDays: number | null
+}
+
+export class ProductSchema extends BaseModel {
+  static $columns = ['countDevSites', 'createdAt', 'description', 'docsUrl', 'homepageUrl', 'id', 'keyPrefix', 'kind', 'name', 'offlineGraceDays', 'publicId', 'slug', 'status', 'updatedAt', 'validationIntervalHours'] as const
+  $columns = ProductSchema.$columns
+  @booleanColumn()
+  declare countDevSites: boolean
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column()
+  declare description: string | null
+  @column()
+  declare docsUrl: string | null
+  @column()
+  declare homepageUrl: string | null
+  @column({ isPrimary: true })
+  declare id: number
+  @column()
+  declare keyPrefix: string
+  @column()
+  declare kind: 'wordpress_plugin' | 'app' | 'library' | 'other'
+  @column()
+  declare name: string
+  @column()
+  declare offlineGraceDays: number
+  @column()
+  declare publicId: string
+  @column()
+  declare slug: string
+  @column()
+  declare status: 'draft' | 'active' | 'retired'
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime | null
+  @column()
+  declare validationIntervalHours: number
 }
 
 export class RateLimitSchema extends BaseModel {

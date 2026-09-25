@@ -98,6 +98,16 @@ export default class StaffPolicy extends BasePolicy {
   }
 
   /**
+   * Changing what we sell: products, plans, prices and entitlements (licence
+   * plan §8). Admin only — a plan edit changes what every future customer
+   * pays and gets, and an entitlement edit changes what existing ones get on
+   * their next validation.
+   */
+  manageCatalog(staff: StaffUser): AuthorizerResponse {
+    return !staff.isDisabled && staff.isAdmin
+  }
+
+  /**
    * Admin only, and the reason: anyone who can create a staff account can
    * grant themselves everything above.
    */
