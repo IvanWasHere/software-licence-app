@@ -1,7 +1,9 @@
 # Contributing
 
-The implementation plan lives in [`plan.md`](./plan.md). It is the source of truth for scope,
-decisions, and build order — read the relevant section before starting a milestone.
+The licensing product's plan lives in [`plan.md`](./plan.md). It is the source of truth for scope,
+decisions, and build order — read the relevant section before starting a milestone. The starter this
+was forked from kept its own design document, now [`STARTER_PLAN.md`](./STARTER_PLAN.md); code
+comments that cite "plan §…" refer to that one, and "licence plan §…" to the former.
 
 ## Running the app
 

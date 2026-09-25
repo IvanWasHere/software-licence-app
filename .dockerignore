@@ -17,3 +17,7 @@ docs
 *.md
 !README.md
 .DS_Store
+
+# The SDKs and example integrations live beside the server, not in it.
+sdk
+examples

@@ -56,7 +56,7 @@ The server is a fork of [`kitch4nSinkV2`](../kitch4nSinkV2) (AdonisJS 7). This p
 - **Files/storage:** M7's release uploads reuse the drive disks.
 - **Invitations and members:** see D1.
 
-The starter's own design doc is kept as `server/STARTER_PLAN.md`, because its code comments cite "plan §…".
+The starter's own design doc is kept as `STARTER_PLAN.md`, because its code comments cite "plan §…".
 
 ### Decision D1: what "organization" becomes
 
@@ -107,7 +107,7 @@ Webhooks stay under `/webhooks/creem`, as in the existing `webhook_controller.ts
 
 ## 4. Data model
 
-New tables. Every table has `id`, a `public_id` (nanoid, used in URLs and the API) and timestamps. The starter's portability rules in `server/CONTRIBUTING.md` apply:
+New tables. Every table has `id`, a `public_id` (nanoid, used in URLs and the API) and timestamps. The starter's portability rules in `CONTRIBUTING.md` apply:
 - Money is stored as integer `_cents` columns plus `currency`.
 - JSON goes through `table.json()` and the `jsonColumn` decorator.
 - No partial indexes, no column alters, no raw SQL. Uniqueness that depends on a row's state is enforced in a service behind a row lock.
@@ -386,20 +386,18 @@ All mutating actions go through services, pass the staff policies (`app/admin/st
 ## 10. Repository layout
 
 ```
-licence-app/
-├── server/            fork of kitch4nSinkV2 (git history preserved)
-│   ├── app/catalog/       products, plans, entitlements, releases
-│   ├── app/licensing/     license, validation, activation, signer, reason codes
-│   ├── app/billing/       (existing) + checkout for plans, license effects
-│   ├── app/controllers/api/v1/{licenses,products,releases,checkout,orders}_controller.ts
-│   ├── app/controllers/admin/{products,plans,licenses,activations}_controller.ts
-│   ├── app/controllers/account/{licenses,billing}_controller.ts
-│   └── tests/{unit,functional}/licensing/…
-├── sdk/js/            @<org>/license
-├── sdk/php/           <org>/wp-license
-├── examples/wp-plugin/
-├── examples/node-app/
-└── docs/              API reference, SDK guides, runbooks
+licence-app/            the AdonisJS server is the repository root (fork of kitch4nSinkV2,
+│                       git history preserved)
+├── app/catalog/        products, plans, entitlements
+├── app/licensing/      keys, validation, activation, signer, reason codes, license API payloads
+├── app/commerce/       orders, customer accounts, license billing effects, integration keys
+├── app/billing/        (starter) provider abstraction, webhooks, reconciliation
+├── app/controllers/    admin/, api/v1/, licenses/, storefront/, billing/ …
+├── tests/              unit/, functional/{licensing,license_api,commerce,portal,…}
+├── docs/               starter docs + license-api.md
+├── sdk/js/             @<org>/license (M6) — excluded from the server's tsconfig and lint
+├── sdk/php/            <org>/wp-license (M7)
+└── examples/           wp-plugin/, node-app/
 ```
 
 Follow the starter's conventions: snake_case files, thin controllers, services do the writes, transformers shape API JSON, routes live in `start/routes/*.ts`, and feature tests live next to their area.
@@ -411,8 +409,8 @@ Follow the starter's conventions: snake_case files, thin controllers, services d
 Each milestone ends green in CI and can be demoed.
 
 **M0: Fork (≈½ day)** ✅ done
-- Import the starter into `server/` with `git subtree`, so its history is preserved.
-- Move CI to the repo root with `working-directory: server`. Drop the starter's docs-site workflow. Rename the package.
+- Import the starter into `server/` with `git subtree`, so its history is preserved. (Later moved to the repository root, during M5.)
+- Move CI to the repo root. Drop the starter's docs-site workflow. Rename the package.
 - Keep support, notifications and files; see §2. Stripping moves into M4 and M5.
 - ✅ Typecheck clean, 667/667 unit and functional tests passing.
 
@@ -447,7 +445,7 @@ Each milestone ends green in CI and can be demoed.
 - `LicenseApiMiddleware` provides CORS for any origin (no credentials), `x-request-id`, `cache-control: no-store` and the preflight answer.
 - Rate limits: 120/min per address and 30/min per license key.
 - Every answer is signed. `product`, `instance_id` and an optional client `nonce` are echoed inside the signed payload, so a signed answer can't be replayed for a different product, installation or request.
-- The OpenAPI docs use the *License API* tag with `security: []`. There's a walkthrough in `server/docs/license-api.md`.
+- The OpenAPI docs use the *License API* tag with `security: []`. There's a walkthrough in `docs/license-api.md`.
 - ✅ 25 new tests (every endpoint and state, signature round-trip, CORS/preflight, the per-key limit, and the keyless OpenAPI entries). Suite at 789/789.
 - Follow-up for M8: the router-level session and shield middleware still set cookies on `/api/*` responses. They're harmless here (never read, and CORS sends no credentials), but they're wasted bytes for every plugin. Exempt `/api/*` from the session middleware during hardening.
 - **← First usable MVP**: licenses issued by hand, validated by software.

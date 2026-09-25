@@ -71,7 +71,7 @@ else's key.
 
 ## A04 · Insecure design
 
-The decisions and their trade-offs are in [`plan.md`](../plan.md), which is the point of that
+The decisions and their trade-offs are in [`STARTER_PLAN.md`](../STARTER_PLAN.md), which is the point of that
 document. The ones that are security decisions:
 
 - Webhooks are the only source of truth for entitlements; the return from checkout grants nothing.
