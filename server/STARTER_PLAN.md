@@ -1,3 +1,7 @@
+> **Note:** this is the design document of the kitch4nSinkV2 starter this server was forked from.
+> Code comments that cite "plan §…" refer to this file. The licensing product itself is planned in
+> [`../plan.md`](../plan.md); comments for licensing code cite "licence plan §…".
+
 # AdonisJS v7 SaaS Boilerplate — Implementation Plan
 
 > Status: planning document. Nothing built yet.

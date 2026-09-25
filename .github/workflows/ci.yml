@@ -24,6 +24,10 @@ env:
   # luck.
   TZ: UTC
 
+defaults:
+  run:
+    working-directory: server
+
 jobs:
   static:
     name: Lint & typecheck
@@ -34,6 +38,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
+          cache-dependency-path: server/package-lock.json
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
@@ -69,6 +74,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
+          cache-dependency-path: server/package-lock.json
       - run: npm ci
 
       # The browser suite drives a real Chromium (plan §15). `--with-deps`
@@ -105,7 +111,7 @@ jobs:
       - uses: docker/setup-buildx-action@v3
       - uses: docker/build-push-action@v6
         with:
-          context: .
+          context: server
           push: false
           cache-from: type=gha
           cache-to: type=gha,mode=max

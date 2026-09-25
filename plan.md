@@ -42,12 +42,21 @@ The server is a fork of [`kitch4nSinkV2`](../kitch4nSinkV2) (AdonisJS 7). This p
 | Queue | DB-backed queue, `queue_work`, `schedule_run` | Keep; add licensing jobs |
 | Mail, audit, limiter, OpenAPI, `/health`, Docker, CI | Present | Keep; extend `AUDIT_ACTIONS`, scopes and OpenAPI |
 
-**Remove.** Each item below is its own commit, and `docs/modules.md` has the removal steps for the lists module:
-- The `app/modules/lists/` module, its migrations `…0007`/`…0008` and its views, plus its registrations in `start/*` and `config/database.ts`.
-- Quotas and seats: `app/billing/quotas.ts`, `start/quotas.ts`, `app/organizations/seats.ts`, and the limit exceptions.
-- Static SaaS plans in `config/plans.ts`. Plans move to the DB (§4).
-- Storage/files, support tickets, notifications/announcements and dashboard widgets. All can come back later if needed.
-- Invitations and members: **defer**. See decision D1.
+**Replace, not delete up front.** Core test suites (tenant isolation, API endpoints, quotas) use the lists demo as their example of a customer-owned resource, and `docs/modules.md` warns that deleting it first loses that coverage. So the SaaS-only pieces go only once their replacement exists:
+- The `app/modules/lists/` demo module goes in **M2**. Licenses become the customer-owned resource in `tests/helpers.ts#createList` and in `tenant_isolation.spec.ts`. Follow `docs/modules.md` steps 1–4.
+- Quotas and seats go in **M2** together with lists, because lists are the only thing they meter.
+- The static SaaS tiers in `config/plans.ts` (`organization.planKey`, `PlanService` limits) go in **M4**, when billing is reworked:
+  - Plans move to the DB (§4).
+  - A customer account no longer has a single tier. It holds any number of licenses and subscriptions.
+  - The API-key allowance moves to a flag on the org.
+
+**Keep** (decided in M0):
+- **Support tickets:** a licensing business answers "where is my key / free up a site" questions.
+- **Notifications and announcements:** release announcements to customers.
+- **Files/storage:** M7's release uploads reuse the drive disks.
+- **Invitations and members:** see D1.
+
+The starter's own design doc is kept as `server/STARTER_PLAN.md`, because its code comments cite "plan §…".
 
 ### Decision D1: what "organization" becomes
 
@@ -360,14 +369,20 @@ Follow the starter's conventions: snake_case files, thin controllers, services d
 
 Each milestone ends green in CI and can be demoed.
 
-**M0: Fork and strip (≈2 days)**
-- Fork into `server/`. Remove lists, quotas, seats, files, support, notifications and widgets. Keep orgs and invitations.
-- Seed the system org and the first staff user.
-- ✅ All remaining tests pass, and `/health`, staff login and customer sign-up work.
+**M0: Fork (≈½ day)** ✅ done
+- Import the starter into `server/` with `git subtree`, so its history is preserved.
+- Move CI to the repo root with `working-directory: server`. Drop the starter's docs-site workflow. Rename the package.
+- Keep support, notifications and files; see §2. Stripping moves into M2 and M4.
+- ✅ Typecheck clean, 667/667 unit and functional tests passing.
+
+**M2 and M4 carry the stripping work.**
+- M2 replaces the lists demo with licenses and removes quotas and seats.
+- M4 moves billing from "one tier per org" to "subscriptions per license".
+- The system org for integration keys is seeded in M4, when the integration API arrives.
 
 **M1: Catalog (≈3 days)**
 - Add the products, plans, entitlements and plan_entitlements migrations, models, services and admin CRUD.
-- Delete `config/plans.ts` and point `plan_service.ts` at the DB.
+- Staff pages under `/admin/catalog`. Nothing is removed yet; `config/plans.ts` stays until M4.
 - ✅ Staff can create "Invoice Pro" with Monthly, Yearly and Lifetime plans and their entitlements.
 
 **M2: Licensing core (≈4 days)**
