@@ -2,79 +2,63 @@
 
 <img src="docs/logo.svg" alt="" width="88" height="88" />
 
-# 🧱 Multi-tenant SaaS Starter
+# 🔑 Licence App
 
-**A production-shaped AdonisJS v7 SaaS boilerplate — organisations, plan-gated limits,
-subscriptions, background jobs, file storage, a public API and a support back-office.**
+**A self-hosted license and commerce server for a company that sells its own software:
+WordPress plugins, desktop and web apps, JS libraries.**
 
-🐿️ SQLite locally with zero setup · 🐘 PostgreSQL when deployed · 🧪 599 tests on both
+Customers buy a plan, get a license key, and the software asks this server whether that key is good.
 
-[Features](#-features) · [Quick start](#-quick-start) · [Environment](#-environment) ·
-[Screenshots](#-screenshots) · [Stack](#-stack) · [Commands](#-commands)
+🐿️ SQLite locally with zero setup · 🐘 PostgreSQL when deployed · 🅰️ AdonisJS 7
+
+[What it does](#-what-it-does) · [Quick start](#-quick-start) · [Examples](#-examples) ·
+[How it works](#-how-it-works) · [Environment](#-environment) · [Commands](#%EF%B8%8F-commands) ·
+[Roadmap](#%EF%B8%8F-roadmap)
 
 </div>
 
 ---
 
-## 🤔 What this is
+## 🤔 What it does
 
-A **kitchen-sink starter** for a subscription SaaS. Not a demo: the awkward parts — the ones that
-usually get skipped and then bite in month three — are the parts that are actually built.
+It is **not a SaaS**. One company deploys it for its own products. Products, plans and prices are
+rows in the database, so adding a tenth product needs no code change.
 
-- 💳 A **failed payment doesn't lock anyone out**, and a downgrade never deletes anything.
-- 🔒 Every tenant-owned query filters on `organization_id`, with a dedicated test suite that seeds
-  two workspaces and asserts, endpoint by endpoint, that one can never touch the other.
-- 🧮 Quotas are enforced **inside the insert transaction behind a row lock**, so two parallel
-  requests can't both take the last slot — proven by concurrency tests on PostgreSQL.
-- 🪝 Webhooks are idempotent, ordered by watermark, and replayable from a stored payload.
-- 🕵️ Staff impersonation is time-boxed, read-only for support, and audited with **both** actor ids.
+- 📦 **Catalog.** Products with plans (monthly, yearly, lifetime, fixed-length trials) and
+  **entitlements**: feature flags and limits such as `pdf_export` or `max_clients` that your
+  software reads at runtime.
+- 🔑 **License keys** like `WIPRO-7K4DX-82M91-QP6F3-A0ZT9`.
+  - Looked up by a hash of the key and also stored encrypted, so support can read one back.
+  - Forgiving to type: case, dashes and `O`/`0` mix-ups don't matter.
+- 🌐 **A public license API.** Validate, activate and deactivate installations.
+  - Answers are **signed with Ed25519**, so a cached answer or a fake local server can't unlock anything.
+  - An invalid license is a normal `200` answer with a permanent reason code, never an error.
+- 🖥️ **Activations with limits.** "3 sites" means 3.
+  - Development and staging sites (`localhost`, `*.test`, `staging.*`, …) are free.
+  - Activating the same installation twice counts once.
+- 💳 **Payments through [Creem](https://creem.io).**
+  - One-time purchases issue perpetual licenses; subscriptions keep a license alive period by period.
+  - Refunds revoke, disputes suspend, and a failed renewal gets a grace period before the license lapses.
+- 🛒 **A pricing page and checkout**, or an **integration API** if your marketing site lives somewhere else.
+- 👤 **A customer portal.** Keys, where each one is installed, a button to free a slot, orders and invoices.
+- 🧑‍💼 **A back-office.**
+  - Products, plans, licenses, orders, webhooks, the job queue and the audit log.
+  - Support can read keys back and free slots. Only admins can grant or revoke.
 
-The demo domain is deliberately small — shared to-do lists — because it exists to exercise tenancy,
-quotas and the API, not to be the product. Swap it for yours:
-[`docs/modules.md`](./docs/modules.md) is the removal path, file by file.
+Built on the [kitch4nSinkV2](https://github.com/IvanWasHere/kitch4nSinkV2) starter, so the
+unglamorous parts come with it: staff 2FA, impersonation, an idempotent webhook ledger, a
+database-backed queue, rate limits, an audit trail, and tests that run against both SQLite and
+PostgreSQL.
 
-📓 [`plan.md`](./plan.md) is the full design document and the source of truth for scope.
-🛠️ [`CONTRIBUTING.md`](./CONTRIBUTING.md) has the rules that keep it working — read it before
+📓 [`plan.md`](./plan.md) is the design document and the source of truth for scope and decisions.
+🛠️ [`CONTRIBUTING.md`](./CONTRIBUTING.md) has the rules that keep it working. Read it before
 changing anything.
-
----
-
-## ✨ Features
-
-| | Feature | What you get |
-|---|---|---|
-| 🔐 | **Authentication** | Register, login, logout, email verification, password reset |
-| 🔑 | **Two-factor auth** | TOTP with QR enrolment, recovery codes, mandatory for staff |
-| 🌐 | **Social login** | Google & GitHub via Ally, with account linking |
-| 🏢 | **Organisations** | One workspace per user, owner/member roles, ownership transfer |
-| 📨 | **Invitations** | Tokenised invites, expiry, revoke, resend, seat-limit enforcement |
-| 💳 | **Subscriptions** | Creem behind a `PaymentProvider` interface — swap in Stripe with one class |
-| 🪝 | **Webhooks** | Signature-verified, idempotency ledger, queued application, replay + sync |
-| 📊 | **Plan limits** | Seats, lists, todos-per-list, storage, API keys, monthly API calls |
-| 🚦 | **Soft-lock quotas** | Over-limit workspaces keep every row, readable *and* editable — only creation blocks |
-| 🎛️ | **Usage meters** | Amber at 80%, red at 100%, from the same numbers that enforce the limit |
-| 📁 | **File storage** | Local disk → Cloudflare R2 by one env var, signed URLs, MIME sniffing |
-| 🗑️ | **Recoverable deletes** | Files and announcements are soft-deleted with a 30-day purge job |
-| ⚙️ | **Background jobs** | Database-backed queue, exponential backoff, crash recovery, admin retry |
-| 📧 | **Transactional email** | Resend in production, Mailpit locally, every send through the durable queue |
-| 🔌 | **Organisation API** | `/api/v1`, bearer keys, scopes, cursor pagination, OpenAPI + `/docs` |
-| ⏱️ | **Rate limiting** | Per-key burst + per-workspace monthly quota, headers on every response |
-| 🛡️ | **Hardened front door** | Throttled sign-in, signup, reset and 2FA, keyed so nobody can lock out a stranger |
-| 🔒 | **Security headers** | Nonce-based CSP, HSTS, frame denial, referrer and permissions policy |
-| 🧑‍💼 | **Back-office** | Org/user search, subscription sync, webhook ledger, job queue, audit log |
-| 🕵️ | **Impersonation** | Time-boxed, banner on every screen, read-only for support, fully audited |
-| 📣 | **Announcements** | One-way in-app notices targeted by plan, owners, or named people |
-| 📜 | **Audit trail** | Append-only, two-year retention, filterable, both ids under impersonation |
-| 🎨 | **UI kit** | Edge + Alpine + custom CSS — no Tailwind, no component framework |
-| 🐳 | **Ships as an image** | Multi-stage Dockerfile, non-root, plus a compose stack of web + worker + Postgres |
-| 🩺 | **Health checks** | `/health` for restarts, `/ready` for the load balancer — they answer different questions |
-| 🧪 | **Tests** | 628 tests, including a real-browser suite, run against SQLite **and** PostgreSQL in CI |
 
 ---
 
 ## 🚀 Quick start
 
-You need **Node 24+**. Nothing else — SQLite needs no server.
+You need **Node 24+**. Nothing else is required, because SQLite needs no server.
 
 ```bash
 # 1️⃣  Install
@@ -84,304 +68,278 @@ npm install
 cp .env.example .env
 node ace generate:key          # writes APP_KEY
 
-# 3️⃣  Create the database and demo data
+# 3️⃣  Database, test accounts and a demo catalog
 node ace migration:fresh --seed
+node ace dev:seed              # 🏭 "Invoice Pro" with plans, licenses, installs and payments
 
 # 4️⃣  Run it
 npm run dev                    # 🌐 http://localhost:3333
-node ace queue:work            # ⚙️  second terminal — nothing is emailed without it
+node ace queue:work            # ⚙️  second terminal: webhooks and email need it
 ```
 
-### 🔑 Seeded accounts
+Then look around:
 
-Sign in with any of these. Staff and customers are **different tables behind different logins** —
-a staff address is rejected at `/login` exactly as a stranger would be.
+| Where | What |
+|---|---|
+| 🛒 `/pricing/invoice-pro` | The public pricing page with Buy buttons |
+| 🔑 `/licenses` | The customer portal (sign in as a customer below) |
+| 🧑‍💼 `/admin/products`, `/admin/licenses`, `/admin/orders` | The back-office |
+| 📖 `/docs` | The API reference, generated from `/openapi.json` |
 
-| Account | Password | Signs in at | Role |
+### 🔐 Accounts
+
+| Account | Password | Signs in at | What you'll see |
 |---|---|---|---|
-| 🛡️ `admin@example.com` | `Admin12345` | `/admin/login` | Staff — **admin** |
-| 🎧 `support@example.com` | `Support12345` | `/admin/login` | Staff — **support** |
-| 👑 `user-manager@example.com` | `Manager12345` | `/login` | Workspace **owner** |
-| 👤 `user@example.com` | `User12345` | `/login` | Workspace **member** |
+| 🛡️ `admin@example.com` | `Admin12345` | `/admin/login` | Staff: **admin** |
+| 🎧 `support@example.com` | `Support12345` | `/admin/login` | Staff: **support** |
+| 🏢 `owner-pro@example.com` | `correct-horse-battery` | `/login` | An agency with licenses on several sites *(after `dev:seed`)* |
+| 👑 `user-manager@example.com` | `Manager12345` | `/login` | An account owner |
 
 > 🔢 Staff two-factor is mandatory. In development enter **`123456`** (see `DEV_TWO_FACTOR_CODE`),
 > or run `node ace dev:totp admin@example.com` for a real code.
 
-Want a richer playground — paid plans, a team, lists and todos, API traffic, payment history?
+Emails (license keys, receipts, renewal failures) are sent through the queue to
+[Mailpit](https://mailpit.axllent.org) locally: `brew install mailpit && mailpit`, then open
+<http://localhost:8025>.
+
+---
+
+## 🧪 Examples
+
+All examples assume `BASE=http://localhost:3333/api/v1` and a key issued in the back-office
+(`/admin/licenses/new`) or bought through `/pricing/invoice-pro`.
+
+### ✅ Is this key good?
 
 ```bash
-node ace dev:seed              # 🏭 five workspaces, a team, lists, keys, files, payments
+curl -s $BASE/licenses/validate -H 'content-type: application/json' \
+  -d '{"product":"invoice-pro","license_key":"WIPRO-7K4DX-82M91-QP6F3-A0ZT9"}'
 ```
 
-### 📬 Seeing the email
-
-Everything goes through the queue, so run a worker. Locally the transport is
-[Mailpit](https://mailpit.axllent.org):
-
-```bash
-brew install mailpit && mailpit     # then open http://localhost:8025
+```jsonc
+{
+  "valid": true,
+  "reason": null,
+  "license": {
+    "id": "lic_7fj2k9pqrstu",
+    "status": "active",
+    "type": "perpetual",
+    "expires_at": null,
+    "product": "invoice-pro",
+    "plan": "lifetime",
+    "key_suffix": "0ZT9",
+    "activations": { "used": 2, "max": 3 }
+  },
+  "entitlements": { "pdf_export": true, "recurring_invoices": true, "max_clients": 100000 },
+  "policy": { "validation_interval_hours": 24, "offline_grace_days": 7 },
+  "product": "invoice-pro",
+  "instance_id": null,
+  "nonce": null,
+  "checked_at": "2026-09-26T10:00:00.000Z",
+  "request_id": "7c9e…",
+  "signed": { "alg": "Ed25519", "kid": "k1", "payload": "eyJ2YWxpZCI6dHJ1…", "signature": "…" }
+}
 ```
 
-### 🔍 The development toolbar
+A bad key is still a `200`. Branch on `reason`, never on the HTTP status:
 
-`npm run dev` puts a stats bar at the foot of every page — Node version, uptime, CPU, event-loop
-lag, heap and RSS, requests per second, average latency, error rate, and the database pool. Click
-the tool icon at its far left and it opens into a debug panel over the page:
+```jsonc
+{ "valid": false, "reason": "license_expired", "entitlements": {}, … }
+```
 
-| Panel | What is in it |
+| `reason` | Meaning |
 |---|---|
-| 🗃️ **Queries** | Every SQL statement this request ran, with bindings, duration, and `EXPLAIN` on demand |
-| 📡 **Events** | Application events and their payloads |
-| ✉️ **Emails** | What was sent, to whom, and the rendered body — without leaving the page |
-| 🧭 **Routes** | Every registered route and its handler |
-| 📝 **Logs** | The log stream, filterable by level and correlated by request id |
-| ⏱️ **Requests** | A trace per request — the waterfall of queries and events inside it |
-| ⚙️ **Config / Internals** | Resolved configuration and the toolbar's own state |
+| `invalid_license` | No such key |
+| `product_mismatch` | A real key, for another product |
+| `license_revoked` / `license_suspended` | Staff or a refund / dispute took it out of service |
+| `license_expired` | Past its expiry date |
+| `subscription_inactive` | The subscription behind it has ended |
+| `not_activated` | This installation isn't activated |
+| `activation_limit_reached` | Every slot is taken |
 
-There is also a full page at **`http://localhost:3333/__stats`** — the same data kept over time,
-with charts, slowest endpoints, grouped query analysis and saved filters. Its history lives in a
-SQLite file under `.adonisjs/server-stats/`, which is git-ignored.
+### 🖥️ Activate this installation
 
-Nothing to configure and nothing to start: it is wired up in `config/server_stats.ts` and appears
-on its own.
+The client generates an `instance_id` once (a UUID is ideal) and keeps it.
 
-> ⚠️ **There is no login on any of it.** The debug panel renders resolved environment variables,
-> email bodies and SQL with its bindings to anyone who can reach the port.
-
-That is deliberate, and it is safe for one reason only — **the toolbar cannot exist in a deployed
-environment.** [`adonisjs-server-stats`](https://www.npmjs.com/package/adonisjs-server-stats) is a
-**devDependency**, the runtime image is built with `npm ci --omit=dev`, and every place that
-registers it — the provider in `adonisrc.ts`, the middleware in `start/kernel.ts`, the config in
-`config/server_stats.ts`, the Edge global in `start/view.ts` and the partial it includes from
-`layouts/base.edge` — is guarded on one flag:
-
-```ts
-// start/dev_toolbar.ts
-export const serverStatsEnabled =
-  process.env.NODE_ENV !== 'production' &&
-  process.env.NODE_ENV !== 'test' &&
-  isInstalled('adonisjs-server-stats')
+```bash
+curl -s $BASE/licenses/activate -H 'content-type: application/json' -d '{
+  "product": "invoice-pro",
+  "license_key": "WIPRO-7K4DX-82M91-QP6F3-A0ZT9",
+  "instance_id": "4f7c2b1e-9d1a-4c3e-8f0b-2a6d5e9c1b77",
+  "site_url": "https://shop.example.com",
+  "client_version": "2.4.1"
+}'
 ```
 
-Read that flag before changing it; each clause is load-bearing and two of them are not obvious.
-`NODE_ENV` is compared against `production` rather than `development` because AdonisJS evaluates
-`adonisrc.ts` **before** it loads `.env`, so at that moment `NODE_ENV` is `undefined` on a laptop —
-the obvious spelling disables the toolbar for everyone and says nothing about why. `test` is
-excluded separately because the suite installs dev dependencies but boots the application in the
-`test` environment, where the provider does not load; without that clause the layout would include
-a tag nothing had registered and Edge would print `@serverStats()` into the HTML that every
-functional and browser test asserts against. The resolve check is what makes a deploy that forgets
-to set `NODE_ENV` degrade to *off* rather than to a crash loop on a missing module.
+```jsonc
+{
+  "activated": true,
+  "valid": true,
+  "activation": { "id": "act_…", "instance_id": "4f7c…", "hostname": "shop.example.com", "is_dev": false },
+  "license": { "activations": { "used": 3, "max": 3 }, … },
+  …
+}
+```
 
-`config/shield.ts` makes two concessions to it, both keyed on the same flag and both inert in
-production:
+At the limit you get `activated: false` and `reason: "activation_limit_reached"`, with the numbers.
+`POST /licenses/deactivate` with the same three fields frees the slot.
 
-- **CSP** — `script-src` trades the nonce for `'unsafe-inline'`. The toolbar inlines its own
-  client, and a browser **ignores** `'unsafe-inline'` as soon as a nonce appears in the directive,
-  so the two cannot simply be listed together. Deployed, the nonce policy is untouched.
-- **CSRF** — the toolbar's own routes are exempt. Its dashboard mutates state from `fetch()` calls
-  that carry no token; the package guards those handlers itself with a same-origin check.
+### 🔏 Trust only what is signed
 
-The collector list in `config/server_stats.ts` is spelled out rather than left on `'auto'`, to drop
-one collector that counts rows in three tables every three seconds — with `debug: app.inDev` on
-both connections that is sixty lines of SQL a minute in your terminal on an idle server. The cost
-is three tiles; the Queries panel is unaffected, because it reads `db:query` events rather than
-that collector.
+Everything a client should rely on is inside `signed.payload`: base64url of the exact JSON bytes
+that were signed. Verify, then parse. There's no re-serialising of JSON, so PHP and JS agree
+byte for byte.
 
-To remove the toolbar entirely: delete the guarded blocks in the five files above and in
-`config/shield.ts`, delete `start/dev_toolbar.ts` and `partials/server_stats.edge`, then
-`npm uninstall adonisjs-server-stats`. Uninstalling alone is not enough — the application still
-*runs*, because every import is lazy and behind the flag, but `npm run typecheck` fails on four
-modules it can no longer resolve.
+```js
+// Node 20+ or any modern browser — WebCrypto has Ed25519 built in
+const { data: [key] } = await (await fetch(`${BASE}/keys`)).json() // pin this in your app
+
+const b64url = (s) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0))
+
+async function verified(answer) {
+  const publicKey = await crypto.subtle.importKey('raw', b64url(key.public_key), 'Ed25519', false, ['verify'])
+  const bytes = b64url(answer.signed.payload)
+  const ok = await crypto.subtle.verify('Ed25519', publicKey, b64url(answer.signed.signature), bytes)
+
+  return ok ? JSON.parse(new TextDecoder().decode(bytes)) : null
+}
+```
+
+Send a random `nonce` with each request and check it comes back inside the payload, so an old
+signed answer can't be replayed. The same goes for `product` and `instance_id`.
+
+### 🛒 Sell from your own website (integration API)
+
+Mint a key for your website's backend. It belongs to a special system account, and no customer
+key can reach these endpoints:
+
+```bash
+node ace licensing:integration-key --name="Website backend"
+# ✔ Integration key created … It is shown once:
+# sk_live_…
+```
+
+```bash
+# 1. Start a checkout and send the buyer to the URL you get back
+curl -s $BASE/checkout -H "authorization: Bearer $SK" -H 'content-type: application/json' -d '{
+  "product": "invoice-pro", "plan": "yearly",
+  "email": "buyer@example.com",
+  "success_url": "https://your-site.example/thanks"
+}'
+# → { "data": { "order_id": "ord_…", "status": "pending", "checkout_url": "https://checkout.creem.io/…" } }
+
+# 2. On your thank-you page, poll until the payment webhook has landed
+curl -s $BASE/orders/ord_… -H "authorization: Bearer $SK"
+# → { "data": { "status": "paid", "licenses": [{ "id": "lic_…", "key_suffix": "0ZT9", … }] } }
+
+# 3. "Resend my key" form
+curl -s "$BASE/customers/licenses?email=buyer@example.com" -H "authorization: Bearer $SK"
+```
+
+The key itself never travels through this API. It goes to the buyer by email and sits in their
+account.
+
+### 👤 A customer's own tooling
+
+Account owners can mint API keys under **API Keys** in the sidebar, with the `licenses:read` scope:
+
+```bash
+curl -s $BASE/licenses -H "authorization: Bearer sk_live_…"
+# → { "data": [ { "id": "lic_…", "product": "invoice-pro", "status": "active", … } ], "meta": { "next_cursor": null } }
+```
+
+📖 More in [`docs/license-api.md`](./docs/license-api.md), and everything else at `/docs`.
+
+---
+
+## 🧭 How it works
+
+```
+            🛒 /pricing  or  your website ── POST /api/v1/checkout ──┐
+                                                                     ▼
+   buyer ──────────────► Creem checkout ─── webhook ───► 🪝 /webhooks/creem
+                                                             │  verify · record · queue
+                                                             ▼
+                                                   ⚙️ worker: fulfil the order
+                                             account ← email we recorded · license issued
+                                                   · key emailed · payment recorded
+                                                             │
+   🔌 plugin / app ── POST /api/v1/licenses/validate ──► 🔑 license + activations
+                    ◄── signed answer, cached for `validation_interval_hours`
+```
+
+Some decisions worth knowing, all explained in [`plan.md`](./plan.md):
+
+- 🪝 **Webhooks are the only source of truth.** The return page after checkout grants nothing.
+  Creem sends several events per checkout; an order row lock plus a unique license per order item
+  means exactly one license gets issued.
+- 🔗 **A payment is matched to *our* order id**, which we put into the checkout ourselves. It is
+  never matched by an email from the webhook, because the payer controls that.
+- ⏳ **Dunning without a job.** A subscription license expires at *end of paid period + 7 days*.
+  Each renewal moves it; failed renewals just let it lapse.
+- 🧊 **Validity is computed on every call, never stored.** Nothing has to flip a row at midnight.
+- 🧱 **What shipped is permanent.** Product slugs, a plan's billing and term, and entitlement keys
+  can only change while a product is a draft. Prices can change any time; licenses copy what they
+  need when they're issued.
+- 🚦 **Two API surfaces that never mix.** The keyless license API has open CORS and per-key rate
+  limits. The organisation API uses bearer keys scoped to one account.
 
 ---
 
 ## 🔧 Environment
 
-Copy `.env.example` to `.env`. It arrives with every value filled in except one — **`APP_KEY` is
-the only thing you have to generate.** Everything below it belongs to a feature you can leave
-switched off.
+Copy `.env.example` to `.env`. **`APP_KEY` is the only value you have to generate.** Everything
+else is either pre-filled or belongs to a feature you can leave off.
 
 ### ✅ Required
 
 | Variable | Notes |
 |---|---|
-| `APP_KEY` | 🔑 **The only blank in `.env.example`** — run `node ace generate:key`. Signs cookies and encrypts 2FA secrets, so **rotating it invalidates both** |
-| `APP_URL` | 🌐 Pre-filled as `http://localhost:3333`. Used in emails and webhook return URLs, so it must be the real hostname in production |
+| `APP_KEY` | 🔑 `node ace generate:key`. Signs cookies and encrypts 2FA secrets **and license keys**, so rotating it makes stored keys unreadable |
+| `APP_URL` | 🌐 Used in emails and checkout return URLs, so it must be the real hostname in production |
 
-### 🗄️ Database
+### 🔏 Licensing
+
+| Variable | Notes |
+|---|---|
+| `LICENSE_SIGNING_KEY` | Ed25519 private key that signs license answers. **Required in production.** `node ace licensing:keygen` prints a pair. Unset locally, a throwaway key is used per process |
+| `LICENSE_SIGNING_KEY_ID` | Published beside each signature (`kid`), so clients can hold two keys across a rotation |
+
+Tunables such as the renewal grace, dev-site patterns and heartbeat throttle live in
+[`config/licensing.ts`](./config/licensing.ts).
+
+### 💳 Payments ([Creem](https://creem.io))
+
+| Variable | Notes |
+|---|---|
+| `CREEM_API_KEY` | 🔐 Your secret key |
+| `CREEM_API_URL` | `https://test-api.creem.io`. Switching to the **live** host is a deliberate, visible change |
+| `CREEM_WEBHOOK_SECRET` | 🪝 HMAC secret for `POST /webhooks/creem` |
+
+Each plan is mapped to a Creem product in the back-office (**Products → plan → Payment-provider
+product id**). A plan without one can't be sold online, but can still be issued by hand.
+
+> 🚇 For local webhooks: `cloudflared tunnel --url http://localhost:3333`, then
+> `node ace billing:replay <id>` to re-run a stored payload with **no network at all**.
+
+### 🗄️ Database · 📧 Mail · 📁 Storage · 🧰 Operations
 
 | Variable | Default | Notes |
 |---|---|---|
 | `DB_CONNECTION` | `sqlite` | `sqlite` \| `postgres` |
 | `DB_SQLITE_PATH` | `./tmp/db.sqlite3` | SQLite only |
-| `DATABASE_URL` | — | 🐘 Postgres; or use the discrete vars below |
-| `DB_HOST` `DB_PORT` `DB_USER` `DB_PASSWORD` `DB_DATABASE` | — | Postgres, if not using `DATABASE_URL` |
-| `DB_SSL` | — | `true` for most managed Postgres |
-
-### 📧 Mail
-
-| Variable | Default | Notes |
-|---|---|---|
+| `DATABASE_URL` | — | 🐘 Postgres (or the discrete `DB_*` vars) |
 | `MAIL_MAILER` | `smtp` | `smtp` (Mailpit) locally, `resend` in production |
-| `MAIL_FROM_ADDRESS` | `onboarding@resend.dev` | ⚠️ Resend only sends from a **DNS-verified domain** — until then the sandbox sender reaches only your own address |
-| `MAIL_FROM_NAME` | `Acme` | |
-| `RESEND_API_KEY` | — | Required when `MAIL_MAILER=resend` |
-| `SMTP_HOST` `SMTP_PORT` | `localhost` `1025` | Mailpit |
+| `MAIL_FROM_ADDRESS` / `MAIL_FROM_NAME` | | ⚠️ Resend only sends from a DNS-verified domain |
+| `RESEND_API_KEY` | — | When `MAIL_MAILER=resend` |
+| `DRIVE_DISK` | `fs` | `fs` locally \| `r2` in production (uploads now, release downloads from M7) |
+| `R2_*` | — | Cloudflare R2 credentials and bucket |
+| `ADMIN_IP_ALLOWLIST` | — | 🚧 Gates all of `/admin`. A second layer, **never** the boundary |
+| `TRUST_PROXY` | `false` | ⚠️ Decides what every rate limit counts against. Turn it on only behind a proxy you control |
+| `DEV_TWO_FACTOR_CODE` | `123456` | ⚠️ Development only. Unset it anywhere that isn't a laptop |
 
-### 💳 Payments — [Creem](https://creem.io)
-
-Leave blank and the app runs on the Free plan; billing screens render and refuse to check out.
-
-| Variable | Notes |
-|---|---|
-| `CREEM_API_KEY` | 🔐 Your secret key |
-| `CREEM_API_URL` | `https://test-api.creem.io` — the **live** host is a deliberate, visible change |
-| `CREEM_WEBHOOK_SECRET` | 🪝 HMAC secret for `POST /webhooks/creem` |
-| `CREEM_PRODUCT_PRO` / `CREEM_PRODUCT_BUSINESS` | Product ids, mapped back to plan keys |
-
-> 🚇 For local webhooks: `cloudflared tunnel --url http://localhost:3333`, then
-> `node ace billing:replay <id>` to re-run a stored payload with **no network at all**.
-
-### 📁 Storage
-
-| Variable | Default | Notes |
-|---|---|---|
-| `DRIVE_DISK` | `fs` | `fs` locally \| `r2` in production |
-| `DRIVE_FS_ROOT` | `storage` | Where the local disks live |
-| `R2_ACCOUNT_ID` `R2_ACCESS_KEY_ID` `R2_SECRET_ACCESS_KEY` `R2_BUCKET` | — | Cloudflare R2 |
-| `R2_ENDPOINT` | — | `https://<account_id>.r2.cloudflarestorage.com` |
-| `R2_PUBLIC_URL` | — | 🌍 Custom domain fronting the **public** disk (avatars, logos) |
-
-### 🌐 Social login
-
-| Variable | Notes |
-|---|---|
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Blank hides the Google button |
-| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | Blank hides the GitHub button |
-
-### 🧰 Operations
-
-| Variable | Default | Notes |
-|---|---|---|
-| `LIMITER_STORE` | `database` | `database` \| `memory` (tests) |
-| `QUEUE_WORKER_CONCURRENCY` | `5` | |
-| `QUEUE_POLL_INTERVAL_MS` | `1000` | |
-| `ADMIN_IP_ALLOWLIST` | — | 🚧 Comma-separated. Gates all of `/admin` including its login. Empty disables it. A second layer, **never** the boundary |
-| `SESSION_DRIVER` | `cookie` | |
-| `TRUST_PROXY` | `false` | ⚠️ Believe `X-Forwarded-For`. On behind a proxy you control; off otherwise — it decides what every rate limit counts against and what the audit trail records |
-| `CSP_REPORT_ONLY` | `false` | Report policy violations without blocking, while tightening a directive on a live site |
-| `LOG_LEVEL` | `info` | |
-| `DEV_TWO_FACTOR_CODE` | `123456` | ⚠️ Accepted in place of a real code, and **only** while `NODE_ENV=development`. Unset it anywhere that is not a laptop |
-
----
-
-## 📸 Screenshots
-
-Every one of these is the seeded demo data — `node ace db:seed && node ace dev:seed` — so what is
-on the page is what you get after two commands, not a mock-up.
-
-Start with the four account types. Note what each role **cannot** see: the nav is gated, so nobody
-is offered a screen that would refuse them.
-
-| Account type | What it looks like |
-|---|---|
-| 👑 **Workspace owner** — usage meters, billing and API keys in the nav | <img src="docs/screenshots/owner-dashboard.jpg" alt="Owner dashboard with usage meters, recent todos and finished work" width="420" /> |
-| 👤 **Workspace member** — no Billing, no API Keys, and a 🔴 dot on the bell for a new announcement | <img src="docs/screenshots/member-dashboard.jpg" alt="Member dashboard with an unread announcement dot on the bell" width="420" /> |
-| 🛡️ **Staff — admin** — volume over 7/30/90 days, MRR and churn, who registered, started paying, renewed or left | <img src="docs/screenshots/staff-admin-dashboard.jpg" alt="Admin back-office dashboard with volume and growth" width="420" /> |
-| 🎧 **Staff — support** — every screen except Staff management, which is admin-only | <img src="docs/screenshots/staff-support-organisations.jpg" alt="Support view of organisation search" width="420" /> |
-
-<details>
-<summary>📂 <b>The tenant application</b></summary>
-
-| Screen | |
-|---|---|
-| ✅ **A list** — filters, priorities, assignees, due dates in red when they have passed, completed items struck through | <img src="docs/screenshots/owner-list.jpg" alt="A todo list with priorities, assignees and due dates" width="420" /> |
-| 📋 **Lists** — colour per list, a quota pill per card, archived hidden until asked for | <img src="docs/screenshots/owner-lists.jpg" alt="Lists screen with per-list quota pills" width="420" /> |
-| 👥 **Members** — seats against the plan, roles, last seen, and a pending invitation | <img src="docs/screenshots/owner-members.jpg" alt="Members screen with seats meter and a pending invitation" width="420" /> |
-| 📎 **Files** — drag and drop, type sniffing, storage counted against the plan | <img src="docs/screenshots/owner-files.jpg" alt="Files screen with uploads and a storage meter" width="420" /> |
-| 🔌 **API keys** — prefixes only, scope badges, and two weeks of requests with errors in red | <img src="docs/screenshots/owner-api-keys.jpg" alt="API keys screen with a request chart" width="420" /> |
-| 💳 **Billing** — current plan, usage, the plan grid, and every charge and refund | <img src="docs/screenshots/owner-billing.jpg" alt="Billing screen with plan grid and transaction history" width="420" /> |
-| 🔐 **Security** — two-factor turned on, recovery codes, and changing a password | <img src="docs/screenshots/owner-security.jpg" alt="Security settings with two-factor enabled" width="420" /> |
-| 📣 **Announcements** — one-way notices, new ones highlighted | <img src="docs/screenshots/member-announcements.jpg" alt="Announcements feed" width="420" /> |
-| 🎫 **Support** — the workspace's tickets, with the ones we have answered marked | <img src="docs/screenshots/owner-support.jpg" alt="Support ticket list with answered and resolved tickets" width="420" /> |
-| 💬 **A ticket** — the conversation with staff, attachments, and replying to a resolved ticket reopens it | <img src="docs/screenshots/owner-support-ticket.jpg" alt="A support conversation with a staff reply" width="420" /> |
-
-</details>
-
-<details>
-<summary>🛟 <b>When something is wrong</b></summary>
-
-| Screen | |
-|---|---|
-| ⚠️ **Past due** — a charge failed. Nothing is taken away; the banner is on every screen until it is fixed | <img src="docs/screenshots/owner-past-due.jpg" alt="Billing screen for a past-due workspace" width="420" /> |
-| 🔎 **A workspace, from the back office** — usage, members, the subscription mirror, plan and limit overrides, impersonation | <img src="docs/screenshots/staff-admin-organisation.jpg" alt="Back-office view of one workspace" width="420" /> |
-| 🧾 **Subscriptions** — every subscription, filterable by state, with what the provider last told us | <img src="docs/screenshots/staff-admin-subscriptions.jpg" alt="Back-office subscription ledger" width="420" /> |
-| 🎧 **The support queue** — waiting on us, waiting on them, resolved; every workspace's tickets beside the open conversation | <img src="docs/screenshots/staff-support-queue.jpg" alt="Back-office support queue with a conversation open" width="420" /> |
-
-</details>
-
----
-
-## 🧑‍💻 Stack
-
-### 🗣️ Languages
-
-| | Language | Used for |
-|---|---|---|
-| 🟦 | **TypeScript** `~6.0` | All application code, strict, ESM only |
-| 🌐 | **Edge** `^6.5` | Server-rendered templates and the component library |
-| 🎨 | **CSS** | Custom properties + nesting. No Tailwind, no CSS-in-JS |
-| 🟨 | **JavaScript** | Alpine sprinkles only — every interaction works without it |
-| 🐿️ | **SQL** | Through Lucid. Raw SQL is banned in application code |
-
-### 🏗️ Framework & runtime
-
-| | Package | Version | Role |
-|---|---|---|---|
-| 🅰️ | `@adonisjs/core` | `^7.5` | HTTP, IoC, Ace CLI |
-| 🟢 | **Node.js** | `>=24` | Runtime |
-| 💧 | `@adonisjs/lucid` | `^22.4` | ORM, migrations, generated schema types |
-| 🍃 | `edge.js` | `^6.5` | Template engine |
-| ⚡ | `vite` | `^8.2` | Asset pipeline |
-| 🏔️ | `alpinejs` | `^3.16` | Client-side sprinkles |
-
-### 🧩 Adonis packages
-
-| | Package | Version | Role |
-|---|---|---|---|
-| 🔐 | `@adonisjs/auth` | `^10.1` | Session guards — separate tenant and staff guards |
-| 🛂 | `@adonisjs/bouncer` | `^4.0` | Policies. Every policy takes the actor explicitly |
-| 🌐 | `@adonisjs/ally` | `^6.3` | Google & GitHub OAuth |
-| 📧 | `@adonisjs/mail` | `^10.4` | Resend + SMTP transports |
-| 📁 | `@adonisjs/drive` | `^4.0` | Local filesystem + S3/R2 disks |
-| ⏱️ | `@adonisjs/limiter` | `^3.0` | Rate limiting, database store |
-| 🛡️ | `@adonisjs/shield` | `^9.0` | CSRF, CSP, security headers |
-| 🍪 | `@adonisjs/session` | `^8.1` | Sessions and flash messages |
-| 📦 | `@adonisjs/static` `@adonisjs/vite` | `^2.0` `^6.0` | Static files, asset tags |
-
-### 🔩 Libraries
-
-| | Package | Version | Role |
-|---|---|---|---|
-| ✅ | `@vinejs/vine` | `^4.4` | Request validation |
-| 🐿️ | `better-sqlite3` | `^13.0` | SQLite driver |
-| 🐘 | `pg` | `^8.23` | PostgreSQL driver |
-| ☁️ | `@aws-sdk/client-s3` + `s3-request-presigner` | `^3.1127` | R2 via the S3 API |
-| 🕰️ | `luxon` | `^3.7` | Dates. Everything is stored UTC |
-| 🆔 | `nanoid` | `^5.1` | Prefixed public ids — `org_…`, `usr_…`, `ntf_…` |
-| 🔢 | `otplib` + `qrcode` | `^13.5` `^1.5` | TOTP and enrolment QR codes |
-
-### 🧪 Tooling
-
-| | Package | Role |
-|---|---|---|
-| 🥋 | `@japa/runner` + `assert` + `api-client` + `browser-client` | Test runner and HTTP/browser clients |
-| 🎭 | `@faker-js/faker` | Factories |
-| 🧹 | `eslint` + `prettier` | Lint and format, Adonis configs |
-| 🔥 | `hot-hook` | HMR in development |
-| 🩺 | `youch` + `pino-pretty` | Readable errors and logs |
-| 🔍 | `adonisjs-server-stats` | [The development toolbar](#-the-development-toolbar) — stats bar, debug panel, `/__stats`. Dev only, and absent from the image |
+The full list, with notes, is in [`.env.example`](./.env.example) and
+[`docs/deployment.md`](./docs/deployment.md).
 
 ---
 
@@ -389,78 +347,76 @@ is offered a screen that would refuse them.
 
 ```bash
 npm run dev            # 🔥 dev server with HMR
-npm start              # 🚀 production server
-npm run build          # 📦 compile
-npm test               # 🧪 628 tests (unit, functional, browser)
+npm test               # 🧪 unit, functional and browser suites
 npm run lint           # 🧹 eslint
 npm run typecheck      # 🟦 tsc --noEmit
-npm run format         # ✨ prettier
+npm run build          # 📦 compile for production
 ```
 
-### 🗄️ Database
+### 🔑 Licensing & commerce
 
 ```bash
-node ace migration:run           # apply migrations (regenerates database/schema.ts)
-node ace migration:fresh --seed  # drop, migrate, seed the test accounts
-node ace db:seed                 # seeders only
-node ace dev:seed                # 🏭 the demo dataset the screenshots come from
+node ace licensing:keygen                        # 🔏 a new response-signing key pair
+node ace licensing:integration-key --name=Site   # 🛒 a key for your website's backend
+node ace billing:sync --dry-run                  # 🔍 diff local subscriptions against Creem
+node ace billing:replay --failed                 # 🪝 re-apply stored webhooks, no network
 ```
 
-### ⚙️ Queue & schedule
+### 🗄️ Database, queue & staff
 
 ```bash
-node ace queue:work                     # the worker — required for email
-node ace queue:work --once              # drain what is due and exit
-node ace queue:retry --all              # re-queue failures
+node ace migration:run                  # apply migrations (regenerates database/schema.ts)
+node ace migration:fresh --seed         # start over with the test accounts
+node ace dev:seed                       # 🏭 the demo catalog, customers and licenses
+node ace queue:work                     # ⚙️ the worker: webhooks, email and jobs need it
 node ace schedule:run --interval=daily  # 🕐 cron calls this; it only dispatches
-```
-
-### 💳 Billing & staff
-
-```bash
-node ace billing:sync --dry-run      # diff local subscriptions against the provider
-node ace billing:replay --failed     # re-apply stored webhooks, no network
-node ace staff:create --role=admin   # 🛡️ create a back-office account
-node ace dev:totp admin@example.com  # 🔢 a real TOTP code for a seeded account
-```
-
-### 🧪 Browser tests
-
-```bash
-npx playwright install chromium   # once
-node ace test browser             # 🌐 signup, 2FA, invitations, checkout, upload
+node ace staff:create --role=admin      # 🛡️ a back-office account
 ```
 
 ---
 
-## 🧭 How it is organised
+## 🗂️ How it is organised
 
 ```
 app/
-  api/            🔌 keys, scopes, cursors, OpenAPI
-  audit/          📜 the append-only trail
-  auth/           🔐 tokens, registration, TOTP
-  billing/        💳 PaymentProvider, plans, webhooks, reconciliation
-  notifications/  📣 the audience predicate and the feed
-  storage/        📁 keys, MIME sniffing, quota accounting
-  queue/          ⚙️ the queue and its job handlers
-  admin/          🧑‍💼 back-office services and the staff policy
-  modules/lists/  📋 the demo domain — one folder, deletable
-start/            quotas · dashboard · api · jobs · seeders — the registries a feature fills
-config/           plans.ts · payments.ts · drive.ts · limiter.ts · database.ts
+  catalog/        📦 products, plans, entitlements (pure rules + CatalogService)
+  licensing/      🔑 keys, validation, activations, signer, license API payloads
+  commerce/       🛒 orders, customer accounts, refund/dispute effects, integration keys
+  billing/        💳 PaymentProvider (Creem), webhook handler, reconciliation
+  controllers/    admin/ · api/v1/ · licenses/ · storefront/ · billing/ …
+  api/ audit/ auth/ queue/ storage/ notifications/ support/   (from the starter)
+config/           licensing.ts · plans.ts (account limits) · payments.ts · …
 database/         migrations · seeders · generated schema types
-resources/views/  layouts · components · pages · emails
-start/routes/     web · auth · api · billing · admin
-tests/            unit · functional (incl. tenant isolation and hardening) · browser
-docs/             deployment.md · security.md
+start/routes/     web · auth · api · license_api · billing · admin
+tests/            unit · functional (licensing, license_api, commerce, portal, tenant isolation…) · browser
+docs/             license-api.md · deployment.md · security.md · …
 ```
+
+**Stack:** TypeScript · AdonisJS 7 · Lucid · VineJS · Edge + Alpine.js · Japa · SQLite / PostgreSQL ·
+Creem · Resend · Cloudflare R2.
+
+---
+
+## 🗺️ Roadmap
+
+| | Milestone | |
+|---|---|---|
+| ✅ | **M0** Fork the starter | |
+| ✅ | **M1** Catalog: products, plans, entitlements | `/admin/products` |
+| ✅ | **M2** Licensing core: keys, validation, activations, signing | `/admin/licenses` |
+| ✅ | **M3** Public license API | `/api/v1/licenses/*` |
+| ✅ | **M4** Payments → licenses: orders, Creem webhooks, integration API | `/admin/orders` |
+| 🚧 | **M5** Customer portal and pricing page; stripping the starter's SaaS demo | in progress |
+| ⏳ | **M6** JS SDK: tiny, zero-dependency, cached, signature-verifying | `sdk/js` |
+| ⏳ | **M7** PHP SDK for WordPress, and plugin updates served from releases | `sdk/php` |
+| ⏳ | **M8** Hardening: expiry reminders, abuse flags, load tests, production deploy | |
 
 ---
 
 ## 🚢 Deployment
 
-Two processes, and the worker is not optional — every email, webhook and scheduled job goes through
-the queue, so an application without a worker accepts work it will never do:
+Two processes, and the worker is not optional. Every webhook, email and scheduled job goes through
+the queue:
 
 ```bash
 node ace migration:run --force   # release phase
@@ -468,26 +424,27 @@ node bin/server.js               # web
 node ace queue:work              # worker
 ```
 
-Or the whole stack, the way it runs deployed:
+Or the whole stack with Docker:
 
 ```bash
 docker compose up --build
 docker compose run --rm web node ace migration:run --force
 ```
 
-📘 [`docs/deployment.md`](./docs/deployment.md) — the image, the processes, health checks, proxies,
-backups, what to alert on, and a checklist for the first deploy.
-🔐 [`docs/security.md`](./docs/security.md) — what this does about each of the OWASP Top 10, what it
-deliberately does not, and what is left to whoever deploys it.
+Before going live, set `LICENSE_SIGNING_KEY` and keep a copy somewhere safe. Also keep `APP_KEY`
+stable: it decrypts every stored license key.
 
-✅ CI runs lint, typecheck, the full suite against **both** SQLite and PostgreSQL, and a build of
-the image on every push. A migration that only works on one engine fails the build.
+📘 [`docs/deployment.md`](./docs/deployment.md) · 🔐 [`docs/security.md`](./docs/security.md)
+
+✅ CI runs lint, typecheck and the full suite against **both** SQLite and PostgreSQL, and builds the
+image on every push.
 
 ---
 
 <div align="center">
 
-Built with 🅰️ [AdonisJS](https://adonisjs.com) · 📓 read [`plan.md`](./plan.md) for the reasoning
-behind every decision
+Built with 🅰️ [AdonisJS](https://adonisjs.com) on the
+[kitch4nSinkV2](https://github.com/IvanWasHere/kitch4nSinkV2) starter ·
+📓 read [`plan.md`](./plan.md) for the reasoning behind every decision
 
 </div>
