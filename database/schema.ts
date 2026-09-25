@@ -609,6 +609,45 @@ export class RateLimitSchema extends BaseModel {
   declare points: number
 }
 
+export class ReleaseSchema extends BaseModel {
+  static $columns = ['changelog', 'channel', 'checksum', 'createdAt', 'fileKey', 'fileName', 'fileSize', 'id', 'licenseRequired', 'productId', 'publicId', 'publishedAt', 'requires', 'status', 'testedUpTo', 'updatedAt', 'version'] as const
+  $columns = ReleaseSchema.$columns
+  @column()
+  declare changelog: string | null
+  @column()
+  declare channel: 'stable' | 'beta'
+  @column()
+  declare checksum: string
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column()
+  declare fileKey: string
+  @column()
+  declare fileName: string
+  @bigIntColumn()
+  declare fileSize: number
+  @column({ isPrimary: true })
+  declare id: number
+  @booleanColumn()
+  declare licenseRequired: boolean
+  @column()
+  declare productId: number
+  @column()
+  declare publicId: string
+  @column.dateTime()
+  declare publishedAt: DateTime | null
+  @jsonColumn()
+  declare requires: Record<string, string> | null
+  @column()
+  declare status: 'draft' | 'published' | 'yanked'
+  @column()
+  declare testedUpTo: string | null
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime | null
+  @column()
+  declare version: string
+}
+
 export class SocialAccountSchema extends BaseModel {
   static $columns = ['accessToken', 'createdAt', 'id', 'provider', 'providerEmail', 'providerUserId', 'updatedAt', 'userId'] as const
   $columns = SocialAccountSchema.$columns

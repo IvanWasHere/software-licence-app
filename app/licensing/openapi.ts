@@ -228,6 +228,89 @@ export const licenseApiOpenApi: OpenApiContribution = {
       },
     },
 
+    '/products/{slug}/releases/latest': {
+      get: {
+        tags,
+        security: [],
+        summary: 'The newest build, and a download link if this license covers it',
+        description: `The release is described whether or not the caller may have it, so software can say "2.1 is available — renew to get it". \`download\` is a link that works for 10 minutes, for this license and this build only. With \`instance_id\`, the installation must be activated. ${businessAnswer}`,
+        parameters: [
+          { name: 'slug', in: 'path', required: true, schema: { type: 'string' } },
+          { name: 'channel', in: 'query', schema: { type: 'string', enum: ['stable', 'beta'] } },
+          { name: 'license_key', in: 'query', schema: { type: 'string' } },
+          { name: 'instance_id', in: 'query', schema: instanceId },
+          { name: 'nonce', in: 'query', schema: { type: 'string' } },
+        ],
+        responses: {
+          200: {
+            description:
+              'The newest release on the channel, or `release: null` when there is none.',
+            ...json({
+              type: 'object',
+              properties: {
+                release: {
+                  type: ['object', 'null'],
+                  properties: {
+                    id: { type: 'string', example: 'rel_8x2k4m9qz1ab' },
+                    version: { type: 'string', example: '2.1.0' },
+                    channel: { type: 'string', enum: ['stable', 'beta'] },
+                    changelog: { type: ['string', 'null'] },
+                    requires: {
+                      type: 'object',
+                      additionalProperties: { type: 'string' },
+                      example: { wp: '6.5', php: '7.4' },
+                    },
+                    tested_up_to: { type: ['string', 'null'] },
+                    published_at: { type: ['string', 'null'], format: 'date-time' },
+                    file_name: { type: 'string' },
+                    file_size: { type: 'integer' },
+                    checksum_sha256: { type: 'string' },
+                  },
+                },
+                update_allowed: { type: 'boolean' },
+                reason: {
+                  type: ['string', 'null'],
+                  enum: [...LICENSE_REASONS, 'updates_expired', 'license_required', null],
+                  description:
+                    'Why there is no download: a license reason, `updates_expired` (a perpetual license whose update window closed before this build), or `license_required` (no key sent).',
+                },
+                download: {
+                  type: ['object', 'null'],
+                  properties: {
+                    url: { type: 'string', format: 'uri' },
+                    expires_at: { type: 'string', format: 'date-time' },
+                  },
+                },
+                license: { ...license, type: ['object', 'null'] },
+                ...echoed,
+                signed,
+              },
+            }),
+          },
+          404: { description: 'No such product, or not yet on sale.', ...json(errorSchema) },
+          ...failures,
+        },
+      },
+    },
+    '/releases/{id}/download': {
+      get: {
+        tags,
+        security: [],
+        summary: 'Download a build (a link from releases/latest)',
+        description:
+          'Not called directly: follow the `download.url` a `releases/latest` answer gave. Redirects to the file. The license is checked again, so a link issued before a refund stops working.',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: {
+          302: { description: 'To the file.' },
+          403: {
+            description:
+              'The link is invalid or expired, or the license no longer covers this build.',
+            ...json(errorSchema),
+          },
+          404: { description: 'No such release.', ...json(errorSchema) },
+        },
+      },
+    },
     '/keys': {
       get: {
         tags,

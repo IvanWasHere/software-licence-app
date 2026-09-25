@@ -164,6 +164,22 @@ router
           ])
           .as('admin.entitlements.destroy')
           .where('entitlementId', publicIdMatcher('entitlement'))
+
+        router
+          .post('/:id/releases', [controllers.admin.Release, 'store'])
+          .as('admin.releases.store')
+        router
+          .post('/:id/releases/:releaseId/publish', [controllers.admin.Release, 'publish'])
+          .as('admin.releases.publish')
+          .where('releaseId', publicIdMatcher('release'))
+        router
+          .post('/:id/releases/:releaseId/yank', [controllers.admin.Release, 'yank'])
+          .as('admin.releases.yank')
+          .where('releaseId', publicIdMatcher('release'))
+        router
+          .post('/:id/releases/:releaseId/delete', [controllers.admin.Release, 'destroy'])
+          .as('admin.releases.destroy')
+          .where('releaseId', publicIdMatcher('release'))
       })
       .prefix('/products')
       .where('id', publicIdMatcher('product'))

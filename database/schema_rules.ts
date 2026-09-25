@@ -305,6 +305,16 @@ export default {
       },
     },
 
+    releases: {
+      columns: {
+        channel: union('stable', 'beta'),
+        status: union('draft', 'published', 'yanked'),
+        requires: json('Record<string, string>'),
+        license_required: boolean,
+        file_size: bigIntCounter,
+      },
+    },
+
     license_activations: {
       columns: {
         is_dev: boolean,

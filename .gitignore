@@ -42,3 +42,6 @@ yarn-error.log
 
 # The JS SDK builds into its own dist/ (sdk/js), published from there.
 sdk/js/dist
+
+# The example plugin's packaged zips (examples/wp-plugin/build.sh).
+examples/wp-plugin/dist

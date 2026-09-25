@@ -50,6 +50,7 @@ export const PUBLIC_ID_PREFIXES = {
   license: 'lic',
   licenseActivation: 'act',
   order: 'ord',
+  release: 'rel',
 } as const
 
 export type PublicIdResource = keyof typeof PUBLIC_ID_PREFIXES

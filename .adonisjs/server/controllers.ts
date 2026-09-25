@@ -16,6 +16,7 @@ export const controllers = {
     Organization: () => import('#app/controllers/admin/organization_controller'),
     Plan: () => import('#app/controllers/admin/plan_controller'),
     Product: () => import('#app/controllers/admin/product_controller'),
+    Release: () => import('#app/controllers/admin/release_controller'),
     Session: () => import('#app/controllers/admin/session_controller'),
     Staff: () => import('#app/controllers/admin/staff_controller'),
     Subscription: () => import('#app/controllers/admin/subscription_controller'),
@@ -33,6 +34,7 @@ export const controllers = {
       License: () => import('#app/controllers/api/v1/license_controller'),
       Organization: () => import('#app/controllers/api/v1/organization_controller'),
       Product: () => import('#app/controllers/api/v1/product_controller'),
+      Release: () => import('#app/controllers/api/v1/release_controller'),
     },
   },
   auth: {

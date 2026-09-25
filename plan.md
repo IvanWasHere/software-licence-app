@@ -346,13 +346,16 @@ Both SDKs share the same behaviour contract. The flow is:
 
 - Security note, stated in the README: the SDK only uses the public license API and holds **no secrets**. In pure browser code any check can be patched out, so for web apps the real gate belongs on the app's own backend (the Node SDK uses the same package).
 
-### 7.2 PHP SDK: `<org>/wp-license` (`sdk/php`)
-- Composer package, PHP 7.4+ (WordPress reality), no dependencies beyond WP HTTP.
-- Uses `wp_remote_post` with `wp_options` and transients as the cache.
-- Includes a drop-in `Updater` that hooks `pre_set_site_transient_update_plugins` and `plugins_api` to serve updates from `releases/latest`.
-- Includes a drop-in admin settings page for key entry, activation status and a deactivate button, which products can override.
-- Signature verification uses `sodium_crypto_sign_verify_detached`, which is bundled in PHP 7.2+.
-- An example plugin in `examples/wp-plugin` exercises everything.
+### 7.2 PHP SDK: `licence-app/sdk` (`sdk/php`) — built in M7
+- Composer package, namespace `LicenceApp\Sdk`, **PHP 7.4+ with `sodium`, no dependencies**. It also ships without Composer (`src/autoload.php`), which is how a plugin bundles it.
+- `Client` mirrors the JS SDK's contract and stores the same record shape: nonce/product/instance echo checks, re-verified cache, the 1-hour "no" cache, offline grace. HTTP and storage are interfaces: cURL and a JSON file outside WordPress, `wp_remote_request` and one non-autoloaded `wp_options` row inside it.
+- `WordPress\Updater` hooks `pre_set_site_transient_update_plugins`, `plugins_api` and **`upgrader_pre_download`**.
+  - At install time it fetches a *fresh* link, because links live 10 minutes and the Updates screen may be stale.
+  - It verifies the zip against the **signed SHA-256** before WordPress unpacks it.
+  - An update the license doesn't cover is listed with no package and a reason.
+- `WordPress\SettingsPage`: key entry, status, deactivate, with `manage_options` and a nonce. `WordPress\Plugin::boot()` wires everything in one call.
+- Signature verification uses `sodium_crypto_sign_verify_detached`.
+- `examples/wp-plugin` is a complete plugin with a build script that bundles the SDK.
 
 ---
 
@@ -399,7 +402,7 @@ licence-app/            the AdonisJS server is the repository root (fork of kitc
 ├── tests/              unit/, functional/{licensing,license_api,commerce,portal,…}
 ├── docs/               starter docs + license-api.md
 ├── sdk/js/             @licence-app/sdk (M6) — its own package, excluded from the server's tsconfig and lint
-├── sdk/php/            <org>/wp-license (M7)
+├── sdk/php/            licence-app/sdk (M7) — PHP client, WordPress updater and settings page
 └── examples/           wp-plugin/, node-app/
 ```
 
@@ -520,10 +523,42 @@ Original scope:
 - ✅ 20 SDK tests against a fake server that really signs, covering cache freshness, the 1-hour "no" cache, offline grace and its expiry, 5xx as offline, forged signatures, edited payloads, replayed nonces, wrong products, edited caches, a stable instance id, deactivation, `onChange` and file storage.
 - ✅ 5 contract tests in the server suite (`tests/functional/sdk`) run the SDK source against the real HTTP API: activate, validate, entitlements, revocation, the activation limit, reason codes and a wrong pinned key.
 
-**M7: PHP SDK and updates (≈5 days)**
-- Build releases in the admin (upload/publish), the `releases/latest` and signed download endpoints, and the PHP client, updater and settings page.
-- Add `examples/wp-plugin`.
-- ✅ In a wp-env Docker environment, the plugin activates, shows its status, gets an update notice and installs the update. Expired keys get no updates but the plugin keeps working.
+**M7: PHP SDK and updates (≈5 days)** ✅ done
+- **Releases** (`releases` table, `app/catalog/release_service.ts`):
+  - A zip goes up to the private disk under `releases/{product}/{version}/{uuid}.zip`. It is checked by its magic bytes, measured, and hashed with SHA-256.
+  - It starts as a **draft**, is **published**, and can be **withdrawn** (yanked, kept for reinstalls). Only a draft can be deleted.
+  - `published_at` is set once, so restoring a withdrawn build doesn't move it past anybody's update window.
+  - Versions are semver, compared by a pure `compareVersions`, and permanent per product.
+  - Upload, publish and withdraw are audited. `manageCatalog` guards them; support sees the list.
+- **`GET /api/v1/products/:slug/releases/latest`**:
+  - It answers with the newest published build on the channel (beta also sees stable) and is signed like every other answer.
+  - The release is described whether or not the caller may have it.
+  - A download link comes only with `update_allowed: true`. Otherwise the reason is a license reason, `updates_expired` or `license_required`.
+  - With an `instance_id`, that installation must be activated. The check also counts as a heartbeat.
+- **`GET /api/v1/releases/:id/download`**:
+  - A signed route URL (purpose-bound, 10 minutes), tied to the license, that redirects to a 5-minute storage URL.
+  - The license is re-checked when the link is used.
+  - Query forwarding is turned off for this redirect: the app forwards query strings by default, and that broke the storage signature. The contract test caught it.
+- **Customer portal:** the license page shows the latest version with a *Download .zip*, or says the build came after the update window.
+- **PHP SDK** as in §7.2, plus `examples/wp-plugin`.
+- **Decisions:**
+
+  | | |
+  |---|---|
+  | Q4, expired update window | The license **stays valid**; builds published after `updates_until` answer `updates_expired`. What was bought keeps working and stays downloadable |
+  | Download links | Our own signed URL, re-checking the license, then a redirect to storage. It works with the local disk and with R2 |
+  | Free builds | A release can be uploaded as not needing a license (`license_required: false`) |
+  | Build size | 25 MB (the bodyparser limit) |
+
+- **Instead of wp-env**, since this machine has no Docker:
+  - ✅ 51 PHPUnit tests: the client against a signing fake server, and the updater against WordPress stubs. These cover checksum mismatches, fresh links, caching and uncovered updates.
+  - ✅ 4 contract tests in the server suite (`tests/functional/sdk/php_sdk.spec.ts`) run the real PHP client over HTTP: activate, validate, entitlements, revocation, deactivation, and the update check. The download's bytes are checked against the signed checksum.
+  - ✅ A manual run against a real **WordPress 7.1** (SQLite, WP-CLI) confirmed the rest:
+    - the plugin activates and the settings screen renders;
+    - without a key the update is listed but refused;
+    - with a key 1.0.0 → 1.1.0 installs;
+    - with the window closed it says `updates_expired` while the license still validates.
+- ✅ Server suite at **750/750** plus **10/10** browser: 30 new release tests (API, download links, back-office, portal, semver, access rules) and the 4 PHP contract tests. CI adds a `sdk-php` job on PHP 7.4, 8.1 and 8.4, and installs PHP for the contract test.
 
 **M8: Hardening and launch (≈3 days)**
 - Add the abuse flags, admin dashboard metrics and backups.
@@ -546,7 +581,7 @@ Total **≈30 working days** for one developer.
 - **Browser (Playwright):** the purchase→portal flow and the admin license actions.
 - **SDKs:**
   - JS: vitest with a mock `fetch`, a clock and tampered-signature cases.
-  - PHP: PHPUnit plus a wp-env smoke test.
+  - PHP: PHPUnit with a signing fake server and WordPress stubs, and a manual WP-CLI run against real WordPress (no Docker for wp-env).
 - **Contract:** SDK tests run against a real server booted in CI, so the reason codes and response shape can't drift.
 
 ---
@@ -555,7 +590,7 @@ Total **≈30 working days** for one developer.
 1. **Company name, key prefixes and package scope.** Replace `<org>` throughout.
 2. **Creem fit.** Confirm Creem supports everything we need: one-time and recurring products, the customer portal, refunds and the webhook events in §5.3. Creem may also offer its own license-key feature. If so, we deliberately don't use it, because our server stays the source of truth.
 3. ~~**Dunning window and renewal grace.**~~ Decided in M5: 30 days after the paid period, with no separate suspension step.
-4. **Expired perpetual-update licenses.** Should they still validate as `valid` with `updates_until` in the past (proposed), or return a distinct state?
+4. ~~**Expired perpetual-update licenses.**~~ Decided in M7: they stay `valid`. `releases/latest` answers `updates_expired` for builds published after `updates_until`.
 5. **Activation limits.** Are the defaults per plan right (e.g. 1 / 5 / unlimited sites)? Should dev sites be free?
 6. **VAT and invoices.** Is Creem's merchant-of-record invoice enough, or do we need our own invoice PDFs?
 7. **Hosting target.** Docker on a VPS with Postgres, per the starter's `compose.yaml`, or somewhere else?

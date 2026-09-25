@@ -50,6 +50,31 @@ jobs:
       - run: npm test
       - run: node scripts/size.mjs
 
+  # The PHP SDK (licence plan M7), on the oldest PHP it promises and the
+  # newest. Its contract test against the real server runs in the server
+  # suite below (tests/functional/sdk/php_sdk.spec.ts), which is why that job
+  # installs PHP too.
+  sdk-php:
+    name: PHP SDK (PHP ${{ matrix.php }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['7.4', '8.1', '8.4']
+    defaults:
+      run:
+        working-directory: sdk/php
+    steps:
+      - uses: actions/checkout@v5
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: sodium, curl, json
+          coverage: none
+      - run: composer install --no-interaction --no-progress
+      - run: composer lint
+      - run: composer test
+
   static:
     name: Lint & typecheck
     runs-on: ubuntu-latest
@@ -95,6 +120,14 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+
+      # The PHP SDK's contract test drives the real PHP client against this
+      # server; without PHP it skips, which CI must not.
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: sodium, curl, json
+          coverage: none
 
       # The browser suite drives a real Chromium (plan §15). `--with-deps`
       # installs the shared libraries a headless browser needs on a runner

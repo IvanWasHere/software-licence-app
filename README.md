@@ -43,6 +43,9 @@ rows in the database, so adding a tenth product needs no code change.
 - 👤 **A customer portal.** Keys, where each one is installed, a button to free a slot, orders and invoices.
   Accounts are one person by default: no uploads and no API keys. Staff can switch any of these on
   per account.
+- 🔄 **Releases and updates.** Upload a build, publish it, and licensed installations are offered it.
+  - WordPress plugins update from the normal Updates screen.
+  - Perpetual licenses get the builds published inside their update window, and keep working after it.
 - 📣 **Announcements** to everyone, to account owners, to named people, or to **customers of a
   product** ("Invoice Pro 2.5 is out").
 - 🧑‍💼 **A back-office.**
@@ -208,6 +211,34 @@ if (license.has('pdf_export')) showPdfButton()
 ```
 
 A runnable CLI lives in [`examples/node-app`](./examples/node-app).
+
+### 🐘 A WordPress plugin with the PHP SDK
+
+[`licence-app/sdk`](./sdk/php) adds a license screen under Settings and serves your plugin's
+updates through WordPress's own Updates screen. Every download is checked against a signed SHA-256.
+
+```php
+function invoice_pro_license(): \LicenceApp\Sdk\Client
+{
+    static $client = null;
+
+    return $client ??= \LicenceApp\Sdk\WordPress\Plugin::boot([
+        'plugin_file' => __FILE__,
+        'version'     => '1.2.0',
+        'name'        => 'Invoice Pro',
+        'base_url'    => 'https://licenses.example.com/api/v1',
+        'product'     => 'invoice-pro',
+        'public_key'  => ['k1' => '<from GET /api/v1/keys>'],
+    ]);
+}
+
+invoice_pro_license();                                   // updater + settings screen
+if (invoice_pro_license()->has('pdf_export')) { /* … */ }
+```
+
+Ship an update by uploading the zip under **Products → Invoice Pro → Upload a release** and
+publishing it. [`examples/wp-plugin`](./examples/wp-plugin) is a complete plugin with a build
+script.
 
 ### 🔏 Trust only what is signed (without the SDK)
 
@@ -406,7 +437,7 @@ node ace staff:create --role=admin      # 🛡️ a back-office account
 
 ```
 app/
-  catalog/        📦 products, plans, entitlements (pure rules + CatalogService)
+  catalog/        📦 products, plans, entitlements, releases (pure rules + services)
   licensing/      🔑 keys, validation, activations, signer, license API payloads
   commerce/       🛒 orders, customer accounts, refund/dispute effects, integration keys
   billing/        💳 PaymentProvider (Creem), webhook handler, reconciliation
@@ -418,7 +449,8 @@ start/routes/     web · auth · api · license_api · billing · admin
 tests/            unit · functional (licensing, license_api, commerce, portal, tenant isolation…) · browser
 docs/             license-api.md · deployment.md · security.md · …
 sdk/js/           📦 @licence-app/sdk — its own package, own tests, own CI job
-examples/         node-app/ — a CLI licensed with the SDK
+sdk/php/          🐘 licence-app/sdk — PHP client, WordPress updater and settings page
+examples/         node-app/ — a CLI licensed with the JS SDK · wp-plugin/ — a licensed WordPress plugin
 ```
 
 **Stack:** TypeScript · AdonisJS 7 · Lucid · VineJS · Edge + Alpine.js · Japa · SQLite / PostgreSQL ·
@@ -437,7 +469,7 @@ Creem · Resend · Cloudflare R2.
 | ✅ | **M4** Payments → licenses: orders, Creem webhooks, integration API | `/admin/orders` |
 | ✅ | **M5** Customer portal, product list and pricing page; the starter's SaaS demo removed | `/licenses`, `/pricing/:product` |
 | ✅ | **M6** JS SDK: zero-dependency, about 3 KB, cached, signature-verifying, offline-tolerant | [`sdk/js`](./sdk/js) |
-| ⏳ | **M7** PHP SDK for WordPress, and plugin updates served from releases | `sdk/php` |
+| ✅ | **M7** Releases and updates; PHP SDK with a WordPress updater and settings screen | [`sdk/php`](./sdk/php) |
 | ⏳ | **M8** Hardening: expiry reminders, abuse flags, load tests, production deploy | |
 
 ---

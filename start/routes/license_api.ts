@@ -28,6 +28,7 @@
 import router from '@adonisjs/core/services/router'
 import { middleware } from '#start/kernel'
 import { controllers } from '#generated/controllers'
+import { publicIdMatcher } from '#models/public_id'
 import { licenseApiAddressThrottle, licenseApiKeyThrottle } from '#start/limiter'
 
 router
@@ -50,6 +51,14 @@ router
       .as('license_api.preflight')
 
     router.get('/products/:slug', [controllers.api.v1.Product, 'show']).as('license_api.product')
+    router
+      .get('/products/:slug/releases/latest', [controllers.api.v1.Release, 'latest'])
+      .as('license_api.releases.latest')
+    router
+      .get('/releases/:id/download', [controllers.api.v1.Release, 'download'])
+      .as('license_api.release_download')
+      .where('id', publicIdMatcher('release'))
+
     router.get('/keys', [controllers.api.v1.License, 'keys']).as('license_api.keys')
   })
   .prefix('/api/v1')

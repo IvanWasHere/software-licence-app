@@ -96,3 +96,17 @@ export const updateEntitlementValidator = vine.create({
   description: vine.string().trim().maxLength(500).nullable().optional(),
   defaultValue: vine.string().trim().maxLength(500).nullable().optional(),
 })
+
+/**
+ * A build uploaded in the back-office (licence plan §8, M7). The file itself
+ * is checked by `ReleaseService` — size, zip bytes — not here.
+ */
+export const releaseValidator = vine.create({
+  version: vine.string().trim().minLength(1).maxLength(64),
+  channel: vine.enum(['stable', 'beta'] as const),
+  changelog: vine.string().trim().maxLength(20000).nullable().optional(),
+  requiresWp: vine.string().trim().maxLength(16).nullable().optional(),
+  requiresPhp: vine.string().trim().maxLength(16).nullable().optional(),
+  testedUpTo: vine.string().trim().maxLength(32).nullable().optional(),
+  licenseRequired: vine.boolean().optional(),
+})

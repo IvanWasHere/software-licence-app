@@ -3,6 +3,7 @@ import { beforeCreate, hasMany } from '@adonisjs/lucid/orm'
 import type { HasMany } from '@adonisjs/lucid/types/relations'
 
 import Plan from '#models/plan'
+import Release from '#models/release'
 import Entitlement from '#models/entitlement'
 import { ProductSchema } from '#database/schema'
 import { withPublicId } from '#models/mixins/with_public_id'
@@ -16,6 +17,9 @@ export default class Product extends compose(ProductSchema, withPublicId('produc
 
   @hasMany(() => Entitlement)
   declare entitlements: HasMany<typeof Entitlement>
+
+  @hasMany(() => Release)
+  declare releases: HasMany<typeof Release>
 
   /**
    * The columns with database defaults, set here too: a default the database

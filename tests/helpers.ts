@@ -1,4 +1,5 @@
 import { createHmac } from 'node:crypto'
+import { crc32 } from 'node:zlib'
 import { DateTime } from 'luxon'
 
 import type User from '#models/user'
@@ -771,4 +772,93 @@ export async function createWorkspaceWithFeatures(
   await allowAccountFeatures(workspace.organization)
 
   return workspace
+}
+
+/**
+ * A real, minimal zip archive (stored, no compression) holding `files` —
+ * what a plugin build looks like to the release upload, which reads its
+ * magic bytes.
+ */
+export function zipFixture(files: Record<string, string> = { 'plugin/plugin.php': '<?php\n' }) {
+  const locals: Buffer[] = []
+  const centrals: Buffer[] = []
+  let offset = 0
+
+  for (const [name, content] of Object.entries(files)) {
+    const nameBytes = Buffer.from(name, 'utf8')
+    const data = Buffer.from(content, 'utf8')
+    const crc = crc32(data)
+
+    const local = Buffer.alloc(30)
+    local.writeUInt32LE(0x04034b50, 0)
+    local.writeUInt16LE(20, 4)
+    local.writeUInt32LE(crc, 14)
+    local.writeUInt32LE(data.length, 18)
+    local.writeUInt32LE(data.length, 22)
+    local.writeUInt16LE(nameBytes.length, 26)
+
+    const central = Buffer.alloc(46)
+    central.writeUInt32LE(0x02014b50, 0)
+    central.writeUInt16LE(20, 4)
+    central.writeUInt16LE(20, 6)
+    central.writeUInt32LE(crc, 16)
+    central.writeUInt32LE(data.length, 20)
+    central.writeUInt32LE(data.length, 24)
+    central.writeUInt16LE(nameBytes.length, 28)
+    central.writeUInt32LE(offset, 42)
+
+    locals.push(local, nameBytes, data)
+    centrals.push(central, nameBytes)
+    offset += local.length + nameBytes.length + data.length
+  }
+
+  const centralSize = centrals.reduce((sum, part) => sum + part.length, 0)
+  const end = Buffer.alloc(22)
+  end.writeUInt32LE(0x06054b50, 0)
+  end.writeUInt16LE(Object.keys(files).length, 8)
+  end.writeUInt16LE(Object.keys(files).length, 10)
+  end.writeUInt32LE(centralSize, 12)
+  end.writeUInt32LE(offset, 16)
+
+  return Buffer.concat([...locals, ...centrals, end])
+}
+
+/**
+ * A release uploaded through the real service, published unless asked not
+ * to be — the file lands on the test disk like a real upload.
+ */
+export async function createRelease(
+  product: import('#models/product').default,
+  options: {
+    version?: string
+    channel?: 'stable' | 'beta'
+    publish?: boolean
+    licenseRequired?: boolean
+    publishedAt?: DateTime
+    requires?: Record<string, string>
+  } = {}
+) {
+  const { default: releases } = await import('#catalog/release_service')
+  const upload = await fixtureUpload('txt', { bytes: zipFixture() })
+
+  const release = await releases.upload(product, {
+    tmpPath: upload.tmpPath,
+    version: options.version ?? '1.0.0',
+    channel: options.channel ?? 'stable',
+    changelog: 'Fixes.',
+    requires: options.requires ?? { wp: '6.5', php: '7.4' },
+    testedUpTo: '6.8',
+    licenseRequired: options.licenseRequired ?? true,
+  })
+
+  if (options.publish ?? true) {
+    await releases.publish(release)
+  }
+
+  if (options.publishedAt) {
+    release.publishedAt = options.publishedAt
+    await release.save()
+  }
+
+  return release
 }

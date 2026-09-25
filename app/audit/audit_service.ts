@@ -40,6 +40,9 @@ export const AUDIT_ACTIONS = {
   entitlementCreated: 'catalog.entitlement.created',
   entitlementUpdated: 'catalog.entitlement.updated',
   entitlementDeleted: 'catalog.entitlement.deleted',
+  releaseUploaded: 'catalog.release.uploaded',
+  releasePublished: 'catalog.release.published',
+  releaseYanked: 'catalog.release.yanked',
 
   licenseIssued: 'license.issued',
   licenseKeyRevealed: 'license.key_revealed',

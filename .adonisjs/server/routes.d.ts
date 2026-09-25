@@ -87,6 +87,7 @@ export type ScannedRoutes = {
     'settings.organization.leave': { paramsTuple?: []; params?: {} }
     'licenses.index': { paramsTuple?: []; params?: {} }
     'licenses.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'licenses.download': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'licenses.reveal': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'licenses.deactivate': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'activationId': ParamValue} }
     'files.index': { paramsTuple?: []; params?: {} }
@@ -116,6 +117,8 @@ export type ScannedRoutes = {
     'license_api.deactivate': { paramsTuple?: []; params?: {} }
     'license_api.preflight': { paramsTuple: [...ParamValue[]]; params: {'*': ParamValue[]} }
     'license_api.product': { paramsTuple: [ParamValue]; params: {'slug': ParamValue} }
+    'license_api.releases.latest': { paramsTuple: [ParamValue]; params: {'slug': ParamValue} }
+    'license_api.release_download': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'license_api.keys': { paramsTuple?: []; params?: {} }
     'admin.session.create': { paramsTuple?: []; params?: {} }
     'admin.session.store': { paramsTuple?: []; params?: {} }
@@ -158,6 +161,10 @@ export type ScannedRoutes = {
     'admin.entitlements.store': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.entitlements.update': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'entitlementId': ParamValue} }
     'admin.entitlements.destroy': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'entitlementId': ParamValue} }
+    'admin.releases.store': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.releases.publish': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'releaseId': ParamValue} }
+    'admin.releases.yank': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'releaseId': ParamValue} }
+    'admin.releases.destroy': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'releaseId': ParamValue} }
     'admin.licenses.index': { paramsTuple?: []; params?: {} }
     'admin.licenses.create': { paramsTuple?: []; params?: {} }
     'admin.licenses.store': { paramsTuple?: []; params?: {} }
@@ -255,6 +262,7 @@ export type ScannedRoutes = {
     'settings.organization': { paramsTuple?: []; params?: {} }
     'licenses.index': { paramsTuple?: []; params?: {} }
     'licenses.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'licenses.download': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'files.index': { paramsTuple?: []; params?: {} }
     'files.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'support.index': { paramsTuple?: []; params?: {} }
@@ -265,6 +273,8 @@ export type ScannedRoutes = {
     'members.index': { paramsTuple?: []; params?: {} }
     'settings.security': { paramsTuple?: []; params?: {} }
     'license_api.product': { paramsTuple: [ParamValue]; params: {'slug': ParamValue} }
+    'license_api.releases.latest': { paramsTuple: [ParamValue]; params: {'slug': ParamValue} }
+    'license_api.release_download': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'license_api.keys': { paramsTuple?: []; params?: {} }
     'admin.session.create': { paramsTuple?: []; params?: {} }
     'admin.two_factor.create': { paramsTuple?: []; params?: {} }
@@ -363,6 +373,7 @@ export type ScannedRoutes = {
     'settings.organization': { paramsTuple?: []; params?: {} }
     'licenses.index': { paramsTuple?: []; params?: {} }
     'licenses.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'licenses.download': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'files.index': { paramsTuple?: []; params?: {} }
     'files.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'support.index': { paramsTuple?: []; params?: {} }
@@ -373,6 +384,8 @@ export type ScannedRoutes = {
     'members.index': { paramsTuple?: []; params?: {} }
     'settings.security': { paramsTuple?: []; params?: {} }
     'license_api.product': { paramsTuple: [ParamValue]; params: {'slug': ParamValue} }
+    'license_api.releases.latest': { paramsTuple: [ParamValue]; params: {'slug': ParamValue} }
+    'license_api.release_download': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'license_api.keys': { paramsTuple?: []; params?: {} }
     'admin.session.create': { paramsTuple?: []; params?: {} }
     'admin.two_factor.create': { paramsTuple?: []; params?: {} }
@@ -480,6 +493,10 @@ export type ScannedRoutes = {
     'admin.entitlements.store': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.entitlements.update': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'entitlementId': ParamValue} }
     'admin.entitlements.destroy': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'entitlementId': ParamValue} }
+    'admin.releases.store': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.releases.publish': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'releaseId': ParamValue} }
+    'admin.releases.yank': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'releaseId': ParamValue} }
+    'admin.releases.destroy': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'releaseId': ParamValue} }
     'admin.licenses.store': { paramsTuple?: []; params?: {} }
     'admin.licenses.reveal': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.licenses.suspend': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }

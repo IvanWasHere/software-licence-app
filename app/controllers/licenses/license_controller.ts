@@ -1,6 +1,7 @@
 import type { HttpContext } from '@adonisjs/core/http'
 
 import License from '#models/license'
+import releases from '#catalog/release_service'
 import activations from '#licensing/activation_service'
 import licenses, { type LicenseActor } from '#licensing/license_service'
 
@@ -42,10 +43,11 @@ export default class LicenseController {
       return response.redirect().toRoute('licenses.index')
     }
 
-    const [live, usage, entitlements] = await Promise.all([
+    const [live, usage, entitlements, latest] = await Promise.all([
       activations.live(license),
       activations.usage(license),
       licenses.entitlements(license),
+      releases.latest(license.product, 'stable'),
     ])
 
     return view.render('pages/licenses/show', {
@@ -54,7 +56,33 @@ export default class LicenseController {
       usage,
       entitlements: Object.entries(entitlements),
       revealedKey: session.flashMessages.get('revealedKey') ?? null,
+      latest,
+      latestAccess: latest ? releases.accessForLicense(latest, license) : null,
     })
+  }
+
+  /**
+   * Download the newest stable build this license covers (licence plan §6,
+   * M7) — for installing by hand, or on a site that cannot reach us.
+   */
+  async download({ params, organization, response, session }: HttpContext) {
+    const license = await this.find(organization.id, params.id)
+    const latest = license ? await releases.latest(license.product, 'stable') : null
+
+    if (!license || !latest) {
+      session.flash('error', 'There is nothing to download yet.')
+      return response.redirect().toRoute('licenses.index')
+    }
+
+    if (!releases.accessForLicense(latest, license).allowed) {
+      session.flash('error', 'This license does not include the latest version.')
+      return response.redirect().toRoute('licenses.show', { id: license.publicId })
+    }
+
+    return response
+      .redirect()
+      .withQs(false)
+      .toPath(await releases.fileUrl(latest))
   }
 
   /**

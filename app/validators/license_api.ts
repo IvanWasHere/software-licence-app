@@ -61,3 +61,15 @@ export const deactivateLicenseValidator = vine.create({
   instance_id: instanceId,
   nonce,
 })
+
+/**
+ * `GET /products/:slug/releases/latest` (licence plan §6, M7). A query
+ * string, because WordPress asks for updates with a GET; every field is
+ * optional, since a free build is offered to anybody.
+ */
+export const latestReleaseValidator = vine.create({
+  channel: vine.enum(['stable', 'beta'] as const).optional(),
+  license_key: licenseKey.optional(),
+  instance_id: instanceId.optional(),
+  nonce,
+})

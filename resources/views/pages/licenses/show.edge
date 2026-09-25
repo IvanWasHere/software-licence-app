@@ -47,6 +47,19 @@
           @if(license.updatesUntil)
             <tr><th>Updates until</th><td>{{ license.updatesUntil.toFormat('d LLLL yyyy') }}</td></tr>
           @end
+          @if(latest)
+            <tr>
+              <th>Latest version</th>
+              <td>
+                {{ latest.version }}
+                @if(latestAccess.allowed)
+                  · <a href="{{ urlFor('licenses.download', { id: license.publicId }) }}">Download .zip</a>
+                @elseif(latestAccess.reason === 'updates_expired')
+                  <span class="field-hint">· released after your updates ended</span>
+                @end
+              </td>
+            </tr>
+          @end
           <tr><th>Sites in use</th><td>{{ usage.used }} of {{ usage.max === null ? 'unlimited' : usage.max }}</td></tr>
           @if(entitlements.length)
             <tr>

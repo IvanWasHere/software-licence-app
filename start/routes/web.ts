@@ -67,6 +67,10 @@ router
       .as('licenses.show')
       .where('id', publicIdMatcher('license'))
     router
+      .get('/licenses/:id/download', [controllers.licenses.License, 'download'])
+      .as('licenses.download')
+      .where('id', publicIdMatcher('license'))
+    router
       .post('/licenses/:id/reveal', [controllers.licenses.License, 'reveal'])
       .as('licenses.reveal')
       .where('id', publicIdMatcher('license'))

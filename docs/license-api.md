@@ -114,11 +114,36 @@ curl -s $BASE/products/invoice-pro | jq
 
 Draft products answer `404`; retired ones are described but list no plans.
 
+**Is there an update, and may I have it?** — what the WordPress updater asks:
+
+```bash
+curl -s "$BASE/products/invoice-pro/releases/latest?license_key=$KEY&instance_id=4f7c…&nonce=$(uuidgen)" \
+  | jq '{release: .release.version, update_allowed, reason, download}'
+```
+
+The newest published build on the channel (`channel=beta` also sees betas, and moves on to the
+release once it ships). The release is described whether or not the caller may have it, so the
+software can say "2.1 is out — renew to get it". `download.url` is present only when the license
+covers this build. It works for **10 minutes**, for this license and this build only, and redirects
+to the file. The license is checked again when the link is used, so a link issued before a refund
+stops working.
+
+| `reason` | |
+|---|---|
+| any license reason | The license itself is not valid (`license_expired`, `not_activated`, …) |
+| `updates_expired` | A perpetual license whose `updates_until` is before the release's publication. The license **still validates**; it just doesn't get builds from after its window |
+| `license_required` | No key was sent, and this build needs one. A build uploaded as a free download is linked for anybody |
+
+Each release answer is signed like every other, `checksum_sha256` included, so a client can check
+the bytes it downloaded against a value it can trust. The PHP SDK does this before WordPress
+unpacks anything.
+
 ## Where things live
 
 | | |
 |---|---|
-| Controllers | `app/controllers/api/v1/license_controller.ts`, `product_controller.ts` |
+| Controllers | `app/controllers/api/v1/license_controller.ts`, `product_controller.ts`, `release_controller.ts` |
+| Releases | `app/catalog/release_service.ts` (upload, publish, withdraw, who may download), `app/catalog/semver.ts` |
 | Response shapes | `app/licensing/api_payload.ts` |
 | Decision rules | `app/licensing/validation.ts` (pure), `license_service.ts`, `activation_service.ts` |
 | Signing | `app/licensing/signer.ts`, `config/licensing.ts` |

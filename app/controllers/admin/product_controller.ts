@@ -1,6 +1,7 @@
 import type { HttpContext } from '@adonisjs/core/http'
 
 import catalog, { CatalogError } from '#catalog/catalog_service'
+import releases from '#catalog/release_service'
 import audit, { AUDIT_ACTIONS } from '#audit/audit_service'
 import { productValidator } from '#validators/catalog'
 import { redirectBackWithErrors } from '#admin/form_errors'
@@ -68,6 +69,7 @@ export default class AdminProductController {
     return view.render('pages/admin/products/show', {
       product,
       entitlementTypes: ENTITLEMENT_TYPES,
+      releases: await releases.list(product),
       canManage: await staffBouncer.with('StaffPolicy').allows('manageCatalog'),
     })
   }

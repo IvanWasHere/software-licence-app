@@ -148,6 +148,142 @@
     @end
   @end
 
+  {{--
+    Releases (M7). Newest version first. A draft is uploaded but offered to
+    nobody; publishing offers it on every installation's next update check.
+  --}}
+  @panel.root({ title: 'Releases', flush: true })
+    @if(releases.length)
+      <div class="table-scroll">
+        <table class="tx-table">
+          <thead>
+            <tr><th>Version</th><th>Channel</th><th>Requires</th><th>File</th><th>State</th><th></th></tr>
+          </thead>
+          <tbody>
+            @each(release in releases)
+              <tr>
+                <td>
+                  <strong>{{ release.version }}</strong>
+                  <div class="field-hint">
+                    {{ release.publishedAt ? 'Published ' + release.publishedAt.toUTC().toFormat('d LLL yyyy') : 'Uploaded ' + release.createdAt.toUTC().toFormat('d LLL yyyy') }}
+                    · {{ release.licenseRequired ? 'license required' : 'free download' }}
+                  </div>
+                </td>
+                <td>{{ release.channel }}</td>
+                <td>
+                  @if(release.requiresLabel)
+                    {{ release.requiresLabel }}
+                  @else
+                    <span class="field-hint">—</span>
+                  @end
+                  @if(release.testedUpTo)
+                    <div class="field-hint">tested up to {{ release.testedUpTo }}</div>
+                  @end
+                </td>
+                <td>
+                  {{ release.sizeLabel }}
+                  <div class="field-hint"><code title="SHA-256">{{ release.checksum.slice(0, 12) }}…</code></div>
+                </td>
+                <td>
+                  @if(release.isPublished)
+                    @!badge({ text: 'Published', tone: 'success' })
+                  @elseif(release.isYanked)
+                    @!badge({ text: 'Withdrawn', tone: 'neutral' })
+                  @else
+                    @!badge({ text: 'Draft', tone: 'warning' })
+                  @end
+                </td>
+                <td>
+                  @if(canManage)
+                    <div class="btn-row">
+                      @if(!release.isPublished)
+                        @form({ route: 'admin.releases.publish', routeParams: { id: product.publicId, releaseId: release.publicId }, method: 'POST' })
+                          @!button({ text: release.isYanked ? 'Restore' : 'Publish', size: 'xs', type: 'submit' })
+                        @end
+                      @else
+                        @form({ route: 'admin.releases.yank', routeParams: { id: product.publicId, releaseId: release.publicId }, method: 'POST' })
+                          @!button({ text: 'Withdraw', variant: 'outline', size: 'xs', type: 'submit' })
+                        @end
+                      @end
+                      @if(release.isDraft)
+                        @form({ route: 'admin.releases.destroy', routeParams: { id: product.publicId, releaseId: release.publicId }, method: 'POST' })
+                          @!button({ text: 'Delete', variant: 'danger', size: 'xs', type: 'submit' })
+                        @end
+                      @end
+                    </div>
+                  @end
+                </td>
+              </tr>
+              @if(release.changelog)
+                <tr><td colspan="6"><details><summary class="field-hint">Changelog</summary><pre style="white-space: pre-wrap">{{ release.changelog }}</pre></details></td></tr>
+              @end
+            @end
+          </tbody>
+        </table>
+      </div>
+    @else
+      @!emptyState({
+        icon: 'upload',
+        title: 'No releases yet',
+        description: 'Upload a build as a .zip. Installations are offered the newest published one through GET /api/v1/products/' + product.slug + '/releases/latest.',
+      })
+    @end
+  @end
+
+  @if(canManage)
+    <div class="settings-card">
+      <h2 class="section-title">Upload a release</h2>
+      <p class="section-desc">A .zip up to 25 MB. It is saved as a draft; nothing is offered until you publish it. Versions are permanent.</p>
+
+      @form({ route: 'admin.releases.store', routeParams: { id: product.publicId }, method: 'POST', enctype: 'multipart/form-data' })
+        <div class="field-row" style="grid-template-columns: 1fr 1fr 1fr 1fr 1fr">
+          @field.root({ name: 'version' })
+            @!field.label({ text: 'Version' })
+            @!input.control({ placeholder: '1.4.0' })
+            @!field.error()
+          @end
+          @field.root({ name: 'channel' })
+            @!field.label({ text: 'Channel' })
+            @!select.control({ options: [{ value: 'stable', name: 'stable' }, { value: 'beta', name: 'beta' }] })
+            @!field.error()
+          @end
+          @field.root({ name: 'requiresWp' })
+            @!field.label({ text: 'Requires WordPress' })
+            @!input.control({ placeholder: '6.5' })
+            @!field.error()
+          @end
+          @field.root({ name: 'requiresPhp' })
+            @!field.label({ text: 'Requires PHP' })
+            @!input.control({ placeholder: '7.4' })
+            @!field.error()
+          @end
+          @field.root({ name: 'testedUpTo' })
+            @!field.label({ text: 'Tested up to' })
+            @!input.control({ placeholder: '6.8' })
+            @!field.error()
+          @end
+        </div>
+        @field.root({ name: 'changelog' })
+          @!field.label({ text: 'Changelog' })
+          @!textarea.control({ rows: 4, placeholder: 'What changed, for the update screen.' })
+          @!field.error()
+        @end
+        @field.root({ name: 'file' })
+          @!field.label({ text: 'Build (.zip)' })
+          <input class="field-input" type="file" name="file" accept=".zip,application/zip" required />
+          @!field.error()
+        @end
+        <label class="field-hint">
+          <input type="checkbox" name="licenseRequired" value="1" checked />
+          Only licensed installations may download it
+        </label>
+        <div class="btn-row">
+          @!button({ text: 'Upload draft', type: 'submit', size: 'sm' })
+        </div>
+      @end
+    </div>
+  @end
+
   @if(canManage)
     <div class="settings-card">
       <h2 class="section-title">Add an entitlement</h2>
