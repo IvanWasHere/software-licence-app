@@ -25,6 +25,31 @@ env:
   TZ: UTC
 
 jobs:
+  # The JS SDK (licence plan M6) — its own package, tested on every Node it
+  # promises to run on. The contract test against the real server lives in
+  # the server suite below (tests/functional/sdk), which imports the source.
+  sdk-js:
+    name: JS SDK (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22, 24]
+    defaults:
+      run:
+        working-directory: sdk/js
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: sdk/js/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: node scripts/size.mjs
+
   static:
     name: Lint & typecheck
     runs-on: ubuntu-latest

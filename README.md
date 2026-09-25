@@ -94,10 +94,10 @@ Then look around:
 
 | Account | Password | Signs in at | What you'll see |
 |---|---|---|---|
-| 🛡️ `admin@example.com` | `Admin12345` | `/admin/login` | Staff: **admin** |
-| 🎧 `support@example.com` | `Support12345` | `/admin/login` | Staff: **support** |
-| 🏢 `owner-pro@example.com` | `correct-horse-battery` | `/login` | An agency with licenses on several sites *(after `dev:seed`)* |
-| 👑 `user-manager@example.com` | `Manager12345` | `/login` | An account owner |
+| 🛡️ `admin@example.com` | `Example12345` | `/admin/login` | Staff: **admin** |
+| 🎧 `support@example.com` | `Example12345` | `/admin/login` | Staff: **support** |
+| 🏢 `owner-pro@example.com` | `Example12345` | `/login` | An agency with licenses on several sites *(after `dev:seed`)* |
+| 👑 `user-manager@example.com` | `Example12345` | `/login` | An account owner |
 
 > 🔢 Staff two-factor is mandatory. In development enter **`123456`** (see `DEV_TWO_FACTOR_CODE`),
 > or run `node ace dev:totp admin@example.com` for a real code.
@@ -188,7 +188,28 @@ curl -s $BASE/licenses/activate -H 'content-type: application/json' -d '{
 At the limit you get `activated: false` and `reason: "activation_limit_reached"`, with the numbers.
 `POST /licenses/deactivate` with the same three fields frees the slot.
 
-### 🔏 Trust only what is signed
+### 📦 With the JS SDK
+
+[`@licence-app/sdk`](./sdk/js) does all of the above (activation, caching, signature checks,
+offline grace) in about 3 KB:
+
+```js
+import { createLicenseClient } from '@licence-app/sdk'
+
+const license = createLicenseClient({
+  baseUrl: 'https://licenses.example.com/api/v1',
+  product: 'invoice-pro',
+  publicKey: { k1: '<from GET /api/v1/keys, pinned in your build>' },
+})
+
+await license.activate('WIPRO-7K4DX-82M91-QP6F3-A0ZT9')   // once
+const { valid, reason, offline } = await license.validate()  // any time, cached
+if (license.has('pdf_export')) showPdfButton()
+```
+
+A runnable CLI lives in [`examples/node-app`](./examples/node-app).
+
+### 🔏 Trust only what is signed (without the SDK)
 
 Everything a client should rely on is inside `signed.payload`: base64url of the exact JSON bytes
 that were signed. Verify, then parse. There's no re-serialising of JSON, so PHP and JS agree
@@ -396,6 +417,8 @@ database/         migrations · seeders · generated schema types
 start/routes/     web · auth · api · license_api · billing · admin
 tests/            unit · functional (licensing, license_api, commerce, portal, tenant isolation…) · browser
 docs/             license-api.md · deployment.md · security.md · …
+sdk/js/           📦 @licence-app/sdk — its own package, own tests, own CI job
+examples/         node-app/ — a CLI licensed with the SDK
 ```
 
 **Stack:** TypeScript · AdonisJS 7 · Lucid · VineJS · Edge + Alpine.js · Japa · SQLite / PostgreSQL ·
@@ -413,7 +436,7 @@ Creem · Resend · Cloudflare R2.
 | ✅ | **M3** Public license API | `/api/v1/licenses/*` |
 | ✅ | **M4** Payments → licenses: orders, Creem webhooks, integration API | `/admin/orders` |
 | ✅ | **M5** Customer portal, product list and pricing page; the starter's SaaS demo removed | `/licenses`, `/pricing/:product` |
-| ⏳ | **M6** JS SDK: tiny, zero-dependency, cached, signature-verifying | `sdk/js` |
+| ✅ | **M6** JS SDK: zero-dependency, about 3 KB, cached, signature-verifying, offline-tolerant | [`sdk/js`](./sdk/js) |
 | ⏳ | **M7** PHP SDK for WordPress, and plugin updates served from releases | `sdk/php` |
 | ⏳ | **M8** Hardening: expiry reminders, abuse flags, load tests, production deploy | |
 

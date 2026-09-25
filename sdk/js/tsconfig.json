@@ -1,0 +1,28 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "Bundler",
+    "lib": [
+      "ES2022",
+      "DOM"
+    ],
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "exactOptionalPropertyTypes": false,
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true,
+    "declaration": false,
+    "sourceMap": false,
+    "outDir": "dist/esm",
+    "rootDir": "src",
+    "types": [
+      "node"
+    ],
+    "removeComments": true
+  },
+  "include": [
+    "src"
+  ]
+}

@@ -2,3 +2,4 @@
 node_modules
 build
 database/schema.ts
+sdk/js/dist

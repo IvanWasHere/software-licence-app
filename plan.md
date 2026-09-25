@@ -320,9 +320,11 @@ Both SDKs share the same behaviour contract. The flow is:
 4. A definitive `valid: false` from the server is cached too, but only briefly (1h), so a customer who has fixed their billing is unblocked quickly.
 5. The SDK **never** kills the host app. It reports state, and the product decides what to lock, guided by the `on_invalid` hint.
 
-### 7.1 JS SDK: `@<org>/license` (`sdk/js`)
-- ESM + CJS, TypeScript types, **zero dependencies, under 4 KB gzipped**. Runs in browsers, Node 18+, Electron, Deno and Bun.
-- Signature verification uses WebCrypto Ed25519, with a `tweetnacl` fallback that is only loaded when needed.
+### 7.1 JS SDK: `@licence-app/sdk` (`sdk/js`) — built in M6
+- ESM + CJS, TypeScript types, **zero dependencies, about 3 KB gzipped** (the budget is 4 KB and CI enforces it). Runs in browsers, Node 20+, Electron, Deno and Bun.
+- Signature verification uses WebCrypto Ed25519. The planned `tweetnacl` fallback was dropped to stay dependency-free; a runtime without Ed25519 passes its own `verify`.
+- An answer counts only if it echoes this request's **nonce, product and instance id**. The cache is **re-verified when read**, and every age is measured from the signed `checked_at`.
+- `@licence-app/sdk/node` adds `fileStorage(path)` (mode 0600), kept out of the main entry so browser bundles never include `node:fs`.
 - API:
 
   ```ts
@@ -336,8 +338,11 @@ Both SDKs share the same behaviour contract. The flow is:
   await lic.activate(key, { label })
   await lic.validate({ force? })
   await lic.deactivate()
-  lic.has('pdf_export'); lic.get('max_projects')
+  lic.has('pdf_export'); lic.get('max_projects', 5)
   ```
+
+- The SDK's own reasons: `no_license_key`, `offline_grace_expired`, `untrusted_response`.
+- It throws `LicenseSdkError` only for `network` (activation offline), `untrusted_response` (wrong pinned key) and `rejected_request` (a 422).
 
 - Security note, stated in the README: the SDK only uses the public license API and holds **no secrets**. In pure browser code any check can be patched out, so for web apps the real gate belongs on the app's own backend (the Node SDK uses the same package).
 
@@ -393,7 +398,7 @@ licence-app/            the AdonisJS server is the repository root (fork of kitc
 ├── app/controllers/    admin/, api/v1/, licenses/, storefront/, billing/ …
 ├── tests/              unit/, functional/{licensing,license_api,commerce,portal,…}
 ├── docs/               starter docs + license-api.md
-├── sdk/js/             @<org>/license (M6) — excluded from the server's tsconfig and lint
+├── sdk/js/             @licence-app/sdk (M6) — its own package, excluded from the server's tsconfig and lint
 ├── sdk/php/            <org>/wp-license (M7)
 └── examples/           wp-plugin/, node-app/
 ```
@@ -508,10 +513,12 @@ Original scope:
   - Two isolation tests reached the real Creem API. They now use the fake provider, and `.env.test` points `CREEM_API_URL` at a closed port.
 - ✅ Suite at **711/711** (unit and functional) plus **10/10** browser tests, including the end-to-end *guest buys → payment lands → sign in → reveal key → free a slot*.
 
-**M6: JS SDK (≈3 days)**
-- Build the package with caching, grace period, signature verification, storage adapters and entitlements helpers.
-- Add `examples/node-app`.
-- ✅ Tests run against a mocked server and against a live local server; size budget enforced in CI.
+**M6: JS SDK (≈3 days)** ✅ done
+- Built `sdk/js`: the client (activate, validate, deactivate, `has`/`get`, `onChange`), memory, localStorage and file storage, WebCrypto verification, and ESM/CJS/types builds.
+- Added `examples/node-app`, a small CLI with `activate`, `status` and `deactivate`.
+- CI has a `sdk-js` job on Node 20, 22 and 24 running typecheck, tests and the size budget.
+- ✅ 20 SDK tests against a fake server that really signs, covering cache freshness, the 1-hour "no" cache, offline grace and its expiry, 5xx as offline, forged signatures, edited payloads, replayed nonces, wrong products, edited caches, a stable instance id, deactivation, `onChange` and file storage.
+- ✅ 5 contract tests in the server suite (`tests/functional/sdk`) run the SDK source against the real HTTP API: activate, validate, entitlements, revocation, the activation limit, reason codes and a wrong pinned key.
 
 **M7: PHP SDK and updates (≈5 days)**
 - Build releases in the admin (upload/publish), the `releases/latest` and signed download endpoints, and the PHP client, updater and settings page.

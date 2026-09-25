@@ -1,0 +1,12 @@
+{
+  "name": "licence-app-example-node",
+  "private": true,
+  "type": "module",
+  "description": "A command-line app licensed with @licence-app/sdk.",
+  "scripts": {
+    "start": "node index.mjs"
+  },
+  "dependencies": {
+    "@licence-app/sdk": "file:../../sdk/js"
+  }
+}

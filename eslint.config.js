@@ -6,6 +6,6 @@ export default [
    * `migration:run`, so formatting it is pointless — the next migration undoes
    * it, and a lint failure on a generated file is noise, not a defect.
    */
-  { ignores: ['database/schema.ts', '.adonisjs/**'] },
+  { ignores: ['database/schema.ts', '.adonisjs/**', 'sdk/**', 'examples/**'] },
   ...configApp(),
 ]

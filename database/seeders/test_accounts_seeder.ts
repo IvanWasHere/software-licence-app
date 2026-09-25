@@ -7,6 +7,7 @@ import Organization from '#models/organization'
 import twoFactor from '#auth/two_factor_service'
 import invitations from '#organizations/invitation_service'
 import registration from '#auth/registration_service'
+import { DEMO_PASSWORD } from '#seeding/demo_password'
 
 /**
  * Fixed accounts for manual testing.
@@ -15,10 +16,10 @@ import registration from '#auth/registration_service'
  * they live in `staff_users` and sign in at /admin/login (D5). Two are
  * customers in one workspace, and sign in at /login.
  *
- *   admin@example.com        Admin12345      /admin/login   staff, admin
- *   support@example.com      Support12345    /admin/login   staff, support
- *   user-manager@example.com Manager12345    /login         workspace owner
- *   user@example.com         User12345       /login         workspace member
+ *   admin@example.com        Example12345    /admin/login   staff, admin
+ *   support@example.com      Example12345    /admin/login   staff, support
+ *   user-manager@example.com Example12345    /login         account owner
+ *   user@example.com         Example12345    /login         account member
  *
  * Deliberately a seeder rather than a migration. A migration runs everywhere,
  * including the production release phase, so inserting accounts with published
@@ -39,8 +40,8 @@ export default class extends BaseSeeder {
     const organization = await this.createWorkspaceOwner()
     await this.createMember(organization)
 
-    await this.createStaff('admin@example.com', 'Admin12345', 'admin', 'Admin Example')
-    await this.createStaff('support@example.com', 'Support12345', 'support', 'Support Example')
+    await this.createStaff('admin@example.com', DEMO_PASSWORD, 'admin', 'Admin Example')
+    await this.createStaff('support@example.com', DEMO_PASSWORD, 'support', 'Support Example')
   }
 
   /**
@@ -67,13 +68,7 @@ export default class extends BaseSeeder {
     const { user, organization } = await registration.register({
       fullName: 'Morgan Manager',
       email,
-      /**
-       * Set on the model directly. The 12-character minimum belongs to the
-       * signup and reset *validators*, and sign-in does not re-check length,
-       * so a shorter password still works here — but these accounts cannot
-       * set the same password through the UI.
-       */
-      password: 'Manager12345',
+      password: DEMO_PASSWORD,
       organizationName: 'Example Workspace',
     })
 
@@ -93,7 +88,7 @@ export default class extends BaseSeeder {
     workspace.limitOverrides = { seats: 5 }
     await workspace.save()
 
-    this.log(`${email} / Manager12345  →  /login         owner of "${workspace.name}"`)
+    this.log(`${email} / ${DEMO_PASSWORD}  →  /login         owner of "${workspace.name}"`)
 
     return workspace
   }
@@ -118,9 +113,9 @@ export default class extends BaseSeeder {
     const owner = await User.findOrFail(organization.ownerId!)
     const { token } = await invitations.invite({ organization, invitedBy: owner, email })
 
-    await invitations.accept({ token, fullName: 'User Example', password: 'User12345' })
+    await invitations.accept({ token, fullName: 'User Example', password: DEMO_PASSWORD })
 
-    this.log(`${email} / User12345      →  /login         member of "${organization.name}"`)
+    this.log(`${email} / ${DEMO_PASSWORD}  →  /login         member of "${organization.name}"`)
   }
 
   /**

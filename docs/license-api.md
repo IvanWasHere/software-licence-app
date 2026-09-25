@@ -124,3 +124,4 @@ Draft products answer `404`; retired ones are described but list no plans.
 | Signing | `app/licensing/signer.ts`, `config/licensing.ts` |
 | CORS, request id, preflight | `app/middleware/license_api.ts` |
 | Tests | `tests/functional/license_api/`, `tests/unit/licensing.spec.ts` |
+| JS SDK | [`sdk/js`](../sdk/js) — and its contract test against this API, `tests/functional/sdk/` |

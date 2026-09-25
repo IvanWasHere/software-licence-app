@@ -39,3 +39,6 @@ yarn-error.log
 
 # Platform specific
 .DS_Store
+
+# The JS SDK builds into its own dist/ (sdk/js), published from there.
+sdk/js/dist

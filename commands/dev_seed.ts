@@ -3,6 +3,7 @@ import type { CommandOptions } from '@adonisjs/core/types/ace'
 
 import type User from '#models/user'
 import type Organization from '#models/organization'
+import { DEMO_PASSWORD } from '#seeding/demo_password'
 
 /**
  * A demo dataset: enough of everything that every screen shows what it is
@@ -41,7 +42,7 @@ export default class DevSeed extends BaseCommand {
     const { user, organization } = await registration.register({
       fullName: 'Jane Cooper',
       email: 'jane@example.com',
-      password: 'correct-horse-battery',
+      password: DEMO_PASSWORD,
       organizationName: 'Acme',
     })
 
@@ -62,7 +63,7 @@ export default class DevSeed extends BaseCommand {
     await invitations.accept({
       token: joining.token,
       fullName: 'Sam Member',
-      password: 'correct-horse-battery',
+      password: DEMO_PASSWORD,
     })
 
     const pending = await invitations.invite({
@@ -143,15 +144,13 @@ export default class DevSeed extends BaseCommand {
     await this.seedOperations()
 
     this.logger.success('Seeded Acme')
-    this.logger.log('  owner:   jane@example.com / correct-horse-battery')
-    this.logger.log('  member:  sam@example.com / correct-horse-battery')
+    this.logger.log(`  owner:   jane@example.com / ${DEMO_PASSWORD}`)
+    this.logger.log(`  member:  sam@example.com / ${DEMO_PASSWORD}`)
     this.logger.log('  invited: alex@example.com (pending)')
     this.logger.log('')
     this.logger.success('Seeded customers')
-    this.logger.log(
-      '  agency:   owner-pro@example.com / correct-horse-battery (licenses, installs)'
-    )
-    this.logger.log('  another:  owner-business@example.com / correct-horse-battery')
+    this.logger.log(`  agency:   owner-pro@example.com / ${DEMO_PASSWORD} (licenses, installs)`)
+    this.logger.log(`  another:  owner-business@example.com / ${DEMO_PASSWORD}`)
     this.logger.log('  pricing:  /pricing/invoice-pro')
     this.logger.log('  plus 3 announcements, 3 support tickets, a stuck webhook and a failed job')
     this.logger.log('')
@@ -198,7 +197,7 @@ export default class DevSeed extends BaseCommand {
       /* A person owns the workspace; the workspace is not a person. */
       fullName: ownerName,
       email,
-      password: 'correct-horse-battery',
+      password: DEMO_PASSWORD,
       organizationName: name,
     })
 
@@ -234,7 +233,7 @@ export default class DevSeed extends BaseCommand {
     await invitations.accept({
       token: joining.token,
       fullName: 'Priya Raghavan',
-      password: 'correct-horse-battery',
+      password: DEMO_PASSWORD,
     })
 
     const second = await invitations.invite({
@@ -245,7 +244,7 @@ export default class DevSeed extends BaseCommand {
     await invitations.accept({
       token: second.token,
       fullName: 'Tomas Ferreira',
-      password: 'correct-horse-battery',
+      password: DEMO_PASSWORD,
     })
 
     await invitations.invite({
