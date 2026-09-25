@@ -171,6 +171,45 @@ router
       .prefix('/products')
       .where('id', publicIdMatcher('product'))
 
+    /**
+     * Licenses (licence plan §8, M2). Reading a key back and freeing an
+     * activation are support-level; everything that grants or removes access
+     * is admin-only — both decided by `StaffPolicy` inside the controller.
+     */
+    router
+      .group(() => {
+        router.get('/', [controllers.admin.License, 'index']).as('admin.licenses.index')
+        router.get('/new', [controllers.admin.License, 'create']).as('admin.licenses.create')
+        router.post('/', [controllers.admin.License, 'store']).as('admin.licenses.store')
+        router.get('/:id', [controllers.admin.License, 'show']).as('admin.licenses.show')
+
+        for (const action of [
+          'reveal',
+          'suspend',
+          'resume',
+          'revoke',
+          'reissue',
+          'expiry',
+        ] as const) {
+          router
+            .post(`/:id/${action}`, [controllers.admin.License, action])
+            .as(`admin.licenses.${action}`)
+        }
+
+        router
+          .post('/:id/activations-limit', [controllers.admin.License, 'activationsLimit'])
+          .as('admin.licenses.activations_limit')
+        router
+          .post('/:id/activations/:activationId/deactivate', [
+            controllers.admin.License,
+            'deactivateActivation',
+          ])
+          .as('admin.licenses.deactivate_activation')
+          .where('activationId', publicIdMatcher('licenseActivation'))
+      })
+      .prefix('/licenses')
+      .where('id', publicIdMatcher('license'))
+
     router.get('/webhooks', [controllers.admin.Webhook, 'index']).as('admin.webhooks.index')
     router.get('/webhooks/:id', [controllers.admin.Webhook, 'show']).as('admin.webhooks.show')
     router

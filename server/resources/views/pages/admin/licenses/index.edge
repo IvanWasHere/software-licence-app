@@ -1,0 +1,81 @@
+{{--
+  Licenses (licence plan §8, M2). One search box that takes whatever a ticket
+  gives you: the key itself, its last four characters, a license or
+  organisation id, or a customer's email.
+--}}
+@component('layouts/admin', { title: 'Licenses' })
+  @pageHeader({
+    title: 'Licenses',
+    description: 'Paste a key to see exactly what the license API sees for it.',
+  })
+    @slot('actions')
+      @if(canManage)
+        <a class="btn btn-primary btn-sm" href="{{ urlFor('admin.licenses.create') }}">Issue a license</a>
+      @end
+    @end
+  @end
+
+  <form method="GET" action="{{ urlFor('admin.licenses.index') }}" class="field-row" style="grid-template-columns: 3fr 1fr 1fr auto; align-items: end">
+    <div class="field">
+      <label class="field-label" for="q">Search</label>
+      <input class="field-input" id="q" name="q" value="{{ term }}" placeholder="Key, last 4, lic_…, org_… or email" />
+    </div>
+    <div class="field">
+      <label class="field-label" for="product">Product</label>
+      <select class="field-input" id="product" name="product">
+        <option value="">All</option>
+        @each(product in products)
+          <option value="{{ product.publicId }}" {{ product.publicId === productPublicId ? 'selected' : '' }}>{{ product.name }}</option>
+        @end
+      </select>
+    </div>
+    <div class="field">
+      <label class="field-label" for="status">Status</label>
+      <select class="field-input" id="status" name="status">
+        <option value="">Any</option>
+        @each(value in ['active', 'suspended', 'revoked'])
+          <option value="{{ value }}" {{ value === status ? 'selected' : '' }}>{{ value }}</option>
+        @end
+      </select>
+    </div>
+    <div class="field">
+      @!button({ text: 'Search', type: 'submit', size: 'sm', variant: 'outline' })
+    </div>
+  </form>
+
+  @panel.root({ flush: true })
+    @if(licenses.length)
+      <div class="table-scroll">
+        <table class="tx-table">
+          <thead>
+            <tr><th>Key</th><th>Customer</th><th>Product · plan</th><th>Expires</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            @each(license in licenses)
+              <tr>
+                <td style="white-space: nowrap">
+                  <a href="{{ urlFor('admin.licenses.show', { id: license.publicId }) }}"><code>{{ license.product.keyPrefix }}-…{{ license.keySuffix }}</code></a>
+                  <div class="field-hint">{{ license.publicId }}</div>
+                </td>
+                <td>
+                  <a href="{{ urlFor('admin.organizations.show', { id: license.organization.publicId }) }}">{{ license.organization.name }}</a>
+                </td>
+                <td>{{ license.product.name }} · {{ license.plan.name }}</td>
+                <td style="white-space: nowrap">{{ license.expiresAt ? license.expiresAt.toFormat('d LLL yyyy') : 'Never' }}</td>
+                <td>@include('pages/admin/licenses/_status')</td>
+              </tr>
+            @end
+          </tbody>
+        </table>
+      </div>
+    @else
+      @!emptyState({
+        icon: 'key',
+        title: term ? 'Nothing matches' : 'No licenses yet',
+        description: term
+          ? 'A pasted key that finds nothing here is one the license API will also call invalid_license.'
+          : 'Licenses appear here when they are issued by hand or bought through checkout.',
+      })
+    @end
+  @end
+@end

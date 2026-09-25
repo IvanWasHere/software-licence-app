@@ -55,6 +55,16 @@ const jsonRef = (tsType: string, source: string, typeImports: string[]) => ({
 })
 
 /**
+ * A string column whose closed set of values is a type declared elsewhere —
+ * `jsonRef`'s reasoning, for a plain column rather than a JSON one.
+ */
+const typeRef = (tsType: string, source: string, typeImports: string[]) => ({
+  tsType,
+  imports: [{ source, typeImports }],
+  decorators: [{ name: '@column' }],
+})
+
+/**
  * SQLite stores booleans as 0/1 and Postgres as real booleans, so every
  * boolean column is read through a cast (portability rule 7).
  */
@@ -265,6 +275,38 @@ export default {
         license_term: union('perpetual', 'subscription', 'fixed_days'),
         is_public: boolean,
         entitlements: jsonRef('EntitlementValues', '#catalog/entitlements', ['EntitlementValues']),
+      },
+    },
+
+    /**
+     * Licensing (licence plan §4, §5).
+     */
+    licenses: {
+      columns: {
+        source: union('manual', 'order'),
+        status: union('active', 'suspended', 'revoked'),
+        /**
+         * The key under `APP_KEY`, so support and the portal can show it
+         * again. Never serialised, like every encrypted column.
+         */
+        key_encrypted: encrypted,
+        entitlement_overrides: jsonRef('EntitlementValues', '#catalog/entitlements', [
+          'EntitlementValues',
+        ]),
+      },
+    },
+
+    license_activations: {
+      columns: {
+        is_dev: boolean,
+      },
+    },
+
+    license_events: {
+      columns: {
+        type: typeRef('LicenseEventType', '#licensing/events', ['LicenseEventType']),
+        actor_type: union('system', 'staff', 'user', 'api_key', 'client'),
+        metadata: json('Record<string, any>'),
       },
     },
 

@@ -1,0 +1,13 @@
+{{--
+  A license's state as a badge. Validity is computed, not stored, so an
+  active license past its expiry reads "Expired" here rather than "Active".
+--}}
+@if(license.isRevoked)
+  @!badge({ text: 'Revoked', tone: 'danger' })
+@elseif(license.isSuspended)
+  @!badge({ text: 'Suspended', tone: 'warning' })
+@elseif(license.isExpired)
+  @!badge({ text: 'Expired', tone: 'neutral' })
+@else
+  @!badge({ text: 'Active', tone: 'success' })
+@end

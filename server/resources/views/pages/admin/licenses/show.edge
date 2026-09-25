@@ -1,0 +1,214 @@
+{{--
+  One license (licence plan §8, M2): what it is, where it is installed, what
+  has happened to it, and — for the staff allowed — what can be done about it.
+--}}
+@component('layouts/admin', { title: `License ${license.product.keyPrefix}-…${license.keySuffix}` })
+  @pageHeader({ description: `${license.organization.name} · ${license.product.name} · ${license.plan.name}` })
+    @slot('heading')
+      <code>{{ license.product.keyPrefix }}-{{ license.maskedKey }}</code>
+      @include('pages/admin/licenses/_status')
+    @end
+    @slot('actions')
+      @if(canAssist && !revealedKey)
+        @form({ route: 'admin.licenses.reveal', routeParams: { id: license.publicId }, method: 'POST' })
+          @!button({ text: 'Reveal key', variant: 'outline', size: 'sm', type: 'submit' })
+        @end
+      @end
+      <a class="btn btn-ghost btn-sm" href="{{ urlFor('admin.licenses.index') }}">All licenses</a>
+    @end
+  @end
+
+  @if(revealedKey)
+    <div class="settings-card">
+      @!copyField({ value: revealedKey, label: 'License key' })
+      <p class="field-hint">Revealing is recorded in the license history and the audit log.</p>
+    </div>
+  @end
+
+  @if(license.statusReason)
+    <div class="settings-card">
+      <p class="section-desc" style="margin: 0">
+        <strong>{{ license.isRevoked ? 'Revoked' : 'Suspended' }}:</strong> {{ license.statusReason }}
+      </p>
+    </div>
+  @end
+
+  <div class="settings-card">
+    <div class="table-scroll">
+      <table class="tx-table">
+        <tbody>
+          <tr>
+            <th>Customer</th>
+            <td>
+              <a href="{{ urlFor('admin.organizations.show', { id: license.organization.publicId }) }}">{{ license.organization.name }}</a>
+              <span class="field-hint">{{ license.organization.publicId }}</span>
+            </td>
+          </tr>
+          <tr>
+            <th>Product · plan</th>
+            <td>
+              <a href="{{ urlFor('admin.products.show', { id: license.product.publicId }) }}">{{ license.product.name }}</a>
+              · <a href="{{ urlFor('admin.plans.edit', { id: license.product.publicId, planId: license.plan.publicId }) }}">{{ license.plan.name }}</a>
+            </td>
+          </tr>
+          <tr><th>Issued</th><td>{{ license.createdAt.toFormat('d LLL yyyy HH:mm') }} UTC · {{ license.source === 'manual' ? 'by hand' : 'from an order' }}</td></tr>
+          <tr><th>Expires</th><td>{{ license.expiresAt ? license.expiresAt.toUTC().toFormat('d LLL yyyy HH:mm') + ' UTC' : 'Never' }}</td></tr>
+          @if(license.updatesUntil)
+            <tr><th>Updates until</th><td>{{ license.updatesUntil.toUTC().toFormat('d LLL yyyy') }}</td></tr>
+          @end
+          <tr><th>Activations</th><td>{{ usage.used }} of {{ usage.max === null ? 'unlimited' : usage.max }} in use</td></tr>
+          @if(license.subscription)
+            <tr><th>Subscription</th><td>{{ license.subscription.status }}</td></tr>
+          @end
+          @if(license.notes)
+            <tr><th>Notes</th><td>{{ license.notes }}</td></tr>
+          @end
+          <tr>
+            <th>Entitlements</th>
+            <td>
+              @if(entitlements.length)
+                @each(entry in entitlements)
+                  <code>{{ entry[0] }}={{ String(entry[1]) }}</code>
+                @end
+              @else
+                <span class="field-hint">None defined for {{ license.product.name }}.</span>
+              @end
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  @panel.root({ title: 'Activations', flush: true })
+    @if(activations.length)
+      <div class="table-scroll">
+        <table class="tx-table">
+          <thead>
+            <tr><th>Site / install</th><th>Instance</th><th>Version</th><th>Last seen</th><th>State</th><th></th></tr>
+          </thead>
+          <tbody>
+            @each(activation in activations)
+              <tr>
+                <td>
+                  {{ activation.displayName }}
+                  @if(activation.isDev)
+                    @!badge({ text: 'dev', tone: 'info' })
+                  @end
+                  @if(activation.ip)
+                    <div class="field-hint">{{ activation.ip }}</div>
+                  @end
+                </td>
+                <td><code>{{ activation.instanceId }}</code></td>
+                <td>{{ activation.clientVersion ?? '—' }}</td>
+                <td style="white-space: nowrap">{{ activation.lastSeenAt ? activation.lastSeenAt.toFormat('d LLL yyyy HH:mm') : '—' }}</td>
+                <td>
+                  @if(activation.isLive)
+                    @!badge({ text: 'Active', tone: 'success' })
+                  @else
+                    @!badge({ text: 'Deactivated', tone: 'neutral' })
+                  @end
+                </td>
+                <td>
+                  @if(canAssist && activation.isLive)
+                    @form({ route: 'admin.licenses.deactivate_activation', routeParams: { id: license.publicId, activationId: activation.publicId }, method: 'POST' })
+                      @!button({ text: 'Deactivate', variant: 'outline', size: 'xs', type: 'submit' })
+                    @end
+                  @end
+                </td>
+              </tr>
+            @end
+          </tbody>
+        </table>
+      </div>
+    @else
+      @!emptyState({
+        icon: 'package',
+        title: 'Not activated anywhere',
+        description: 'Installs appear here when the customer enters the key in the software.',
+      })
+    @end
+  @end
+
+  @if(canManage && !license.isRevoked)
+    <div class="settings-card">
+      <h2 class="section-title">Change this license</h2>
+
+      <div class="field-row" style="grid-template-columns: 1fr 1fr">
+        @form({ route: 'admin.licenses.expiry', routeParams: { id: license.publicId }, method: 'POST' })
+          @field.root({ name: 'expiresAt' })
+            @!field.label({ text: 'Expires (end of day, UTC)' })
+            @!input.control({ type: 'date', value: license.expiresAt ? license.expiresAt.toUTC().toISODate() : '' })
+            <p class="field-hint">Empty means never.</p>
+            @!field.error()
+          @end
+          @!button({ text: 'Set expiry', variant: 'outline', size: 'xs', type: 'submit' })
+        @end
+
+        @form({ route: 'admin.licenses.activations_limit', routeParams: { id: license.publicId }, method: 'POST' })
+          @field.root({ name: 'maxActivations' })
+            @!field.label({ text: 'Activation limit' })
+            @!input.control({ type: 'number', min: 1, value: license.maxActivations ?? '', placeholder: 'Unlimited' })
+            <p class="field-hint">Lowering it switches nothing off; it only refuses new installs.</p>
+            @!field.error()
+          @end
+          @!button({ text: 'Set limit', variant: 'outline', size: 'xs', type: 'submit' })
+        @end
+      </div>
+
+      <div class="field-row" style="grid-template-columns: 1fr 1fr">
+        @if(license.isSuspended)
+          @form({ route: 'admin.licenses.resume', routeParams: { id: license.publicId }, method: 'POST' })
+            <p class="section-desc">Put it back in service.</p>
+            @!button({ text: 'Resume', size: 'xs', type: 'submit' })
+          @end
+        @else
+          @form({ route: 'admin.licenses.suspend', routeParams: { id: license.publicId }, method: 'POST' })
+            @field.root({ name: 'reason' })
+              @!field.label({ text: 'Suspend — reversible' })
+              @!input.control({ placeholder: 'Reason, e.g. chargeback under review' })
+              @!field.error()
+            @end
+            @!button({ text: 'Suspend', variant: 'outline', size: 'xs', type: 'submit' })
+          @end
+        @end
+
+        @form({ route: 'admin.licenses.revoke', routeParams: { id: license.publicId }, method: 'POST' })
+          @field.root({ name: 'reason' })
+            @!field.label({ text: 'Revoke — permanent' })
+            @!input.control({ placeholder: 'Reason, e.g. refunded' })
+            @!field.error()
+          @end
+          @!button({ text: 'Revoke', variant: 'danger', size: 'xs', type: 'submit' })
+        @end
+      </div>
+
+      @form({ route: 'admin.licenses.reissue', routeParams: { id: license.publicId }, method: 'POST' })
+        <p class="section-desc">
+          Issue a new key when this one has leaked. The current key stops working at once; activations stay.
+        </p>
+        @!button({ text: 'Issue a new key', variant: 'outline', size: 'xs', type: 'submit' })
+      @end
+    </div>
+  @end
+
+  @panel.root({ title: 'History', flush: true })
+    <div class="table-scroll">
+      <table class="tx-table">
+        <thead>
+          <tr><th>When</th><th>What</th><th>By</th><th>Details</th></tr>
+        </thead>
+        <tbody>
+          @each(event in history)
+            <tr>
+              <td style="white-space: nowrap">{{ event.createdAt.toFormat('d LLL yyyy HH:mm') }}</td>
+              <td>{{ event.type.replace('_', ' ') }}</td>
+              <td>{{ event.actorType }}{{ event.actorId ? ' #' + event.actorId : '' }}</td>
+              <td><code>{{ event.metadata ? JSON.stringify(event.metadata) : '' }}</code></td>
+            </tr>
+          @end
+        </tbody>
+      </table>
+    </div>
+  @end
+@end

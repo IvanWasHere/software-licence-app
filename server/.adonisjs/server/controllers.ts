@@ -10,6 +10,7 @@ export const controllers = {
     Entitlement: () => import('#app/controllers/admin/entitlement_controller'),
     Impersonation: () => import('#app/controllers/admin/impersonation_controller'),
     Job: () => import('#app/controllers/admin/job_controller'),
+    License: () => import('#app/controllers/admin/license_controller'),
     Notification: () => import('#app/controllers/admin/notification_controller'),
     Organization: () => import('#app/controllers/admin/organization_controller'),
     Plan: () => import('#app/controllers/admin/plan_controller'),

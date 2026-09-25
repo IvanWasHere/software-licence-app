@@ -41,6 +41,16 @@ export const AUDIT_ACTIONS = {
   entitlementUpdated: 'catalog.entitlement.updated',
   entitlementDeleted: 'catalog.entitlement.deleted',
 
+  licenseIssued: 'license.issued',
+  licenseKeyRevealed: 'license.key_revealed',
+  licenseKeyReissued: 'license.key_reissued',
+  licenseSuspended: 'license.suspended',
+  licenseResumed: 'license.resumed',
+  licenseRevoked: 'license.revoked',
+  licenseExpiryChanged: 'license.expiry_changed',
+  licenseActivationsLimitChanged: 'license.activations_limit_changed',
+  licenseActivationRemoved: 'license.activation_removed',
+
   notificationCreated: 'notification.created',
   notificationPublished: 'notification.published',
   notificationDeleted: 'notification.deleted',

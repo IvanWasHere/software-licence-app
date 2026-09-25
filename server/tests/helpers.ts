@@ -543,3 +543,80 @@ export async function createNotification(
 
   return notification
 }
+
+/**
+ * A product with one plan, through `CatalogService` so the catalog's own
+ * rules apply. Slugs and key prefixes are randomised, so a test can make
+ * several without colliding.
+ */
+export async function createCatalogPlan(
+  options: {
+    product?: Partial<
+      Parameters<typeof import('#catalog/catalog_service').default.createProduct>[0]
+    >
+    plan?: Partial<Parameters<typeof import('#catalog/catalog_service').default.createPlan>[1]>
+  } = {}
+) {
+  const { default: catalog } = await import('#catalog/catalog_service')
+  const suffix = Math.random().toString(36).slice(2, 8)
+
+  const product = await catalog.createProduct({
+    name: 'Invoice Pro',
+    slug: `invoice-pro-${suffix}`,
+    kind: 'wordpress_plugin',
+    keyPrefix: 'WIPRO',
+    validationIntervalHours: 24,
+    offlineGraceDays: 7,
+    countDevSites: false,
+    ...options.product,
+  })
+
+  const plan = await catalog.createPlan(product, {
+    name: 'Lifetime',
+    slug: `lifetime-${suffix}`,
+    billing: 'one_time',
+    priceCents: 39_900,
+    currency: 'EUR',
+    licenseTerm: 'perpetual',
+    maxActivations: 3,
+    isPublic: true,
+    ...options.plan,
+  })
+
+  return { product, plan }
+}
+
+/**
+ * A license issued by hand for a fresh workspace, returning the key — the
+ * one moment the whole key is available.
+ */
+export async function createLicense(
+  options: {
+    organization?: Organization
+    plan?: NonNullable<Parameters<typeof createCatalogPlan>[0]>['plan']
+    product?: NonNullable<Parameters<typeof createCatalogPlan>[0]>['product']
+    expiresAt?: DateTime | null
+  } = {}
+) {
+  const { default: licenses, SYSTEM_ACTOR } = await import('#licensing/license_service')
+  let organization = options.organization
+
+  if (!organization) {
+    const workspace = await createWorkspace()
+    organization = workspace.organization
+  }
+  const { product, plan } = await createCatalogPlan({
+    product: options.product,
+    plan: options.plan,
+  })
+
+  const { license, key } = await licenses.issue({
+    organization,
+    plan,
+    source: 'manual',
+    actor: SYSTEM_ACTOR,
+    expiresAt: options.expiresAt,
+  })
+
+  return { license, key, product, plan, organization }
+}

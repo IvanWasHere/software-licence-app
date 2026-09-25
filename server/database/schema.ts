@@ -9,6 +9,7 @@ import { DateTime } from 'luxon'
 import { jsonColumn, bigIntColumn, booleanColumn, encryptedColumn, encryptedJsonColumn } from '#database/columns'
 import type { ApiScope } from '#api/scopes'
 import type { EntitlementValue, EntitlementValues } from '#catalog/entitlements'
+import type { LicenseEventType } from '#licensing/events'
 
 export class ApiKeySchema extends BaseModel {
   static $columns = ['createdAt', 'createdByUserId', 'expiresAt', 'id', 'keyHash', 'lastUsedAt', 'name', 'organizationId', 'prefix', 'publicId', 'revokedAt', 'scopes', 'updatedAt'] as const
@@ -251,6 +252,107 @@ export class JobSchema extends BaseModel {
   declare reservedBy: string | null
   @column.dateTime({ autoCreate: true, autoUpdate: true })
   declare updatedAt: DateTime | null
+}
+
+export class LicenseActivationSchema extends BaseModel {
+  static $columns = ['activatedAt', 'clientVersion', 'createdAt', 'deactivatedAt', 'hostname', 'id', 'instanceId', 'ip', 'isDev', 'label', 'lastSeenAt', 'licenseId', 'publicId', 'siteUrl', 'updatedAt', 'userAgent'] as const
+  $columns = LicenseActivationSchema.$columns
+  @column.dateTime()
+  declare activatedAt: DateTime
+  @column()
+  declare clientVersion: string | null
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column.dateTime()
+  declare deactivatedAt: DateTime | null
+  @column()
+  declare hostname: string | null
+  @column({ isPrimary: true })
+  declare id: number
+  @column()
+  declare instanceId: string
+  @column()
+  declare ip: string | null
+  @booleanColumn()
+  declare isDev: boolean
+  @column()
+  declare label: string | null
+  @column.dateTime()
+  declare lastSeenAt: DateTime | null
+  @column()
+  declare licenseId: number
+  @column()
+  declare publicId: string
+  @column()
+  declare siteUrl: string | null
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime | null
+  @column()
+  declare userAgent: string | null
+}
+
+export class LicenseEventSchema extends BaseModel {
+  static $columns = ['actorId', 'actorType', 'createdAt', 'id', 'licenseId', 'metadata', 'type'] as const
+  $columns = LicenseEventSchema.$columns
+  @column()
+  declare actorId: number | null
+  @column()
+  declare actorType: 'system' | 'staff' | 'user' | 'api_key' | 'client'
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column({ isPrimary: true })
+  declare id: number
+  @column()
+  declare licenseId: number
+  @jsonColumn()
+  declare metadata: Record<string, any> | null
+  @column()
+  declare type: LicenseEventType
+}
+
+export class LicenseSchema extends BaseModel {
+  static $columns = ['createdAt', 'entitlementOverrides', 'expiresAt', 'id', 'keyEncrypted', 'keyHash', 'keySuffix', 'maxActivations', 'notes', 'organizationId', 'planId', 'productId', 'publicId', 'source', 'status', 'statusReason', 'subscriptionId', 'supportUntil', 'updatedAt', 'updatesUntil'] as const
+  $columns = LicenseSchema.$columns
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @jsonColumn()
+  declare entitlementOverrides: EntitlementValues | null
+  @column.dateTime()
+  declare expiresAt: DateTime | null
+  @column({ isPrimary: true })
+  declare id: number
+  @encryptedColumn()
+  declare keyEncrypted: string
+  @column()
+  declare keyHash: string
+  @column()
+  declare keySuffix: string
+  @column()
+  declare maxActivations: number | null
+  @column()
+  declare notes: string | null
+  @column()
+  declare organizationId: number
+  @column()
+  declare planId: number
+  @column()
+  declare productId: number
+  @column()
+  declare publicId: string
+  @column()
+  declare source: 'manual' | 'order'
+  @column()
+  declare status: 'active' | 'suspended' | 'revoked'
+  @column()
+  declare statusReason: string | null
+  @column()
+  declare subscriptionId: number | null
+  @column.dateTime()
+  declare supportUntil: DateTime | null
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime | null
+  @column.dateTime()
+  declare updatesUntil: DateTime | null
 }
 
 export class NotificationSchema extends BaseModel {

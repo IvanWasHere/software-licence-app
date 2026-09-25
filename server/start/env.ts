@@ -73,6 +73,14 @@ export default await Env.create(new URL('../', import.meta.url), {
 
   /*
   |--------------------------------------------------------------------------
+  | Licensing — the response-signing key (licence plan §5.2)
+  |--------------------------------------------------------------------------
+  */
+  LICENSE_SIGNING_KEY: Env.schema.secret.optional(),
+  LICENSE_SIGNING_KEY_ID: Env.schema.string.optional(),
+
+  /*
+  |--------------------------------------------------------------------------
   | Payments (Creem) — §7, wired up in M4
   |--------------------------------------------------------------------------
   */

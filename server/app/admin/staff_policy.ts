@@ -108,6 +108,26 @@ export default class StaffPolicy extends BasePolicy {
   }
 
   /**
+   * Unblocking a customer's license: reading their key back to them, and
+   * freeing an activation slot for a site they no longer have. Support-level —
+   * both are what a "my key doesn't work" ticket needs, and neither changes
+   * what the customer bought. Both are recorded in the license history and
+   * the audit log.
+   */
+  assistLicense(staff: StaffUser): AuthorizerResponse {
+    return !staff.isDisabled
+  }
+
+  /**
+   * Issuing, suspending, revoking, re-keying, extending and changing limits
+   * (licence plan §8). Admin only: each one either grants something nobody
+   * paid for or takes away something somebody did.
+   */
+  manageLicenses(staff: StaffUser): AuthorizerResponse {
+    return !staff.isDisabled && staff.isAdmin
+  }
+
+  /**
    * Admin only, and the reason: anyone who can create a staff account can
    * grant themselves everything above.
    */

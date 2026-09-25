@@ -1,0 +1,61 @@
+{{--
+  Issuing a license by hand (licence plan §8, M2) — comps, partners, a sale
+  closed outside checkout. Admin only.
+--}}
+@component('layouts/admin', { title: 'Issue a license' })
+  <div class="settings-card">
+    <h2 class="section-title">Issue a license</h2>
+    <p class="section-desc">
+      The key is shown once after issuing and is always in the customer's account. Nothing is charged.
+    </p>
+
+    @if(plans.length)
+      @form({ route: 'admin.licenses.store', method: 'POST' })
+        @field.root({ name: 'customer' })
+          @!field.label({ text: 'Customer' })
+          @!input.control({ value: customer, placeholder: 'org_… or an exact email address' })
+          <p class="field-hint">Exact matches only, so a license never lands on the wrong account.</p>
+          @!field.error()
+        @end
+
+        @field.root({ name: 'plan' })
+          @!field.label({ text: 'Plan' })
+          @!select.control({
+            options: plans.map((plan) => ({
+              value: plan.publicId,
+              name: `${plan.product.name} · ${plan.name}${plan.isPublic ? '' : ' (hidden)'} — ${plan.licenseTerm === 'perpetual' ? 'perpetual' : (plan.licenseTerm === 'fixed_days' ? plan.termDays + ' days' : 'subscription, needs an expiry')}`,
+            })),
+          })
+          @!field.error()
+        @end
+
+        @field.root({ name: 'expiresAt' })
+          @!field.label({ text: 'Expires' })
+          @!input.control({ type: 'date' })
+          <p class="field-hint">
+            Required for subscription plans, optional for fixed-length ones (their term applies), ignored
+            for perpetual ones. The license is good until the end of that day, UTC.
+          </p>
+          @!field.error()
+        @end
+
+        @field.root({ name: 'notes' })
+          @!field.label({ text: 'Notes' })
+          @!textarea.control({ rows: 2, placeholder: 'Why — a ticket number, a partner deal.' })
+          @!field.error()
+        @end
+
+        <div class="btn-row">
+          @!button({ text: 'Issue license', type: 'submit', size: 'sm' })
+          <a class="btn btn-ghost btn-sm" href="{{ urlFor('admin.licenses.index') }}">Cancel</a>
+        </div>
+      @end
+    @else
+      @!emptyState({
+        icon: 'layers',
+        title: 'Nothing to issue yet',
+        description: 'A license is issued on a plan. Create a product and give it a plan first.',
+      })
+    @end
+  </div>
+@end

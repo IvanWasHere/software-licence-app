@@ -170,6 +170,18 @@ export type ScannedRoutes = {
     'admin.entitlements.store': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.entitlements.update': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'entitlementId': ParamValue} }
     'admin.entitlements.destroy': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'entitlementId': ParamValue} }
+    'admin.licenses.index': { paramsTuple?: []; params?: {} }
+    'admin.licenses.create': { paramsTuple?: []; params?: {} }
+    'admin.licenses.store': { paramsTuple?: []; params?: {} }
+    'admin.licenses.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.licenses.reveal': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.licenses.suspend': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.licenses.resume': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.licenses.revoke': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.licenses.reissue': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.licenses.expiry': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.licenses.activations_limit': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.licenses.deactivate_activation': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'activationId': ParamValue} }
     'admin.webhooks.index': { paramsTuple?: []; params?: {} }
     'admin.webhooks.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.webhooks.replay': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
@@ -277,6 +289,9 @@ export type ScannedRoutes = {
     'admin.products.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.plans.create': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.plans.edit': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'planId': ParamValue} }
+    'admin.licenses.index': { paramsTuple?: []; params?: {} }
+    'admin.licenses.create': { paramsTuple?: []; params?: {} }
+    'admin.licenses.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.webhooks.index': { paramsTuple?: []; params?: {} }
     'admin.webhooks.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.notifications.index': { paramsTuple?: []; params?: {} }
@@ -377,6 +392,9 @@ export type ScannedRoutes = {
     'admin.products.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.plans.create': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.plans.edit': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'planId': ParamValue} }
+    'admin.licenses.index': { paramsTuple?: []; params?: {} }
+    'admin.licenses.create': { paramsTuple?: []; params?: {} }
+    'admin.licenses.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.webhooks.index': { paramsTuple?: []; params?: {} }
     'admin.webhooks.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.notifications.index': { paramsTuple?: []; params?: {} }
@@ -469,6 +487,15 @@ export type ScannedRoutes = {
     'admin.entitlements.store': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.entitlements.update': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'entitlementId': ParamValue} }
     'admin.entitlements.destroy': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'entitlementId': ParamValue} }
+    'admin.licenses.store': { paramsTuple?: []; params?: {} }
+    'admin.licenses.reveal': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.licenses.suspend': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.licenses.resume': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.licenses.revoke': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.licenses.reissue': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.licenses.expiry': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.licenses.activations_limit': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.licenses.deactivate_activation': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'activationId': ParamValue} }
     'admin.webhooks.replay': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.notifications.store': { paramsTuple?: []; params?: {} }
     'admin.notifications.publish': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }

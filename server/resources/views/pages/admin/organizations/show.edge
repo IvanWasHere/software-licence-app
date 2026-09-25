@@ -8,6 +8,9 @@
 @component('layouts/admin', { title: organization.name })
   @pageHeader()
     @slot('actions')
+      @if(hasRoute('admin.licenses.index'))
+        <a class="btn btn-outline btn-sm" href="{{ urlFor('admin.licenses.index', {}, { qs: { q: organization.publicId } }) }}">Licenses</a>
+      @end
       @!link({ route: 'admin.organizations.index', text: 'All organisations', class: 'btn btn-outline btn-sm' })
     @end
   @end

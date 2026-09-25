@@ -96,6 +96,9 @@
             <div class="nav-section-title">Catalog</div>
             @!navItem({ route: 'admin.products.index', icon: 'layers', label: 'Products' })
           @end
+          @if(hasRoute('admin.licenses.index'))
+            @!navItem({ route: 'admin.licenses.index', icon: 'key', label: 'Licenses' })
+          @end
 
           @if(hasRoute('admin.subscriptions.index') || hasRoute('admin.webhooks.index') || hasRoute('admin.jobs.index') || hasRoute('admin.notifications.index') || hasRoute('admin.audit_logs.index'))
             <div class="nav-section-title">Operations</div>
