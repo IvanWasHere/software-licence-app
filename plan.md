@@ -45,7 +45,7 @@ The server is a fork of [`kitch4nSinkV2`](../kitch4nSinkV2) (AdonisJS 7). This p
 **Replace, not delete up front.** Core test suites (tenant isolation, API endpoints, quotas) use the lists demo as their example of a customer-owned resource, and `docs/modules.md` warns that deleting it first loses that coverage. So the SaaS-only pieces go only once their replacement exists:
 - The `app/modules/lists/` demo module goes in **M5**. It was planned for M2, but the suites that use it test customer-facing web and API endpoints, and licenses only get those in the portal (M5). Then licenses become the customer-owned resource in `tests/helpers.ts#createList` and `tenant_isolation.spec.ts`. Follow `docs/modules.md` steps 1–4.
 - Quotas and seats go in **M5** together with lists, because lists are the only thing they meter.
-- The static SaaS tiers in `config/plans.ts` (`organization.planKey`, `PlanService` limits) go in **M4**, when billing is reworked:
+- The static SaaS tiers in `config/plans.ts` (`organization.planKey`, `PlanService` limits) go in **M5**, not M4 as first planned. The lists quotas sit on the same limits, so tiers and lists leave together. Since M4, billing routes each webhook to the **licensing path** (the provider product maps to a catalog plan, the checkout carries one of our order ids, or the subscription row has a `plan_id`) or to the legacy SaaS path:
   - Plans move to the DB (§4).
   - A customer account no longer has a single tier. It holds any number of licenses and subscriptions.
   - The API-key allowance moves to a flag on the org.
@@ -137,8 +137,17 @@ The first three tables were **built in M1**:
 - `releases`: `product_id`, `version` (semver), `channel` (`stable|beta`), `changelog` (md), `requires` (json, e.g. `{wp:"6.5",php:"8.1"}`), `file_key` (drive/S3 path), `checksum_sha256`, `published_at`, `license_required`.
 
 **Commerce.** Customers are orgs (D1).
-- `orders`: `organization_id`, `status` (`pending|paid|refunded|partially_refunded|failed`), `total_cents`, `currency`, `provider`, `provider_checkout_id`, `provider_order_id`, `paid_at`.
-- `order_items`: `order_id`, `plan_id`, `quantity`, `unit_price_cents`.
+Built in M4:
+- `orders`:
+  - Customer: `organization_id` (null until fulfilled), `email` (recorded by us at checkout).
+  - State: `status` (`pending|paid|refunded|partially_refunded`), `total_cents`, `currency`.
+  - Provider links: `provider`, `provider_checkout_id`, `provider_order_id` (unique), `provider_subscription_id`.
+  - Timestamps: `paid_at`, `fulfilled_at`.
+- `order_items`: `order_id`, `plan_id`, `quantity` (always 1 for now), `unit_price_cents`.
+- New columns on existing tables:
+  - `licenses.order_id`, and `licenses.order_item_id` (**unique**, which makes issuing idempotent).
+  - `subscriptions.plan_id`.
+  - `organizations.is_system`.
 - `subscriptions` and `payments`: **existing tables**. Add `plan_id` to both, `order_id` to `payments`, and `cancel_at_period_end` if it is missing.
 
 **Licensing**
@@ -207,27 +216,33 @@ Reason codes are **part of the public contract**. They live in one enum, which i
   - **The exact JSON bytes are signed** and carried as base64url in the envelope `{ alg, kid, payload, signature }`. SDKs verify those bytes and then parse them, so JS and PHP never have to re-serialise JSON identically.
   - SDKs verify the signature before caching, so an edited local cache or a fake local server cannot unlock the product. This is what makes offline grace safe.
 
-### 5.3 Subscription → license mapping (in `webhook_handler.ts`)
+### 5.3 Subscription → license mapping (in `webhook_handler.ts` + `#commerce/license_billing`)
 
 | Normalized event | Effect |
 |---|---|
-| checkout completed / order paid (one-time) | mark order paid; issue licenses; email the keys |
-| subscription created / active | mark order paid; issue a license with `expires_at = current_period_end` |
-| subscription renewed / payment succeeded | set `expires_at = new period_end + grace (3 days)` |
-| payment failed / past_due | none at first; after the dunning window a job sets `suspended` |
-| subscription canceled (at period end) | set `cancel_at_period_end`; the license runs until `expires_at` |
-| subscription expired / canceled immediately | set `expires_at = now` |
-| refund (full) | revoke the license and mark the order refunded |
-| refund (partial) | record it only; staff decide what happens |
+| checkout completed, no subscription (normalized as `order.completed`) | fulfil the order: mark it paid; find or create the account from the order's email; issue a license; email the key; record the payment |
+| subscription created / active | upsert the subscription (`plan_id`, org plan untouched); fulfil the order with `expires_at = period_end + grace` |
+| subscription renewed / payment succeeded | set `expires_at = new period_end + grace (7 days, config renewalGraceDays)` |
+| payment failed / past_due | **nothing**. The license stays valid until `period_end + grace`, then lapses. The expiry *is* the dunning, so no suspension job is needed. |
+| subscription canceled (at period end) | nothing; the license runs until `expires_at` |
+| subscription expired / canceled | nothing. Validation reads the subscription status and answers `subscription_inactive`. |
+| refund (full) | revoke the order's (or the subscription's) licenses; order → `refunded` |
+| refund (partial) | order → `partially_refunded`; staff decide |
+| dispute | **suspend** the licenses (reversible) and log; staff decide |
 
-Handlers must be idempotent: re-running an event against the ledger must not create a second license. The guard is a unique index on (`order_item_id`, `seq`) for issued licenses.
+Handlers must be idempotent: re-running an event against the ledger must not create a second license.
+- `OrderService.fulfil` runs in one transaction that locks the order row, and skips any item that already has a license.
+- The unique `licenses.order_item_id` backs this up.
+- So the `checkout.completed`, `subscription.active` and `subscription.paid` events for one checkout issue exactly one license between them.
+
+A payment is attributed **only** through the order id we put into the checkout metadata. The account comes from the email our own backend recorded on the order, never from the webhook payload. A new account is created without a password, and the key email links to the ordinary reset form.
 
 ### 5.4 Dev and staging sites
 
 Hostnames matching `localhost`, `*.local`, `*.test`, `staging.*`, `dev.*` or `*.wpengine.com`-style staging patterns are marked `is_dev`. They don't count toward `max_activations` unless the product sets `count_dev_sites`. The pattern list lives in config.
 
 ### 5.5 Scheduled jobs (via `schedule_run`)
-- `suspend_past_due_licenses`: runs hourly and applies the dunning rule.
+- ~~`suspend_past_due_licenses`~~: dropped in M4. The subscription license's expiry (`period_end + grace`) does the dunning.
 - `license_expiry_reminders`: runs daily and emails 14 and 3 days before a non-renewing license expires.
 - `prune_stale_activations`: optional, per product. It flags activations not seen for more than N days; it doesn't delete them.
 - `sync_billing`: already exists. Extend it to reconcile subscription period ends with license `expires_at`.
@@ -437,7 +452,25 @@ Each milestone ends green in CI and can be demoed.
 - Follow-up for M8: the router-level session and shield middleware still set cookies on `/api/*` responses. They're harmless here (never read, and CORS sends no credentials), but they're wasted bytes for every plugin. Exempt `/api/*` from the session middleware during hardening.
 - **← First usable MVP**: licenses issued by hand, validated by software.
 
-**M4: Payments → licenses (≈4 days)**
+**M4: Payments → licenses (≈4 days)** ✅ done
+- Tables: `orders`, `order_items`, plus the new commerce columns.
+- The `order.completed` normalized event: Creem's one-time `checkout.completed` used to be dropped.
+- Checkout metadata now carries `order_public_id`.
+- `#commerce/order_service` handles checkout and idempotent fulfilment. `#commerce/customer_accounts` finds or creates the account. `#commerce/license_billing` applies expiry, refund and dispute effects.
+- The licensing branch of `WebhookHandler` sits beside the legacy SaaS branch.
+- `LicenseIssuedNotification` sends the keys by email.
+- Integration API: `POST /api/v1/checkout`, `GET /api/v1/orders/:id` and `GET /api/v1/customers/licenses?email=`.
+  - Gated by `RequireSystemOrganizationMiddleware`, so only the system account's key works and no scope can open it up.
+  - `node ace licensing:integration-key` creates the system account on first run and mints keys.
+  - Documented under the *Integration API* tag.
+- Admin `/admin/orders` list and detail pages. License pages link to their order.
+- ✅ 21 new tests covering the integration API, one-time purchases, subscriptions (including the three-events-one-license race, renewal, past_due and expiry), refunds, disputes, SaaS-path isolation and the admin screens. Suite at 810/810.
+- **Deferred:**
+  - Expiry reminder emails (§5.5) and extending `sync_billing` to license expiry: M8.
+  - `POST /api/v1/licenses` manual issue over the API: the admin UI covers it for now.
+  - MRR in the admin dashboard still counts SaaS tiers only: fix in M5 with the tier removal.
+
+Original scope:
 - Add orders and order items. Extend `createCheckoutSession` for one-time plans and plan mapping.
 - Map webhook effects per §5.3. Add the dunning job and the email templates (keys, receipts, expiry reminders).
 - ✅ With the Creem test mode and the fake provider:

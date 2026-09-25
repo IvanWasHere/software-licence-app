@@ -54,6 +54,15 @@ const licensingConfig = {
    * worth knowing, and not worth a write on every validate call.
    */
   heartbeatThrottleMinutes: 60,
+
+  /**
+   * How long a subscription license outlives the paid period (licence plan
+   * §5.3). A renewal that succeeds moves the expiry on; one that keeps
+   * failing simply lets the license lapse this many days after the period
+   * ended. This *is* the dunning window — there is no job that suspends
+   * anybody, the expiry does it.
+   */
+  renewalGraceDays: 7,
 }
 
 export default licensingConfig

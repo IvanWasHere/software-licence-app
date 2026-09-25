@@ -79,6 +79,7 @@ export const middleware = router.named({
   organization: () => import('#middleware/require_organization'),
   owner: () => import('#middleware/require_owner'),
   licenseApi: () => import('#middleware/license_api'),
+  systemOrganization: () => import('#middleware/require_system_organization'),
   staffAuth: () => import('#middleware/staff_auth'),
   staffGuest: () => import('#middleware/staff_guest'),
 

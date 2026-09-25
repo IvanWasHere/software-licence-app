@@ -210,6 +210,15 @@ router
       .prefix('/licenses')
       .where('id', publicIdMatcher('license'))
 
+    /**
+     * Orders (licence plan §8, M4). Read-only, support-level.
+     */
+    router.get('/orders', [controllers.admin.Order, 'index']).as('admin.orders.index')
+    router
+      .get('/orders/:id', [controllers.admin.Order, 'show'])
+      .as('admin.orders.show')
+      .where('id', publicIdMatcher('order'))
+
     router.get('/webhooks', [controllers.admin.Webhook, 'index']).as('admin.webhooks.index')
     router.get('/webhooks/:id', [controllers.admin.Webhook, 'show']).as('admin.webhooks.show')
     router

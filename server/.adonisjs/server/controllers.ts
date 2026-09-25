@@ -12,6 +12,7 @@ export const controllers = {
     Job: () => import('#app/controllers/admin/job_controller'),
     License: () => import('#app/controllers/admin/license_controller'),
     Notification: () => import('#app/controllers/admin/notification_controller'),
+    Order: () => import('#app/controllers/admin/order_controller'),
     Organization: () => import('#app/controllers/admin/organization_controller'),
     Plan: () => import('#app/controllers/admin/plan_controller'),
     Product: () => import('#app/controllers/admin/product_controller'),
@@ -27,6 +28,7 @@ export const controllers = {
   },
   api: {
     v1: {
+      Integration: () => import('#app/controllers/api/v1/integration_controller'),
       License: () => import('#app/controllers/api/v1/license_controller'),
       Organization: () => import('#app/controllers/api/v1/organization_controller'),
       Product: () => import('#app/controllers/api/v1/product_controller'),

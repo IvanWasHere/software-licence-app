@@ -29,6 +29,7 @@ export default class Organization extends compose(
   @beforeCreate()
   static initialiseCounters(organization: Organization) {
     organization.storageUsedBytes ??= 0
+    organization.isSystem ??= false
   }
 
   /**

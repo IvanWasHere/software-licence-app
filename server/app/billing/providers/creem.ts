@@ -82,10 +82,13 @@ export class CreemProvider implements PaymentProvider {
        * finds its tenant, so a checkout created without it is unattributable
        * — see `CheckoutInput`.
        */
-      metadata: {
-        organization_public_id: input.metadata.organizationPublicId,
-        plan_key: input.metadata.planKey,
-      },
+      metadata: Object.fromEntries(
+        Object.entries({
+          organization_public_id: input.metadata.organizationPublicId,
+          plan_key: input.metadata.planKey,
+          order_public_id: input.metadata.orderPublicId,
+        }).filter(([, value]) => value !== undefined)
+      ),
     })
 
     const url = body.checkout_url ?? body.url
@@ -220,7 +223,7 @@ export class CreemProvider implements PaymentProvider {
     }
 
     const creemType = String(body.eventType ?? body.event_type ?? body.type ?? '')
-    const type = EVENT_MAP[creemType]
+    let type = EVENT_MAP[creemType]
 
     if (!type) {
       throw new WebhookVerificationError(`Unmapped Creem event type "${creemType}"`)
@@ -244,11 +247,20 @@ export class CreemProvider implements PaymentProvider {
 
     const metadata = object.metadata ?? subscriptionObject?.metadata ?? {}
 
+    /**
+     * A checkout with no subscription inside it is a one-time purchase:
+     * money moved and there is nothing to activate (licence plan §5.3).
+     */
+    if (creemType === 'checkout.completed' && !subscriptionObject) {
+      type = 'order.completed'
+    }
+
     return {
       providerEventId,
       type,
       occurredAt: this.toDateTime(body.created_at) ?? DateTime.utc(),
       organizationPublicId: metadata.organization_public_id ?? undefined,
+      orderPublicId: metadata.order_public_id ?? undefined,
       subscription: subscriptionObject ? this.toSubscription(subscriptionObject) : undefined,
       payment: this.toPayment(creemType, object, orderObject),
       raw: body,

@@ -33,6 +33,21 @@ router
      * The demo domain's endpoints (D8) — two lines to remove with it.
      */
     registerListApiRoutes()
+
+    /**
+     * The integration API (licence plan §6, M4) — our own website's backend
+     * selling and looking customers up. Only the system account's key gets
+     * in; see `RequireSystemOrganizationMiddleware`.
+     */
+    router
+      .group(() => {
+        router.post('/checkout', [controllers.api.v1.Integration, 'checkout']).as('api.checkout')
+        router.get('/orders/:id', [controllers.api.v1.Integration, 'order']).as('api.orders.show')
+        router
+          .get('/customers/licenses', [controllers.api.v1.Integration, 'customerLicenses'])
+          .as('api.customers.licenses')
+      })
+      .use(middleware.systemOrganization())
   })
   .prefix('/api/v1')
   .use([middleware.trackApiUsage(), middleware.apiKeyAuth(), middleware.apiRateLimit()])

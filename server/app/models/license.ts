@@ -4,6 +4,7 @@ import { beforeCreate, belongsTo, hasMany } from '@adonisjs/lucid/orm'
 import type { BelongsTo, HasMany } from '@adonisjs/lucid/types/relations'
 
 import Plan from '#models/plan'
+import Order from '#models/order'
 import Product from '#models/product'
 import Organization from '#models/organization'
 import Subscription from '#models/subscription'
@@ -32,6 +33,9 @@ export default class License extends compose(LicenseSchema, withPublicId('licens
 
   @belongsTo(() => Subscription)
   declare subscription: BelongsTo<typeof Subscription>
+
+  @belongsTo(() => Order)
+  declare order: BelongsTo<typeof Order>
 
   @hasMany(() => LicenseActivation)
   declare activations: HasMany<typeof LicenseActivation>

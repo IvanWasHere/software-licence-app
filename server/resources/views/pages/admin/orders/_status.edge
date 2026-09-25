@@ -1,0 +1,7 @@
+@if(order.status === 'pending')
+  @!badge({ text: 'Pending', tone: 'warning' })
+@elseif(order.status === 'paid')
+  @!badge({ text: order.fulfilledAt ? 'Paid' : 'Paid · not fulfilled', tone: order.fulfilledAt ? 'success' : 'danger' })
+@else
+  @!badge({ text: order.status.replace('_', ' '), tone: 'neutral' })
+@end

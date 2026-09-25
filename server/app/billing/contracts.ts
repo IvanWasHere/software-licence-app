@@ -38,7 +38,17 @@ export interface CheckoutInput {
    * `organizationPublicId` in here, a `checkout.completed` cannot be
    * attributed to anyone.
    */
-  metadata: { organizationPublicId: string; planKey: string }
+  metadata: {
+    organizationPublicId?: string
+    planKey?: string
+
+    /**
+     * The order this checkout pays for (licence plan §4, M4). The licensing
+     * path attributes a payment through our own order row rather than
+     * through anything the payer typed.
+     */
+    orderPublicId?: string
+  }
 }
 
 /**
@@ -79,7 +89,8 @@ export type SubscriptionStatus =
   'trialing' | 'active' | 'past_due' | 'paused' | 'canceled' | 'expired'
 
 /**
- * The nine events the application understands (plan §7.2).
+ * The events the application understands (plan §7.2, plus `order.completed`
+ * from licence plan §5.3).
  *
  * Creem sends thirteen; several mean the same thing to us, and collapsing
  * them here rather than in the handler is what stops a `subscription.unpaid`
@@ -95,6 +106,13 @@ export type NormalizedEventType =
   | 'payment.succeeded'
   | 'payment.refunded'
   | 'dispute.created'
+  /**
+   * A one-time checkout was paid: money moved and no subscription exists
+   * (licence plan §5.3). Creem calls this `checkout.completed` too, but
+   * without a subscription inside it — mapping both to
+   * `subscription.activated` used to drop one-time purchases on the floor.
+   */
+  | 'order.completed'
 
 export interface NormalizedEvent {
   /**
@@ -109,6 +127,11 @@ export interface NormalizedEvent {
    * we already know, where the local row supplies the tenant instead.
    */
   organizationPublicId?: string
+
+  /**
+   * Recovered from the checkout metadata on the licensing path (M4).
+   */
+  orderPublicId?: string
 
   subscription?: ProviderSubscription
   payment?: ProviderPayment

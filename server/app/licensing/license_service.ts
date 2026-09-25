@@ -4,6 +4,7 @@ import type { TransactionClientContract } from '@adonisjs/lucid/types/database'
 
 import Plan from '#models/plan'
 import License from '#models/license'
+import Product from '#models/product'
 import Entitlement from '#models/entitlement'
 import LicenseEvent from '#models/license_event'
 import type Organization from '#models/organization'
@@ -50,6 +51,19 @@ export interface IssueInput {
   expiresAt?: DateTime | null
   notes?: string | null
   subscriptionId?: number | null
+
+  /**
+   * The order item this license fulfils (M4). Unique on `licenses`, which is
+   * what makes issuing from a redelivered webhook impossible to do twice.
+   */
+  orderId?: number | null
+  orderItemId?: number | null
+
+  /**
+   * Run inside the caller's transaction — order fulfilment issues under a
+   * lock on the order row, and the license must commit or roll back with it.
+   */
+  client?: TransactionClientContract
 }
 
 export interface LicenseCheck {
@@ -74,8 +88,7 @@ export class LicenseService {
    */
   async issue(input: IssueInput): Promise<{ license: License; key: string }> {
     const plan = input.plan
-    await plan.load('product')
-    const product = plan.product
+    const product = await Product.findOrFail(plan.productId, { client: input.client })
 
     if (plan.isArchived) {
       throw new LicenseError('That plan is archived and no longer issues licenses.', 'plan')
@@ -94,13 +107,15 @@ export class LicenseService {
 
     const generated = generateLicenseKey(product.keyPrefix)
 
-    const license = await db.transaction(async (trx) => {
+    const run = async (trx: TransactionClientContract) => {
       const created = await License.create(
         {
           organizationId: input.organization.id,
           productId: product.id,
           planId: plan.id,
           subscriptionId: input.subscriptionId ?? null,
+          orderId: input.orderId ?? null,
+          orderItemId: input.orderItemId ?? null,
           source: input.source,
           keyHash: generated.hash,
           keyEncrypted: generated.key,
@@ -132,7 +147,9 @@ export class LicenseService {
       )
 
       return created
-    })
+    }
+
+    const license = input.client ? await run(input.client) : await db.transaction(run)
 
     return { license, key: generated.key }
   }

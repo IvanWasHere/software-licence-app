@@ -1,0 +1,47 @@
+@component('emails/layout', {
+  title: 'Your license key',
+  footer: 'You are receiving this because this address was used to buy a license.',
+})
+  <p style="margin: 0 0 12px; font-size: 20px; font-weight: 700; color: #111827;">
+    Thank you — here {{ licenses.length === 1 ? 'is your license key' : 'are your license keys' }}
+  </p>
+  <p style="margin: 0 0 20px; font-size: 14px; line-height: 1.6; color: #4b5563;">
+    Enter the key in the software to activate it. Keep this email; the key is also always in your account.
+  </p>
+  @each(license in licenses)
+    <table role="presentation" cellpadding="0" cellspacing="0" style="width: 100%; margin: 0 0 16px; border: 1px solid #e5e7eb; border-radius: 8px;">
+      <tr>
+        <td style="padding: 12px 16px; font-size: 13px; color: #6b7280; border-bottom: 1px solid #f3f4f6;">{{ license.product }}</td>
+        <td style="padding: 12px 16px; font-size: 13px; color: #111827; text-align: right; border-bottom: 1px solid #f3f4f6;">{{ license.plan }}</td>
+      </tr>
+      <tr>
+        <td colspan="2" style="padding: 14px 16px; font-size: 15px; font-weight: 700; color: #111827; font-family: monospace; letter-spacing: 0.5px; border-bottom: 1px solid #f3f4f6;">{{ license.key }}</td>
+      </tr>
+      <tr>
+        <td style="padding: 12px 16px; font-size: 13px; color: #6b7280;">
+          {{ license.expiresAt ? 'Renews or expires ' + license.expiresAt : 'Never expires' }}
+        </td>
+        <td style="padding: 12px 16px; font-size: 13px; color: #6b7280; text-align: right;">
+          {{ license.maxActivations === null ? 'Unlimited sites' : license.maxActivations + (license.maxActivations === 1 ? ' site' : ' sites') }}
+        </td>
+      </tr>
+    </table>
+  @end
+  @if(needsPassword)
+    <p style="margin: 8px 0 12px; font-size: 14px; line-height: 1.6; color: #4b5563;">
+      We made an account for {{ email }} so you can see your keys, manage sites and download invoices.
+      Set a password to sign in:
+    </p>
+    <p style="margin: 0 0 24px;">
+      <a href="{{ setPasswordUrl }}" style="display: inline-block; background: #3b82f6; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 600; padding: 12px 20px; border-radius: 8px;">
+        Set a password
+      </a>
+    </p>
+  @else
+    <p style="margin: 0 0 24px;">
+      <a href="{{ loginUrl }}" style="display: inline-block; background: #3b82f6; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 600; padding: 12px 20px; border-radius: 8px;">
+        Open your account
+      </a>
+    </p>
+  @end
+@end

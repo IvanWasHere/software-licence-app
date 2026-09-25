@@ -324,6 +324,7 @@ export default class AdminLicenseController {
       .preload('plan')
       .preload('organization')
       .preload('subscription')
+      .preload('order')
       .first()
   }
 

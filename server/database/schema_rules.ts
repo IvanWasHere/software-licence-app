@@ -105,6 +105,7 @@ export default {
       columns: {
         status: union('active', 'past_due', 'canceled', 'suspended'),
         storage_used_bytes: bigIntCounter,
+        is_system: boolean,
         limit_overrides: json('Record<string, number | null>'),
       },
     },
@@ -171,7 +172,8 @@ export default {
           'subscription.canceled',
           'payment.succeeded',
           'payment.refunded',
-          'dispute.created'
+          'dispute.created',
+          'order.completed'
         ),
         payload: json('Record<string, any>'),
         signature_verified: boolean,
@@ -293,6 +295,13 @@ export default {
         entitlement_overrides: jsonRef('EntitlementValues', '#catalog/entitlements', [
           'EntitlementValues',
         ]),
+      },
+    },
+
+    orders: {
+      columns: {
+        status: union('pending', 'paid', 'refunded', 'partially_refunded'),
+        provider: union('creem'),
       },
     },
 

@@ -42,6 +42,7 @@
     "#admin/*": "./app/admin/*.js",
     "#billing/*": "./app/billing/*.js",
     "#catalog/*": "./app/catalog/*.js",
+    "#commerce/*": "./app/commerce/*.js",
     "#licensing/*": "./app/licensing/*.js",
     "#dashboard/*": "./app/dashboard/*.js",
     "#mail/*": "./app/mail/*.js",

@@ -66,6 +66,9 @@ export type ScannedRoutes = {
     'api.todos.complete': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'api.todos.uncomplete': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'api.todos.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'api.checkout': { paramsTuple?: []; params?: {} }
+    'api.orders.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'api.customers.licenses': { paramsTuple?: []; params?: {} }
     'auth.register.create': { paramsTuple?: []; params?: {} }
     'auth.register.store': { paramsTuple?: []; params?: {} }
     'auth.session.create': { paramsTuple?: []; params?: {} }
@@ -188,6 +191,8 @@ export type ScannedRoutes = {
     'admin.licenses.expiry': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.licenses.activations_limit': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.licenses.deactivate_activation': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'activationId': ParamValue} }
+    'admin.orders.index': { paramsTuple?: []; params?: {} }
+    'admin.orders.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.webhooks.index': { paramsTuple?: []; params?: {} }
     'admin.webhooks.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.webhooks.replay': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
@@ -253,6 +258,8 @@ export type ScannedRoutes = {
     'api.lists.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'api.todos.index': { paramsTuple: [ParamValue]; params: {'listId': ParamValue} }
     'api.todos.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'api.orders.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'api.customers.licenses': { paramsTuple?: []; params?: {} }
     'auth.register.create': { paramsTuple?: []; params?: {} }
     'auth.session.create': { paramsTuple?: []; params?: {} }
     'auth.password.create': { paramsTuple?: []; params?: {} }
@@ -300,6 +307,8 @@ export type ScannedRoutes = {
     'admin.licenses.index': { paramsTuple?: []; params?: {} }
     'admin.licenses.create': { paramsTuple?: []; params?: {} }
     'admin.licenses.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.orders.index': { paramsTuple?: []; params?: {} }
+    'admin.orders.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.webhooks.index': { paramsTuple?: []; params?: {} }
     'admin.webhooks.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.notifications.index': { paramsTuple?: []; params?: {} }
@@ -358,6 +367,8 @@ export type ScannedRoutes = {
     'api.lists.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'api.todos.index': { paramsTuple: [ParamValue]; params: {'listId': ParamValue} }
     'api.todos.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'api.orders.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'api.customers.licenses': { paramsTuple?: []; params?: {} }
     'auth.register.create': { paramsTuple?: []; params?: {} }
     'auth.session.create': { paramsTuple?: []; params?: {} }
     'auth.password.create': { paramsTuple?: []; params?: {} }
@@ -405,6 +416,8 @@ export type ScannedRoutes = {
     'admin.licenses.index': { paramsTuple?: []; params?: {} }
     'admin.licenses.create': { paramsTuple?: []; params?: {} }
     'admin.licenses.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.orders.index': { paramsTuple?: []; params?: {} }
+    'admin.orders.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.webhooks.index': { paramsTuple?: []; params?: {} }
     'admin.webhooks.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.notifications.index': { paramsTuple?: []; params?: {} }
@@ -435,6 +448,7 @@ export type ScannedRoutes = {
     'api.todos.store': { paramsTuple: [ParamValue]; params: {'listId': ParamValue} }
     'api.todos.complete': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'api.todos.uncomplete': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'api.checkout': { paramsTuple?: []; params?: {} }
     'auth.register.store': { paramsTuple?: []; params?: {} }
     'auth.session.store': { paramsTuple?: []; params?: {} }
     'auth.password.store': { paramsTuple?: []; params?: {} }

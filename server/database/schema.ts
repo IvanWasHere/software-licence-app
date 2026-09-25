@@ -311,7 +311,7 @@ export class LicenseEventSchema extends BaseModel {
 }
 
 export class LicenseSchema extends BaseModel {
-  static $columns = ['createdAt', 'entitlementOverrides', 'expiresAt', 'id', 'keyEncrypted', 'keyHash', 'keySuffix', 'maxActivations', 'notes', 'organizationId', 'planId', 'productId', 'publicId', 'source', 'status', 'statusReason', 'subscriptionId', 'supportUntil', 'updatedAt', 'updatesUntil'] as const
+  static $columns = ['createdAt', 'entitlementOverrides', 'expiresAt', 'id', 'keyEncrypted', 'keyHash', 'keySuffix', 'maxActivations', 'notes', 'orderId', 'orderItemId', 'organizationId', 'planId', 'productId', 'publicId', 'source', 'status', 'statusReason', 'subscriptionId', 'supportUntil', 'updatedAt', 'updatesUntil'] as const
   $columns = LicenseSchema.$columns
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime
@@ -331,6 +331,10 @@ export class LicenseSchema extends BaseModel {
   declare maxActivations: number | null
   @column()
   declare notes: string | null
+  @column()
+  declare orderId: number | null
+  @column()
+  declare orderItemId: number | null
   @column()
   declare organizationId: number
   @column()
@@ -390,8 +394,62 @@ export class NotificationSchema extends BaseModel {
   declare updatedAt: DateTime | null
 }
 
+export class OrderItemSchema extends BaseModel {
+  static $columns = ['createdAt', 'id', 'orderId', 'planId', 'quantity', 'unitPriceCents', 'updatedAt'] as const
+  $columns = OrderItemSchema.$columns
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column({ isPrimary: true })
+  declare id: number
+  @column()
+  declare orderId: number
+  @column()
+  declare planId: number
+  @column()
+  declare quantity: number
+  @column()
+  declare unitPriceCents: number
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime | null
+}
+
+export class OrderSchema extends BaseModel {
+  static $columns = ['createdAt', 'currency', 'email', 'fulfilledAt', 'id', 'organizationId', 'paidAt', 'provider', 'providerCheckoutId', 'providerOrderId', 'providerSubscriptionId', 'publicId', 'status', 'totalCents', 'updatedAt'] as const
+  $columns = OrderSchema.$columns
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column()
+  declare currency: string
+  @column()
+  declare email: string
+  @column.dateTime()
+  declare fulfilledAt: DateTime | null
+  @column({ isPrimary: true })
+  declare id: number
+  @column()
+  declare organizationId: number | null
+  @column.dateTime()
+  declare paidAt: DateTime | null
+  @column()
+  declare provider: 'creem'
+  @column()
+  declare providerCheckoutId: string | null
+  @column()
+  declare providerOrderId: string | null
+  @column()
+  declare providerSubscriptionId: string | null
+  @column()
+  declare publicId: string
+  @column()
+  declare status: 'pending' | 'paid' | 'refunded' | 'partially_refunded'
+  @column()
+  declare totalCents: number
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime | null
+}
+
 export class OrganizationSchema extends BaseModel {
-  static $columns = ['createdAt', 'deletedAt', 'id', 'limitOverrides', 'logoKey', 'name', 'ownerId', 'planKey', 'publicId', 'slug', 'status', 'storageUsedBytes', 'timezone', 'trialEndsAt', 'updatedAt'] as const
+  static $columns = ['createdAt', 'deletedAt', 'id', 'isSystem', 'limitOverrides', 'logoKey', 'name', 'ownerId', 'planKey', 'publicId', 'slug', 'status', 'storageUsedBytes', 'timezone', 'trialEndsAt', 'updatedAt'] as const
   $columns = OrganizationSchema.$columns
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime
@@ -399,6 +457,8 @@ export class OrganizationSchema extends BaseModel {
   declare deletedAt: DateTime | null
   @column({ isPrimary: true })
   declare id: number
+  @booleanColumn()
+  declare isSystem: boolean
   @jsonColumn()
   declare limitOverrides: Record<string, number | null> | null
   @column()
@@ -602,7 +662,7 @@ export class StaffUserSchema extends BaseModel {
 }
 
 export class SubscriptionSchema extends BaseModel {
-  static $columns = ['cancelAtPeriodEnd', 'canceledAt', 'createdAt', 'currentPeriodEnd', 'currentPeriodStart', 'id', 'organizationId', 'planKey', 'provider', 'providerCustomerId', 'providerSubscriptionId', 'status', 'trialEndsAt', 'updatedAt'] as const
+  static $columns = ['cancelAtPeriodEnd', 'canceledAt', 'createdAt', 'currentPeriodEnd', 'currentPeriodStart', 'id', 'organizationId', 'planId', 'planKey', 'provider', 'providerCustomerId', 'providerSubscriptionId', 'status', 'trialEndsAt', 'updatedAt'] as const
   $columns = SubscriptionSchema.$columns
   @booleanColumn()
   declare cancelAtPeriodEnd: boolean
@@ -618,6 +678,8 @@ export class SubscriptionSchema extends BaseModel {
   declare id: number
   @column()
   declare organizationId: number
+  @column()
+  declare planId: number | null
   @column()
   declare planKey: string
   @column()
@@ -801,7 +863,7 @@ export class WebhookEventSchema extends BaseModel {
   @column()
   declare attempts: number
   @column()
-  declare eventType: 'subscription.activated' | 'subscription.updated' | 'subscription.trialing' | 'subscription.past_due' | 'subscription.paused' | 'subscription.canceled' | 'payment.succeeded' | 'payment.refunded' | 'dispute.created'
+  declare eventType: 'subscription.activated' | 'subscription.updated' | 'subscription.trialing' | 'subscription.past_due' | 'subscription.paused' | 'subscription.canceled' | 'payment.succeeded' | 'payment.refunded' | 'dispute.created' | 'order.completed'
   @column({ isPrimary: true })
   declare id: number
   @column()

@@ -27,6 +27,7 @@ import { openApi } from '#api/openapi'
 import { listApiScopes } from '#modules/lists/api_scopes'
 import { listOpenApi } from '#modules/lists/openapi'
 import { licenseApiOpenApi } from '#licensing/openapi'
+import { integrationOpenApi } from '#commerce/openapi'
 
 /**
  * The demo domain (D8) — delete with it.
@@ -58,3 +59,8 @@ scopes.register('members:read', {
  * an API key — only its half of the published document.
  */
 openApi.register(licenseApiOpenApi)
+
+/**
+ * The integration API (licence plan §6, M4) — our own website's backend.
+ */
+openApi.register(integrationOpenApi)

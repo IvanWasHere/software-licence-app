@@ -6,7 +6,10 @@ import Payment from '#models/payment'
 import Subscription from '#models/subscription'
 import Organization from '#models/organization'
 import type WebhookEvent from '#models/webhook_event'
+import Plan from '#models/plan'
 import plans from '#billing/plan_service'
+import orders from '#commerce/order_service'
+import licenseBilling from '#commerce/license_billing'
 import mailer from '#mail/mailer_service'
 import { paymentProvider } from '#billing/provider'
 import type { NormalizedEvent, ProviderSubscription } from '#billing/contracts'
@@ -44,14 +47,154 @@ export class WebhookHandler {
         break
 
       case 'payment.succeeded':
-      case 'payment.refunded':
-        await this.applyPayment(event)
+      case 'payment.refunded': {
+        /**
+         * A renewal carries the subscription it renewed. On the licensing
+         * path that is what moves the license's expiry, so the subscription
+         * is applied first and the money recorded against it second.
+         */
+        if (event.subscription && (await this.isLicensing(event, event.subscription))) {
+          await this.applyLicensingSubscription(event, event.subscription)
+        }
+
+        const payment = await this.applyPayment(event)
+
+        if (payment && event.type === 'payment.refunded') {
+          await licenseBilling.applyRefund(payment)
+        }
         break
+      }
 
       case 'dispute.created':
         await this.applyDispute(event)
         break
+
+      case 'order.completed':
+        await this.applyOrder(event)
+        break
     }
+  }
+
+  /**
+   * A one-time purchase was paid (licence plan §5.3): fulfil the order —
+   * account, license, email — then record the money against it.
+   *
+   * Attributed through the order id we put in the checkout metadata, and
+   * nothing else. A one-time payment we cannot tie to one of our orders is
+   * parked for a human, exactly as an unattributable subscription is.
+   */
+  private async applyOrder(event: NormalizedEvent): Promise<void> {
+    const order = await orders.find(event.orderPublicId)
+
+    if (!order) {
+      throw new Error(`Webhook ${event.providerEventId} could not be attributed to an order`)
+    }
+
+    const { order: fulfilled } = await orders.fulfil(order, {
+      providerOrderId: event.payment?.orderId ?? null,
+      paidAt: event.payment?.occurredAt ?? event.occurredAt,
+    })
+
+    const organization = await Organization.findOrFail(fulfilled.organizationId)
+    await this.applyPayment(event, organization)
+  }
+
+  /**
+   * Whether a subscription belongs to the licensing path (M4) rather than the
+   * starter's SaaS tiers, which are removed in M5: a row we already tied to a
+   * plan, an order of ours in the metadata, or a provider product mapped to a
+   * catalog plan.
+   */
+  private async isLicensing(
+    event: NormalizedEvent,
+    incoming: ProviderSubscription
+  ): Promise<boolean> {
+    if (event.orderPublicId) {
+      return true
+    }
+
+    const existing = await Subscription.query()
+      .where('provider', 'creem')
+      .where('provider_subscription_id', incoming.id)
+      .first()
+
+    if (existing) {
+      return existing.isLicensing
+    }
+
+    return Boolean(await licenseBilling.planForProduct(incoming.productId))
+  }
+
+  /**
+   * A subscription that keeps a license alive (licence plan §5.3).
+   *
+   * The same three rules as the SaaS path — idempotent, watermark-ordered,
+   * provider is the truth — but it never touches `organizations.plan_key`:
+   * a customer account holds many licenses, not one tier. Its effect is on
+   * the licenses tied to it, through their expiry; whether they are valid is
+   * then decided on every validate call from the subscription's status.
+   */
+  private async applyLicensingSubscription(
+    event: NormalizedEvent,
+    incoming: ProviderSubscription
+  ): Promise<void> {
+    const existing = await Subscription.query()
+      .where('provider', 'creem')
+      .where('provider_subscription_id', incoming.id)
+      .first()
+
+    if (existing && event.occurredAt < existing.watermark.minus({ seconds: 1 })) {
+      logger.info(
+        { event: event.providerEventId, subscription: incoming.id },
+        'ignored a webhook older than the subscription it describes'
+      )
+      return
+    }
+
+    const order = await orders.find(event.orderPublicId)
+    const organization = existing
+      ? await Organization.find(existing.organizationId)
+      : order
+        ? await orders.ensureAccount(order)
+        : null
+
+    if (!organization) {
+      throw new Error(`Webhook ${event.providerEventId} could not be attributed to an order`)
+    }
+
+    const plan = existing?.planId
+      ? await Plan.find(existing.planId)
+      : ((await licenseBilling.planForProduct(incoming.productId)) ??
+        (order ? await this.planOf(order.id) : null))
+
+    if (!plan) {
+      throw new Error(`Subscription ${incoming.id} maps to no catalog plan`)
+    }
+
+    if (event.type === 'subscription.canceled' && !incoming.currentPeriodEnd) {
+      incoming = (await this.refetch(incoming.id)) ?? incoming
+    }
+
+    const subscription = await this.upsertSubscription(organization, incoming, 'license', plan.id)
+
+    /**
+     * Money has moved once the subscription is entitling; that is when the
+     * order's license is issued. `fulfil` skips items that already have one,
+     * so `checkout.completed`, `subscription.active` and `subscription.paid`
+     * for the same checkout issue exactly one license between them.
+     */
+    if (order && subscription.isEntitling) {
+      await orders.fulfil(order, { subscription, paidAt: event.occurredAt })
+    }
+
+    await licenseBilling.syncExpiry(subscription)
+  }
+
+  private async planOf(orderId: number): Promise<Plan | null> {
+    const { default: OrderItem } = await import('#models/order_item')
+    const item = await OrderItem.query().where('order_id', orderId).first()
+
+    return item ? Plan.find(item.planId) : null
   }
 
   /**
@@ -76,6 +219,10 @@ export class WebhookHandler {
 
     if (!incoming) {
       return
+    }
+
+    if (await this.isLicensing(event, incoming)) {
+      return this.applyLicensingSubscription(event, incoming)
     }
 
     const organization = await this.resolveOrganization(event, incoming)
@@ -133,7 +280,8 @@ export class WebhookHandler {
   private async upsertSubscription(
     organization: Organization,
     incoming: ProviderSubscription,
-    planKey: string
+    planKey: string,
+    planId: number | null = null
   ): Promise<Subscription> {
     /**
      * Keyed on the provider's id so a redelivery updates rather than inserts
@@ -155,6 +303,7 @@ export class WebhookHandler {
         providerSubscriptionId: incoming.id,
         providerCustomerId: incoming.customerId ?? subscription.providerCustomerId ?? null,
         planKey,
+        planId: planId ?? subscription.planId ?? null,
         status: incoming.status,
         currentPeriodStart: incoming.currentPeriodStart,
         currentPeriodEnd: incoming.currentPeriodEnd,
@@ -243,12 +392,15 @@ export class WebhookHandler {
    * order we already have grows `refunded_amount_cents` on the existing row
    * rather than writing a second, contradictory one.
    */
-  private async applyPayment(event: NormalizedEvent): Promise<void> {
+  private async applyPayment(
+    event: NormalizedEvent,
+    organizationOverride?: Organization
+  ): Promise<Payment | null> {
     const incoming = event.payment
 
     if (!incoming) {
       logger.warn({ event: event.providerEventId }, 'payment event carried no payment')
-      return
+      return null
     }
 
     /**
@@ -266,9 +418,12 @@ export class WebhookHandler {
           .first()
       : null
 
-    const organization = subscription
-      ? await Organization.find(subscription.organizationId)
-      : await this.organizationFromEvent(event)
+    const organization =
+      organizationOverride ??
+      (subscription
+        ? await Organization.find(subscription.organizationId)
+        : ((await this.organizationFromEvent(event)) ??
+          (await this.organizationFromOrder(incoming.orderId))))
 
     if (!organization) {
       throw new Error(`Payment ${incoming.orderId} could not be attributed to an organisation`)
@@ -317,6 +472,19 @@ export class WebhookHandler {
         await mailer.send(new PaymentReceiptNotification(owner, organization, payment))
       }
     }
+
+    return payment
+  }
+
+  /**
+   * A refund or dispute for a one-time purchase names only the provider's
+   * order; our order row, which recorded it at fulfilment, knows the account.
+   */
+  private async organizationFromOrder(providerOrderId: string): Promise<Organization | null> {
+    const { default: Order } = await import('#models/order')
+    const order = await Order.query().where('provider_order_id', providerOrderId).first()
+
+    return order?.organizationId ? Organization.find(order.organizationId) : null
   }
 
   private paymentStatus(
@@ -350,6 +518,7 @@ export class WebhookHandler {
       if (payment) {
         payment.status = 'disputed'
         await payment.save()
+        await licenseBilling.applyDispute(payment)
       }
     }
 

@@ -620,3 +620,134 @@ export async function createLicense(
 
   return { license, key, product, plan, organization }
 }
+
+/**
+ * A plan that can be bought online: its product active and the plan mapped to
+ * a provider product, which is what checkout and the webhook both match on.
+ */
+export async function createSellablePlan(
+  plan: NonNullable<Parameters<typeof createCatalogPlan>[0]>['plan'] = {}
+) {
+  const created = await createCatalogPlan({
+    plan: { providerProductId: `prod_${Math.random().toString(36).slice(2, 10)}`, ...plan },
+  })
+
+  created.product.status = 'active'
+  await created.product.save()
+
+  return created
+}
+
+/**
+ * The integration API's key — the system organisation's — as request headers.
+ */
+export async function createIntegrationKey() {
+  const { default: integrationKeys } = await import('#commerce/integration_keys')
+  const { organization, secret } = await integrationKeys.create('test integration')
+
+  return { organization, secret, headers: { authorization: `Bearer ${secret}` } }
+}
+
+/**
+ * Creem's webhook bodies for the licensing path (licence plan §5.3), with the
+ * fields the provider parser reads. Built to the same shapes as
+ * `subscriptionWebhook`, so the real parser and signature check run.
+ */
+export const creemLicensing = {
+  /**
+   * A one-time checkout: an order, no subscription.
+   */
+  oneTimeCheckout(options: {
+    orderPublicId?: string
+    providerOrderId?: string
+    amountCents?: number
+    eventId?: string
+  }) {
+    return {
+      id: options.eventId ?? `evt_${Math.random().toString(36).slice(2, 10)}`,
+      eventType: 'checkout.completed',
+      created_at: new Date().toISOString(),
+      object: {
+        id: 'ch_test_1',
+        order: {
+          id: options.providerOrderId ?? 'ord_creem_1',
+          amount: options.amountCents ?? 39_900,
+          currency: 'EUR',
+          created_at: new Date().toISOString(),
+        },
+        customer: { id: 'cus_test_1' },
+        metadata: options.orderPublicId ? { order_public_id: options.orderPublicId } : {},
+      },
+    }
+  },
+
+  /**
+   * A subscription checkout, or a subscription event: pass `eventType` for
+   * `subscription.active`, `subscription.paid`, `subscription.canceled`…
+   */
+  subscription(options: {
+    eventType?: string
+    orderPublicId?: string
+    subscriptionId?: string
+    productId: string
+    status?: string
+    currentPeriodEnd?: string
+    providerOrderId?: string
+    createdAt?: string
+    eventId?: string
+  }) {
+    const subscription = {
+      id: options.subscriptionId ?? 'sub_lic_1',
+      status: options.status ?? 'active',
+      customer: { id: 'cus_test_1' },
+      product: { id: options.productId },
+      current_period_start_date: new Date().toISOString(),
+      current_period_end_date:
+        options.currentPeriodEnd ?? new Date(Date.now() + 365 * 86_400_000).toISOString(),
+      cancel_at_period_end: false,
+      metadata: options.orderPublicId ? { order_public_id: options.orderPublicId } : {},
+    }
+
+    const order = {
+      id: options.providerOrderId ?? 'ord_creem_sub_1',
+      amount: 14_900,
+      currency: 'EUR',
+      created_at: new Date().toISOString(),
+    }
+
+    const eventType = options.eventType ?? 'checkout.completed'
+
+    return {
+      id: options.eventId ?? `evt_${Math.random().toString(36).slice(2, 10)}`,
+      eventType,
+      created_at: options.createdAt ?? new Date().toISOString(),
+      object:
+        eventType === 'checkout.completed'
+          ? { id: 'ch_test_2', subscription, order, metadata: subscription.metadata }
+          : { ...subscription, order: eventType === 'subscription.paid' ? order : undefined },
+    }
+  },
+
+  refund(options: { providerOrderId: string; amountCents: number }) {
+    return {
+      id: `evt_${Math.random().toString(36).slice(2, 10)}`,
+      eventType: 'refund.created',
+      created_at: new Date().toISOString(),
+      object: {
+        id: `ref_${Math.random().toString(36).slice(2, 8)}`,
+        order: { id: options.providerOrderId },
+        refund_amount: options.amountCents,
+        currency: 'EUR',
+      },
+    }
+  },
+
+  dispute(options: { providerOrderId: string }) {
+    return {
+      id: `evt_${Math.random().toString(36).slice(2, 10)}`,
+      eventType: 'dispute.created',
+      created_at: new Date().toISOString(),
+      object: { id: 'dsp_1', order: { id: options.providerOrderId } },
+    }
+  },
+}

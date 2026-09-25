@@ -1,0 +1,15 @@
+Thank you — here {{ licenses.length === 1 ? 'is your license key' : 'are your license keys' }}
+
+Enter the key in the software to activate it. Keep this email; the key is also always in your account.
+@each(license in licenses)
+
+{{ license.product }} · {{ license.plan }}
+{{ license.key }}
+{{ license.expiresAt ? 'Renews or expires ' + license.expiresAt : 'Never expires' }} · {{ license.maxActivations === null ? 'unlimited sites' : license.maxActivations + ' site(s)' }}
+@end
+
+@if(needsPassword)
+We made an account for {{ email }}. Set a password to sign in: {{ setPasswordUrl }}
+@else
+Your account: {{ loginUrl }}
+@end

@@ -2,6 +2,7 @@ import { DateTime } from 'luxon'
 import { belongsTo } from '@adonisjs/lucid/orm'
 import type { BelongsTo } from '@adonisjs/lucid/types/relations'
 
+import Plan from '#models/plan'
 import Organization from '#models/organization'
 import { SubscriptionSchema } from '#database/schema'
 
@@ -18,6 +19,13 @@ export default class Subscription extends SubscriptionSchema {
   declare organization: BelongsTo<typeof Organization>
 
   /**
+   * Set when the subscription keeps a license alive (licence plan §5.3) rather
+   * than paying for one of the starter's SaaS tiers.
+   */
+  @belongsTo(() => Plan)
+  declare plan: BelongsTo<typeof Plan>
+
+  /**
    * Statuses that still entitle the organisation to its plan.
    *
    * `past_due` is deliberately included: a failed card shows a banner and
@@ -26,6 +34,10 @@ export default class Subscription extends SubscriptionSchema {
    * nobody is being charged for.
    */
   static readonly ENTITLING_STATUSES = ['trialing', 'active', 'past_due'] as const
+
+  get isLicensing() {
+    return Boolean(this.planId)
+  }
 
   get isEntitling() {
     return (Subscription.ENTITLING_STATUSES as readonly string[]).includes(this.status)

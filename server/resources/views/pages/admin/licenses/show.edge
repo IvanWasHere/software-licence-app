@@ -51,7 +51,17 @@
               · <a href="{{ urlFor('admin.plans.edit', { id: license.product.publicId, planId: license.plan.publicId }) }}">{{ license.plan.name }}</a>
             </td>
           </tr>
-          <tr><th>Issued</th><td>{{ license.createdAt.toFormat('d LLL yyyy HH:mm') }} UTC · {{ license.source === 'manual' ? 'by hand' : 'from an order' }}</td></tr>
+          <tr>
+            <th>Issued</th>
+            <td>
+              {{ license.createdAt.toFormat('d LLL yyyy HH:mm') }} UTC ·
+              @if(license.order)
+                from order <a href="{{ urlFor('admin.orders.show', { id: license.order.publicId }) }}"><code>{{ license.order.publicId }}</code></a>
+              @else
+                {{ license.source === 'manual' ? 'by hand' : 'from an order' }}
+              @end
+            </td>
+          </tr>
           <tr><th>Expires</th><td>{{ license.expiresAt ? license.expiresAt.toUTC().toFormat('d LLL yyyy HH:mm') + ' UTC' : 'Never' }}</td></tr>
           @if(license.updatesUntil)
             <tr><th>Updates until</th><td>{{ license.updatesUntil.toUTC().toFormat('d LLL yyyy') }}</td></tr>

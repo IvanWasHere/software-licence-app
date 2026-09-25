@@ -1,0 +1,57 @@
+{{--
+  Orders (licence plan §8, M4). Search by the buyer's exact email or an
+  order id.
+--}}
+@component('layouts/admin', { title: 'Orders' })
+  @pageHeader({
+    title: 'Orders',
+    description: 'Pending means the payment provider has not confirmed yet. Paid but not fulfilled is worth a look in the webhook ledger.',
+  })
+  @end
+
+  <form method="GET" action="{{ urlFor('admin.orders.index') }}" class="field-row" style="grid-template-columns: 1fr auto; align-items: end">
+    <div class="field">
+      <label class="field-label" for="q">Search</label>
+      <input class="field-input" id="q" name="q" value="{{ term }}" placeholder="buyer@example.com or ord_…" />
+    </div>
+    <div class="field">
+      @!button({ text: 'Search', type: 'submit', size: 'sm', variant: 'outline' })
+    </div>
+  </form>
+
+  @panel.root({ flush: true })
+    @if(orders.length)
+      <div class="table-scroll">
+        <table class="tx-table">
+          <thead>
+            <tr><th>Order</th><th>Buyer</th><th>Customer</th><th>Total</th><th>Created</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            @each(order in orders)
+              <tr>
+                <td><a href="{{ urlFor('admin.orders.show', { id: order.publicId }) }}"><code>{{ order.publicId }}</code></a></td>
+                <td>{{ order.email }}</td>
+                <td>
+                  @if(order.organization)
+                    <a href="{{ urlFor('admin.organizations.show', { id: order.organization.publicId }) }}">{{ order.organization.name }}</a>
+                  @else
+                    <span class="field-hint">Not yet</span>
+                  @end
+                </td>
+                <td style="white-space: nowrap">{{ money(order.totalCents, order.currency) }}</td>
+                <td style="white-space: nowrap">{{ order.createdAt.toFormat('d LLL yyyy HH:mm') }}</td>
+                <td>@include('pages/admin/orders/_status')</td>
+              </tr>
+            @end
+          </tbody>
+        </table>
+      </div>
+    @else
+      @!emptyState({
+        icon: 'shoppingBag',
+        title: term ? 'Nothing matches' : 'No orders yet',
+        description: 'Orders are created when the website starts a checkout through the integration API.',
+      })
+    @end
+  @end
+@end

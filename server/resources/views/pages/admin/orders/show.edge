@@ -1,0 +1,84 @@
+@component('layouts/admin', { title: `Order ${order.publicId}` })
+  @pageHeader({ description: order.email })
+    @slot('heading')
+      <code>{{ order.publicId }}</code>
+      @include('pages/admin/orders/_status')
+    @end
+    @slot('actions')
+      <a class="btn btn-ghost btn-sm" href="{{ urlFor('admin.orders.index') }}">All orders</a>
+    @end
+  @end
+
+  <div class="settings-card">
+    <div class="table-scroll">
+      <table class="tx-table">
+        <tbody>
+          <tr><th>Buyer</th><td>{{ order.email }}</td></tr>
+          <tr>
+            <th>Customer</th>
+            <td>
+              @if(order.organization)
+                <a href="{{ urlFor('admin.organizations.show', { id: order.organization.publicId }) }}">{{ order.organization.name }}</a>
+              @else
+                <span class="field-hint">Found or created when the payment is confirmed.</span>
+              @end
+            </td>
+          </tr>
+          <tr><th>Total</th><td>{{ money(order.totalCents, order.currency) }}</td></tr>
+          <tr><th>Created</th><td>{{ order.createdAt.toFormat('d LLL yyyy HH:mm') }} UTC</td></tr>
+          <tr><th>Paid</th><td>{{ order.paidAt ? order.paidAt.toFormat('d LLL yyyy HH:mm') + ' UTC' : '—' }}</td></tr>
+          <tr><th>Fulfilled</th><td>{{ order.fulfilledAt ? order.fulfilledAt.toFormat('d LLL yyyy HH:mm') + ' UTC' : '—' }}</td></tr>
+          <tr><th>Provider order</th><td><code>{{ order.providerOrderId ?? '—' }}</code></td></tr>
+          @if(order.providerSubscriptionId)
+            <tr><th>Provider subscription</th><td><code>{{ order.providerSubscriptionId }}</code></td></tr>
+          @end
+          @if(payment)
+            <tr><th>Payment</th><td>{{ payment.publicId }} · {{ payment.status.replace('_', ' ') }}</td></tr>
+          @end
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  @panel.root({ title: 'Items', flush: true })
+    <div class="table-scroll">
+      <table class="tx-table">
+        <thead><tr><th>Product · plan</th><th>Quantity</th><th>Unit price</th></tr></thead>
+        <tbody>
+          @each(item in order.items)
+            <tr>
+              <td>{{ item.plan.product.name }} · {{ item.plan.name }}</td>
+              <td>{{ item.quantity }}</td>
+              <td>{{ money(item.unitPriceCents, order.currency) }}</td>
+            </tr>
+          @end
+        </tbody>
+      </table>
+    </div>
+  @end
+
+  @panel.root({ title: 'Licenses', flush: true })
+    @if(licenses.length)
+      <div class="table-scroll">
+        <table class="tx-table">
+          <tbody>
+            @each(license in licenses)
+              <tr>
+                <td><a href="{{ urlFor('admin.licenses.show', { id: license.publicId }) }}"><code>{{ license.product.keyPrefix }}-…{{ license.keySuffix }}</code></a></td>
+                <td>@include('pages/admin/licenses/_status')</td>
+              </tr>
+            @end
+          </tbody>
+        </table>
+      </div>
+    @else
+      @!emptyState({
+        icon: 'key',
+        title: 'No license yet',
+        description: order.status === 'pending'
+          ? 'Issued when the payment provider confirms the payment.'
+          : 'Paid but not issued — check the webhook ledger for a failed event.',
+      })
+    @end
+  @end
+@end

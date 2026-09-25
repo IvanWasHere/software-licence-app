@@ -667,6 +667,10 @@ test.group('API — the published document', () => {
         .properties.reason.enum,
       'activation_limit_reached'
     )
+
+    for (const path of ['/checkout', '/orders/{id}', '/customers/licenses']) {
+      assert.property(document.paths, path, path)
+    }
   })
 
   /**
