@@ -44,9 +44,6 @@ export type ScannedRoutes = {
     'server-stats.filters.create': { paramsTuple?: []; params?: {} }
     'server-stats.filters.delete': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'billing.index': { paramsTuple?: []; params?: {} }
-    'billing.checkout': { paramsTuple?: []; params?: {} }
-    'billing.return': { paramsTuple?: []; params?: {} }
-    'billing.status': { paramsTuple?: []; params?: {} }
     'billing.portal': { paramsTuple?: []; params?: {} }
     'api_keys.index': { paramsTuple?: []; params?: {} }
     'api_keys.store': { paramsTuple?: []; params?: {} }
@@ -138,7 +135,6 @@ export type ScannedRoutes = {
     'admin.organizations.index': { paramsTuple?: []; params?: {} }
     'admin.organizations.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.organizations.suspend': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
-    'admin.organizations.plan': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.organizations.limits': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.users.index': { paramsTuple?: []; params?: {} }
     'admin.users.resend_verification': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
@@ -236,8 +232,6 @@ export type ScannedRoutes = {
     'server-stats.config': { paramsTuple?: []; params?: {} }
     'server-stats.filters': { paramsTuple?: []; params?: {} }
     'billing.index': { paramsTuple?: []; params?: {} }
-    'billing.return': { paramsTuple?: []; params?: {} }
-    'billing.status': { paramsTuple?: []; params?: {} }
     'api_keys.index': { paramsTuple?: []; params?: {} }
     'api.organization.show': { paramsTuple?: []; params?: {} }
     'api.members.index': { paramsTuple?: []; params?: {} }
@@ -346,8 +340,6 @@ export type ScannedRoutes = {
     'server-stats.config': { paramsTuple?: []; params?: {} }
     'server-stats.filters': { paramsTuple?: []; params?: {} }
     'billing.index': { paramsTuple?: []; params?: {} }
-    'billing.return': { paramsTuple?: []; params?: {} }
-    'billing.status': { paramsTuple?: []; params?: {} }
     'api_keys.index': { paramsTuple?: []; params?: {} }
     'api.organization.show': { paramsTuple?: []; params?: {} }
     'api.members.index': { paramsTuple?: []; params?: {} }
@@ -426,7 +418,6 @@ export type ScannedRoutes = {
   POST: {
     'server-stats.jobs.retry': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'server-stats.filters.create': { paramsTuple?: []; params?: {} }
-    'billing.checkout': { paramsTuple?: []; params?: {} }
     'billing.portal': { paramsTuple?: []; params?: {} }
     'api_keys.store': { paramsTuple?: []; params?: {} }
     'api_keys.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
@@ -474,7 +465,6 @@ export type ScannedRoutes = {
     'admin.support.resolve': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.support.assign': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.organizations.suspend': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
-    'admin.organizations.plan': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.organizations.limits': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.users.resend_verification': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.users.verify': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }

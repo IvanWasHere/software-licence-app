@@ -17,7 +17,7 @@ import OrganizationTransformer from '#transformers/organization_transformer'
  */
 export default class ApiOrganizationController {
   /**
-   * No scope required. It reports the calling key's own workspace and its
+   * No scope required. It reports the calling key's own account and its
    * limits — a key that cannot read this could not size a request it is
    * already allowed to make, and there is nothing here it does not already
    * know by being used.

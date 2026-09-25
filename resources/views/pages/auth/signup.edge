@@ -1,6 +1,6 @@
 @component('layouts/auth', {
   title: 'Create an account',
-  heading: 'Create your workspace',
+  heading: 'Create your account',
   subtitle: 'Your account and your organisation are created together',
   back: { route: 'auth.session.create', text: 'Back to sign in' },
 })
@@ -12,7 +12,7 @@
     @end
 
     @field.root({ name: 'organizationName' })
-      @!field.label({ text: 'Workspace name' })
+      @!field.label({ text: 'Account name' })
       @!input.control({ placeholder: 'Acme', autocomplete: 'organization' })
       <span class="field-hint">Optional — we will name it after you if you leave it blank.</span>
       @!field.error()

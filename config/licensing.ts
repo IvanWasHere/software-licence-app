@@ -62,7 +62,7 @@ const licensingConfig = {
    * ended. This *is* the dunning window — there is no job that suspends
    * anybody, the expiry does it.
    */
-  renewalGraceDays: 7,
+  renewalGraceDays: 30,
 }
 
 export default licensingConfig

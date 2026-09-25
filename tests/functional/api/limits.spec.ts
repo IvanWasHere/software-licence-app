@@ -24,7 +24,7 @@ test.group('API rate limiting', (group) => {
   test('every response carries the burst budget, not just a 429', async ({ client, assert }) => {
     const { headers } = await createApiWorkspace()
 
-    const response = await client.get('/api/v1/lists').headers(headers)
+    const response = await client.get('/api/v1/licenses').headers(headers)
 
     response.assertStatus(200)
     assert.equal(response.header('x-ratelimit-limit'), String(BURST_REQUESTS))
@@ -35,8 +35,8 @@ test.group('API rate limiting', (group) => {
   test('the remaining budget goes down as it is spent', async ({ client, assert }) => {
     const { headers } = await createApiWorkspace()
 
-    const first = await client.get('/api/v1/lists').headers(headers)
-    const second = await client.get('/api/v1/lists').headers(headers)
+    const first = await client.get('/api/v1/licenses').headers(headers)
+    const second = await client.get('/api/v1/licenses').headers(headers)
 
     assert.equal(
       Number(second.header('x-ratelimit-remaining')),
@@ -49,21 +49,28 @@ test.group('API rate limiting', (group) => {
    * against both windows.
    */
   test('the monthly quota is reported separately from the burst', async ({ client, assert }) => {
-    const { headers } = await createApiWorkspace()
+    const { organization, headers } = await createApiWorkspace()
 
-    const response = await client.get('/api/v1/lists').headers(headers)
+    /**
+     * Accounts have no monthly cap by default (licence plan M5); staff set
+     * one per account when they need it.
+     */
+    organization.limitOverrides = { ...organization.limitOverrides, apiCallsPerMonth: 50_000 }
+    await organization.save()
 
-    assert.equal(response.header('x-quota-limit'), '50000', 'Pro allows 50,000 a month')
+    const response = await client.get('/api/v1/licenses').headers(headers)
+
+    assert.equal(response.header('x-quota-limit'), '50000')
     assert.equal(response.header('x-quota-remaining'), '49999')
   })
 
   test('an unlimited allowance spends no counter at all', async ({ client, assert }) => {
     const { organization, headers } = await createApiWorkspace()
 
-    organization.limitOverrides = { apiCallsPerMonth: null }
+    organization.limitOverrides = { ...organization.limitOverrides, apiCallsPerMonth: null }
     await organization.save()
 
-    const response = await client.get('/api/v1/lists').headers(headers)
+    const response = await client.get('/api/v1/licenses').headers(headers)
 
     response.assertStatus(200)
     assert.isUndefined(response.header('x-quota-limit'))
@@ -72,13 +79,13 @@ test.group('API rate limiting', (group) => {
   test('exceeding the monthly quota is a 429 with a retry hint', async ({ client, assert }) => {
     const { organization, headers } = await createApiWorkspace()
 
-    organization.limitOverrides = { apiCallsPerMonth: 2 }
+    organization.limitOverrides = { ...organization.limitOverrides, apiCallsPerMonth: 2 }
     await organization.save()
 
-    await client.get('/api/v1/lists').headers(headers)
-    await client.get('/api/v1/lists').headers(headers)
+    await client.get('/api/v1/licenses').headers(headers)
+    await client.get('/api/v1/licenses').headers(headers)
 
-    const blocked = await client.get('/api/v1/lists').headers(headers)
+    const blocked = await client.get('/api/v1/licenses').headers(headers)
 
     blocked.assertStatus(429)
     blocked.assertBodyContains({ error: { code: 'rate_limit_exceeded' } })
@@ -93,17 +100,21 @@ test.group('API rate limiting', (group) => {
   test('a second key does not double the monthly allowance', async ({ client, assert }) => {
     const { user, organization, headers } = await createApiWorkspace()
 
-    organization.limitOverrides = { apiCallsPerMonth: 2, apiKeys: 5 }
+    organization.limitOverrides = {
+      ...organization.limitOverrides,
+      apiCallsPerMonth: 2,
+      apiKeys: 5,
+    }
     await organization.save()
 
     const { default: apiKeys } = await import('#api/api_key_service')
     const second = await apiKeys.create(organization, user, { name: 'another' })
     const secondHeaders = { authorization: `Bearer ${second.secret}` }
 
-    await client.get('/api/v1/lists').headers(headers)
-    await client.get('/api/v1/lists').headers(secondHeaders)
+    await client.get('/api/v1/licenses').headers(headers)
+    await client.get('/api/v1/licenses').headers(secondHeaders)
 
-    const blocked = await client.get('/api/v1/lists').headers(secondHeaders)
+    const blocked = await client.get('/api/v1/licenses').headers(secondHeaders)
 
     blocked.assertStatus(429)
     assert.isTrue(true)
@@ -116,17 +127,17 @@ test.group('API rate limiting', (group) => {
   test('the burst budget is per key', async ({ client, assert }) => {
     const { user, organization, headers } = await createApiWorkspace()
 
-    organization.limitOverrides = { apiKeys: 5 }
+    organization.limitOverrides = { ...organization.limitOverrides, apiKeys: 5 }
     await organization.save()
 
     const { default: apiKeys } = await import('#api/api_key_service')
     const second = await apiKeys.create(organization, user, { name: 'another' })
 
-    await client.get('/api/v1/lists').headers(headers)
-    await client.get('/api/v1/lists').headers(headers)
+    await client.get('/api/v1/licenses').headers(headers)
+    await client.get('/api/v1/licenses').headers(headers)
 
     const fresh = await client
-      .get('/api/v1/lists')
+      .get('/api/v1/licenses')
       .header('authorization', `Bearer ${second.secret}`)
 
     assert.equal(
@@ -149,7 +160,7 @@ test.group('API usage rollup', (group) => {
       apiKeyId: null,
       requestId: null,
       method: 'GET',
-      path: '/api/v1/lists',
+      path: '/api/v1/licenses',
       status,
       durationMs: 3,
       ip: '127.0.0.1',

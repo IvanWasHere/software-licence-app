@@ -5,7 +5,7 @@ import User from '#models/user'
 import Organization from '#models/organization'
 import memberships, { MembershipError } from '#organizations/membership_service'
 import { seatUsage } from '#organizations/seats'
-import { addMember, createWorkspace } from '#tests/helpers'
+import { addMember, allowAccountFeatures, createWorkspaceWithFeatures } from '#tests/helpers'
 
 test.group('Members', (group) => {
   group.each.setup(() => {
@@ -14,7 +14,7 @@ test.group('Members', (group) => {
   })
 
   test('every member can see the team', async ({ client }) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
     const member = await addMember(organization, user, 'sam@example.com', 'Sam Member')
 
     const response = await client.get('/members').loginAs(member)
@@ -25,7 +25,7 @@ test.group('Members', (group) => {
   })
 
   test('the owner can remove a member', async ({ client, assert }) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
     const member = await addMember(organization, user, 'sam@example.com')
 
     const response = await client
@@ -44,7 +44,7 @@ test.group('Members', (group) => {
   })
 
   test('a member cannot remove anyone', async ({ client, assert }) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
 
     /**
      * Free allows two seats; a staff limit override (plan §7.4) makes room
@@ -71,13 +71,13 @@ test.group('Members', (group) => {
    * it, invite anyone, or delete it.
    */
   test('the owner cannot be removed', async ({ assert }) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
 
     await assert.rejects(() => memberships.remove(organization, user), MembershipError)
   })
 
   test('a member can leave', async ({ client, assert }) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
     const member = await addMember(organization, user, 'sam@example.com')
 
     const response = await client
@@ -93,7 +93,7 @@ test.group('Members', (group) => {
   })
 
   test('the owner cannot leave', async ({ client, assert }) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
 
     const response = await client
       .post('/settings/organization/leave')
@@ -110,7 +110,7 @@ test.group('Members', (group) => {
   })
 
   test('a removed member cannot sign back in to the workspace', async ({ client }) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
     const member = await addMember(organization, user, 'sam@example.com')
     await memberships.remove(organization, member)
 
@@ -124,7 +124,8 @@ test.group('Members', (group) => {
   })
 
   test('a member freed by removal can be re-invited', async ({ assert }) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
+    await allowAccountFeatures(organization, { seats: 2 })
     const member = await addMember(organization, user, 'sam@example.com')
 
     let usage = await seatUsage(organization)
@@ -140,7 +141,7 @@ test.group('Members', (group) => {
   })
 
   test('deleting the workspace removes access for everyone', async ({ client, assert }) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
     const member = await addMember(organization, user, 'sam@example.com')
 
     const response = await client
@@ -169,7 +170,7 @@ test.group('Members', (group) => {
   })
 
   test('deleting needs the workspace name typed exactly', async ({ client, assert }) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
 
     await client
       .post('/settings/organization/delete')
@@ -183,7 +184,7 @@ test.group('Members', (group) => {
   })
 
   test('a member cannot delete the workspace', async ({ client, assert }) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
     const member = await addMember(organization, user, 'sam@example.com')
 
     await client

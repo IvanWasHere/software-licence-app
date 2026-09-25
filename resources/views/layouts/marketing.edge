@@ -1,7 +1,9 @@
 {{--
-  Public site: landing, pricing, legal, and the error pages that are reachable
-  while signed out. Its only state is "is someone signed in", which decides
-  whether the header offers Sign in or Dashboard.
+  Public site: the product list, pricing pages, the post-checkout page, and
+  the error pages reachable while signed out. Its only state is "is someone
+  signed in", which decides whether the header offers Sign in or the
+  customer's licenses. Sign up stays on the login page, but most accounts
+  are made by buying (licence plan M5).
 --}}
 @component('layouts/base', { title: $props.get('title') })
   <header class="marketing-header">
@@ -13,13 +15,11 @@
     </a>
 
     <nav class="marketing-nav">
-      <a href="{{ urlFor('home') }}#features">Features</a>
-      <a href="{{ urlFor('home') }}#pricing">Pricing</a>
+      <a href="{{ urlFor('home') }}">Products</a>
       @if(auth.user)
-        @!link({ route: 'dashboard.index', text: 'Dashboard', class: 'btn btn-primary btn-sm' })
+        @!link({ route: 'licenses.index', text: 'Your licenses', class: 'btn btn-primary btn-sm' })
       @else
-        @!link({ route: 'auth.session.create', text: 'Sign in' })
-        @!link({ route: 'auth.register.create', text: 'Get started', class: 'btn btn-primary btn-sm' })
+        @!link({ route: 'auth.session.create', text: 'Sign in', class: 'btn btn-outline btn-sm' })
       @end
     </nav>
   </header>

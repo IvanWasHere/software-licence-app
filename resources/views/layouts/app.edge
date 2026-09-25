@@ -3,7 +3,7 @@
   as in ui-example/index.html.
 
   The header spans the whole window rather than sitting beside the sidebar,
-  so the workspace's identity, the page it is showing and the account controls
+  so the account's identity, the page it is showing and the account controls
   all live on one line. Everything above `.dash-layout` is chrome: it stays
   put and only the content column scrolls, which is what lets the billing and
   impersonation banners be permanently visible without a sticky of their own.
@@ -19,7 +19,7 @@
                 banners are rendered by this layout and need no slot.
 
   There is deliberately no `actions` slot. The header is chrome — which
-  workspace, which page, the bell, the account menu — and a page's own
+  account, which page, the bell, the account menu — and a page's own
   buttons go in the page, with the thing they act on: `@pageHeader`, a
   panel's `actions` slot, or a `.danger-zone` card for the destructive ones.
 --}}
@@ -40,7 +40,7 @@
           class="logo"
         >
           {{--
-            A workspace that uploaded a logo gets it here; everyone else keeps
+            An account that uploaded a logo gets it here; everyone else keeps
             the product mark. Public disk, so this is a plain cacheable URL —
             a signed one would expire while somebody had the page open.
           --}}

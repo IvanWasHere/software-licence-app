@@ -49,8 +49,9 @@
       </div>
       @if(subscriptions.some((subscription) => subscription.status === 'past_due'))
         <p class="field-hint" style="padding: 0 16px 16px">
-          A failed renewal does not switch anything off straight away: the license keeps working for a
-          few days while the payment is retried. Update your card in the portal to keep it that way.
+          A failed renewal does not switch anything off straight away: the license keeps working for
+          {{ renewalGraceDays }} days after the paid period ends while the payment is retried. Update your
+          card in the portal to keep it that way.
         </p>
       @end
     @else

@@ -28,7 +28,7 @@ export const createNotificationValidator = vine.create({
   title: vine.string().trim().minLength(1).maxLength(120),
   body: vine.string().trim().minLength(1).maxLength(2000),
   level: vine.enum(['info', 'success', 'warning', 'error'] as const).optional(),
-  audienceType: vine.enum(['all', 'plan', 'owners', 'users'] as const),
+  audienceType: vine.enum(['all', 'product', 'owners', 'users'] as const),
 
   /**
    * Both halves of the call to action, or neither. A label with no URL is a

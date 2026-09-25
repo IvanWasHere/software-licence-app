@@ -1,16 +1,13 @@
 {{--
   The account-state banner (plan §7.5, §13.5).
 
-  Rendered by the app layout on every screen, above the topbar, when the
-  workspace's billing needs attention. Two states and no more, because a
-  banner that appears for everything is a banner nobody reads:
+  Rendered by the app layout on every screen, above the topbar, when an
+  account limit a customer spends down is full. Only shown to the owner, who
+  is the one to ask support for more.
 
-    past_due  — a charge failed. Nothing has been taken away; the point of the
-                banner is that the customer finds out before the period ends.
-                (Set by staff since M5; license renewals are dunned by email
-                and by the license's own expiry.)
-    at a cap  — an account limit is full (seats, storage, API keys). Only shown
-                to the owner, who is the one to ask support for more.
+  There is no payment-failed state any more (licence plan M5): a failed
+  license renewal is told by email and by the billing screen, and the license
+  keeps working until its own expiry.
 --}}
 {{--
   The at-cap state names whichever quotas are full, from `usage.atCap` — the
@@ -23,17 +20,7 @@
 --}}
 @let(atCap = usage && usage.atCap ? usage.atCap : [])
 
-@if(organization.status === 'past_due')
-  <div class="account-banner account-banner-danger" role="status">
-    <span>
-      <strong>We could not take payment.</strong>
-      Nothing has been switched off yet. Update your card to keep your licenses running.
-    </span>
-    @if(isOwner && hasRoute('billing.index'))
-      <a href="{{ urlFor('billing.index') }}">Update payment method</a>
-    @end
-  </div>
-@elseif(isOwner && atCap.length > 0)
+@if(isOwner && atCap.length > 0)
   <div class="account-banner" role="status">
     <span>
       <strong>

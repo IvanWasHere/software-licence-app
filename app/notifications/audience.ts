@@ -6,7 +6,7 @@ import type Notification from '#models/notification'
  * **This is the only place in the application where a decision is made
  * without an `organization_id` filter.** Every other table is tenant-owned
  * and §5.4's rule holds; here, crossing tenants *is* the feature — one row
- * reaches every workspace on the Pro plan. Which means a bug in this function
+ * reaches every account holding a license for a product. Which means a bug in this function
  * shows one customer another customer's announcement, and there is nothing
  * else downstream that would catch it.
  *
@@ -14,8 +14,8 @@ import type Notification from '#models/notification'
  * and a template condition that could drift apart:
  *
  * - **Pure.** No database, no network. Everything it needs — the role, the id
- *   and the plan — is already on the context by the time any screen renders,
- *   the same way `PlanService.can()` works.
+ *   and the products the account holds — is handed to it by the caller, which
+ *   loads them once (`#licensing/holdings`).
  * - **Exhaustive.** The switch covers every `audience_type`, and the type is
  *   a closed union from `schema_rules`, so adding a fifth kind of audience
  *   without handling it is a compile error.
@@ -32,7 +32,11 @@ import type Notification from '#models/notification'
 export interface AudienceViewer {
   id: number
   role: 'owner' | 'member'
-  planKey: string
+
+  /**
+   * Products the viewer's account holds a live license for.
+   */
+  productIds: readonly number[]
 }
 
 export function appliesTo(
@@ -46,26 +50,27 @@ export function appliesTo(
       return true
 
     /**
-     * Everybody in an organisation on one of these plans, owners and members
+     * Customers of a product (licence plan M5): everybody in an account that
+     * holds a live license for one of these products, owners and members
      * alike. An empty list matches nobody rather than everybody — see the
      * note on being closed by default.
      */
-    case 'plan':
-      return (audience.planKeys ?? []).includes(viewer.planKey)
+    case 'product':
+      return (audience.productIds ?? []).some((id) => viewer.productIds.includes(id))
 
     /**
-     * Owners only, optionally narrowed by plan. The plan list being empty
-     * here means "owners on any plan", because the *type* has already
-     * narrowed the audience — unlike `plan`, where an empty list would mean
-     * the author picked nothing.
+     * Owners only, optionally narrowed to customers of some products. The
+     * list being empty here means "every owner", because the *type* has
+     * already narrowed the audience — unlike `product`, where an empty list
+     * would mean the author picked nothing.
      */
     case 'owners': {
       if (viewer.role !== 'owner') {
         return false
       }
 
-      const planKeys = audience.planKeys ?? []
-      return planKeys.length === 0 || planKeys.includes(viewer.planKey)
+      const productIds = audience.productIds ?? []
+      return productIds.length === 0 || productIds.some((id) => viewer.productIds.includes(id))
     }
 
     /**
@@ -88,20 +93,23 @@ export function appliesTo(
  * actually asking.
  */
 export function describeAudience(
-  notification: Pick<Notification, 'audienceType' | 'audience'>
+  notification: Pick<Notification, 'audienceType' | 'audience'>,
+  productNames: ReadonlyMap<number, string> = new Map()
 ): string {
-  const planKeys = notification.audience?.planKeys ?? []
+  const products = (notification.audience?.productIds ?? []).map(
+    (id) => productNames.get(id) ?? `product #${id}`
+  )
   const userIds = notification.audience?.userIds ?? []
 
   switch (notification.audienceType) {
     case 'all':
       return 'Everyone'
 
-    case 'plan':
-      return planKeys.length ? `Everyone on ${planKeys.join(', ')}` : 'Nobody — no plan chosen'
+    case 'product':
+      return products.length ? `Customers of ${products.join(', ')}` : 'Nobody — no product chosen'
 
     case 'owners':
-      return planKeys.length ? `Owners on ${planKeys.join(', ')}` : 'All workspace owners'
+      return products.length ? `Owners with ${products.join(', ')}` : 'All account owners'
 
     case 'users':
       return userIds.length === 1

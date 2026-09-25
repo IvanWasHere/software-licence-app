@@ -24,7 +24,7 @@ export default class InvitationAcceptanceController {
     }
 
     /**
-     * The address may already have an account — from a previous workspace, or
+     * The address may already have an account — from a previous account, or
      * from signing up before the invitation arrived. Saying so up front is
      * better than a confusing "email already taken" after the form is filled
      * in (plan §5.4).
@@ -37,7 +37,7 @@ export default class InvitationAcceptanceController {
     if (existing) {
       return view.render('pages/auth/invitation_invalid', {
         reason:
-          'That address already belongs to another workspace. Leave it first, or ask for an invitation to a different address.',
+          'That address already belongs to another account. Leave it first, or ask for an invitation to a different address.',
       })
     }
 
@@ -102,9 +102,9 @@ export default class InvitationAcceptanceController {
       case 'accepted':
         return 'That invitation has already been accepted. Try signing in instead.'
       case 'revoked':
-        return 'That invitation was withdrawn. Ask the workspace owner for a new one.'
+        return 'That invitation was withdrawn. Ask the account owner for a new one.'
       case 'expired':
-        return 'That invitation has expired. Ask the workspace owner to send a new one.'
+        return 'That invitation has expired. Ask the account owner to send a new one.'
       default:
         return 'That invitation link is not valid.'
     }

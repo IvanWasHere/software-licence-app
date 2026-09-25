@@ -13,7 +13,7 @@ export const IMPERSONATION_SESSION_KEY = 'impersonation'
  * How long an impersonation lasts before it hard-expires (plan §6).
  *
  * A support agent who wanders off must not leave a live session inside a
- * customer's workspace, and "until they sign out" is not a bound anybody
+ * customer's account, and "until they sign out" is not a bound anybody
  * enforces. Sixty minutes is long enough to reproduce a bug and short enough
  * that a forgotten tab closes itself.
  */
@@ -107,7 +107,7 @@ export default class ImpersonationMiddleware {
     if (state.staffRole !== 'admin' && !isEndingImpersonation && ctx.request.method() !== 'GET') {
       ctx.session.flash(
         'error',
-        'Support impersonation is read-only. Ask an admin if a change really has to be made from inside the workspace.'
+        'Support impersonation is read-only. Ask an admin if a change really has to be made from inside the account.'
       )
 
       /**

@@ -42,13 +42,11 @@ The server is a fork of [`kitch4nSinkV2`](../kitch4nSinkV2) (AdonisJS 7). This p
 | Queue | DB-backed queue, `queue_work`, `schedule_run` | Keep; add licensing jobs |
 | Mail, audit, limiter, OpenAPI, `/health`, Docker, CI | Present | Keep; extend `AUDIT_ACTIONS`, scopes and OpenAPI |
 
-**Replace, not delete up front.** Core test suites (tenant isolation, API endpoints, quotas) use the lists demo as their example of a customer-owned resource, and `docs/modules.md` warns that deleting it first loses that coverage. So the SaaS-only pieces go only once their replacement exists:
-- The `app/modules/lists/` demo module goes in **M5**. It was planned for M2, but the suites that use it test customer-facing web and API endpoints, and licenses only get those in the portal (M5). Then licenses become the customer-owned resource in `tests/helpers.ts#createList` and `tenant_isolation.spec.ts`. Follow `docs/modules.md` steps 1–4.
-- Quotas and seats go in **M5** together with lists, because lists are the only thing they meter.
-- The static SaaS tiers in `config/plans.ts` (`organization.planKey`, `PlanService` limits) go in **M5**, not M4 as first planned. The lists quotas sit on the same limits, so tiers and lists leave together. Since M4, billing routes each webhook to the **licensing path** (the provider product maps to a catalog plan, the checkout carries one of our order ids, or the subscription row has a `plan_id`) or to the legacy SaaS path:
-  - Plans move to the DB (§4).
-  - A customer account no longer has a single tier. It holds any number of licenses and subscriptions.
-  - The API-key allowance moves to a flag on the org.
+**Replaced, not deleted up front** (done in M5). Core test suites (tenant isolation, API endpoints, quotas) used the lists demo as their example of a customer-owned resource, so the SaaS-only pieces went only once their replacement existed:
+- **Lists demo removed.** Its tables are dropped by migration 033; the create migrations stay so existing databases aren't corrupted. Licenses are now the customer-owned resource in the isolation suite, and customers get `GET /api/v1/licenses` (scope `licenses:read`).
+- **SaaS tiers collapsed.** `config/plans.ts` now holds a single **account tier** (`standard`) that is not for sale. `PlanService` still enforces its limits, and staff overrides still apply.
+- **Quota registry is empty.** Account limits are fixed, not spent down, so there are no meters.
+- **Billing is licensing-only.** Webhooks for a product that is no catalog plan are parked. The billing page shows orders, license subscriptions, payments and the provider portal.
 
 **Keep** (decided in M0):
 - **Support tickets:** a licensing business answers "where is my key / free up a site" questions.
@@ -222,7 +220,7 @@ Reason codes are **part of the public contract**. They live in one enum, which i
 |---|---|
 | checkout completed, no subscription (normalized as `order.completed`) | fulfil the order: mark it paid; find or create the account from the order's email; issue a license; email the key; record the payment |
 | subscription created / active | upsert the subscription (`plan_id`, org plan untouched); fulfil the order with `expires_at = period_end + grace` |
-| subscription renewed / payment succeeded | set `expires_at = new period_end + grace (7 days, config renewalGraceDays)` |
+| subscription renewed / payment succeeded | set `expires_at = new period_end + grace (30 days, config renewalGraceDays)` |
 | payment failed / past_due | **nothing**. The license stays valid until `period_end + grace`, then lapses. The expiry *is* the dunning, so no suspension job is needed. |
 | subscription canceled (at period end) | nothing; the license runs until `expires_at` |
 | subscription expired / canceled | nothing. Validation reads the subscription status and answers `subscription_inactive`. |
@@ -466,7 +464,7 @@ Each milestone ends green in CI and can be demoed.
 - **Deferred:**
   - Expiry reminder emails (§5.5) and extending `sync_billing` to license expiry: M8.
   - `POST /api/v1/licenses` manual issue over the API: the admin UI covers it for now.
-  - MRR in the admin dashboard still counts SaaS tiers only: fix in M5 with the tier removal.
+  - MRR in the admin dashboard still counted SaaS tiers only. Fixed in M5: it now counts license subscriptions.
 
 Original scope:
 - Add orders and order items. Extend `createCheckoutSession` for one-time plans and plan mapping.
@@ -476,10 +474,39 @@ Original scope:
   - A subscription purchase, renewal, cancellation, refund and failed payment all result in the correct license state.
   - Replaying an event causes no duplicates.
 
-**M5: Customer portal (≈3 days)**
-- Build the licenses page (reveal key, manage activations), billing (orders, portal link), a pricing page with checkout, and anonymous checkout with a magic link.
-- Remove the lists demo, quotas and seats. Port `createList()`, `tenant_isolation.spec.ts` and the API endpoint suites to licenses (`docs/modules.md` steps 1–4).
-- ✅ An end-to-end browser test covers buy → receive email → log in → see key → deactivate a site.
+**M5: Customer portal (≈3 days)** ✅ done
+- **Portal.** `/licenses` and the license detail page:
+  - The key is shown on request, and each reveal is recorded in the license history.
+  - Installations are listed, each with a button that frees its slot.
+  - The dashboard has license widgets.
+  - Billing shows orders, subscriptions, payments and the provider portal.
+- **Storefront.**
+  - `/` lists products, and `/pricing/:product` has Buy buttons. Guests enter an email; signed-in buyers' orders go straight to their account.
+  - `/checkout/return` waits for the webhook and grants nothing itself.
+  - Checkout is rate-limited by IP.
+- **Stripping** (see §2):
+  - The lists demo, quotas and SaaS tiers are gone, and the billing SaaS branch is gone.
+  - Admin metrics are rebased on the catalog: MRR from license subscriptions, revenue by product, active licenses by product.
+  - The org "plan override" is removed; per-limit overrides stay.
+- **Decisions taken in M5:**
+
+  | Decision | Answer |
+  |---|---|
+  | Account limits | **1 seat**, **no storage**, **no API keys**, **unlimited API calls**. Staff overrides switch features on per account: `seats`, `storageMb`, `apiKeys` (`apiKeys: 0` also closes the API for existing keys). |
+  | Who sees keys | Moot with one seat. When a team is granted, every member can see and reveal keys. |
+  | Customer API keys | Off by default. |
+  | Buying without an account | Yes, email only. The account is created on payment with no password, and the key email links to the reset form. |
+  | Home page | Product list. |
+  | Announcements | Audience "customers of product X" (live licenses) replaces "by plan". Existing plan-targeted rows become product-targeted with no products, so they reach nobody. |
+  | Payment-failed account banner | Removed. The renewal-failed email and the billing page cover it. |
+  | Wording | "Account" instead of "workspace" in customer-facing copy. Admin screens and code keep their names. |
+  | Renewal grace | **30 days** after the paid period ends. |
+
+- **Fixed along the way:**
+  - A replayed webhook with an edited order id could fulfil one account's order through another account's subscription. An order is now only believed when it agrees with the subscription's account and provider id.
+  - A full rollback failed on the dropped demo tables.
+  - Two isolation tests reached the real Creem API. They now use the fake provider, and `.env.test` points `CREEM_API_URL` at a closed port.
+- ✅ Suite at **711/711** (unit and functional) plus **10/10** browser tests, including the end-to-end *guest buys → payment lands → sign in → reveal key → free a slot*.
 
 **M6: JS SDK (≈3 days)**
 - Build the package with caching, grace period, signature verification, storage adapters and entitlements helpers.
@@ -520,7 +547,7 @@ Total **≈30 working days** for one developer.
 ## 13. Open questions
 1. **Company name, key prefixes and package scope.** Replace `<org>` throughout.
 2. **Creem fit.** Confirm Creem supports everything we need: one-time and recurring products, the customer portal, refunds and the webhook events in §5.3. Creem may also offer its own license-key feature. If so, we deliberately don't use it, because our server stays the source of truth.
-3. **Dunning window and renewal grace.** The proposal is 7 days past_due before suspension and 3 days of renewal grace.
+3. ~~**Dunning window and renewal grace.**~~ Decided in M5: 30 days after the paid period, with no separate suspension step.
 4. **Expired perpetual-update licenses.** Should they still validate as `valid` with `updates_until` in the past (proposed), or return a distinct state?
 5. **Activation limits.** Are the defaults per plan right (e.g. 1 / 5 / unlimited sites)? Should dev sites be free?
 6. **VAT and invoices.** Is Creem's merchant-of-record invoice enough, or do we need our own invoice PDFs?

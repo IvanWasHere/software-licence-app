@@ -1,7 +1,13 @@
 import { test } from '@japa/runner'
 
 import User from '#models/user'
-import { createWorkspace, enableTwoFactor, totpFor, TEST_PASSWORD } from '#tests/helpers'
+import {
+  allowAccountFeatures,
+  createWorkspace,
+  enableTwoFactor,
+  TEST_PASSWORD,
+  totpFor,
+} from '#tests/helpers'
 
 /**
  * The flows a person walks through in a browser (plan §15).
@@ -121,8 +127,14 @@ test.group('Signing in', () => {
 })
 
 test.group('Accepting an invitation', () => {
-  test('joins the workspace from the emailed link', async ({ visit }) => {
+  test('joins the account from the emailed link', async ({ visit }) => {
     const { user, organization } = await createWorkspace({ email: 'owner@example.com' })
+
+    /**
+     * Accounts have one seat by default (licence plan M5); a team is a staff
+     * override, applied here the way support would.
+     */
+    await allowAccountFeatures(organization, { seats: 2 })
 
     const { default: invitations } = await import('#organizations/invitation_service')
     const { token } = await invitations.invite({

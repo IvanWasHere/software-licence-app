@@ -13,7 +13,7 @@ export default class RequireOwnerMiddleware {
     const user = ctx.auth.use('web').user!
 
     if (!user.isOwner) {
-      ctx.session.flash('error', 'Only the workspace owner can do that.')
+      ctx.session.flash('error', 'Only the account owner can do that.')
       return ctx.response.redirect().toRoute('dashboard.index')
     }
 

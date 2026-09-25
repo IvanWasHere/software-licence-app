@@ -11,7 +11,7 @@ import { parsePublicId } from '#models/public_id'
 import { inviteMemberValidator } from '#validators/organization'
 
 /**
- * The Team screen: who is in the workspace, who has been invited, and the
+ * The Team screen: who is in the account, who has been invited, and the
  * owner-only actions on both.
  */
 export default class MemberController {
@@ -74,7 +74,7 @@ export default class MemberController {
     const member = await this.findMember(params.id, organization.id)
 
     if (!member) {
-      session.flash('error', 'That person is not a member of this workspace.')
+      session.flash('error', 'That person is not a member of this account.')
       return response.redirect().toRoute('members.index')
     }
 
@@ -118,7 +118,7 @@ export default class MemberController {
   }
 
   /**
-   * A member id from another workspace must miss, not 403 with a hint that
+   * A member id from another account must miss, not 403 with a hint that
    * the id exists — so tenancy is part of the lookup, not a check after it.
    */
   private async findMember(publicId: string, organizationId: number): Promise<User | null> {

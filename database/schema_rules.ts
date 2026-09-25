@@ -191,8 +191,8 @@ export default {
          * Plan §20.3. A type not in this union is a compile error at the one
          * place that matters — the audience predicate's exhaustive switch.
          */
-        audience_type: union('all', 'plan', 'owners', 'users'),
-        audience: json('{ planKeys?: string[]; userIds?: number[] }'),
+        audience_type: union('all', 'product', 'owners', 'users'),
+        audience: json('{ productIds?: number[]; userIds?: number[] }'),
       },
     },
 

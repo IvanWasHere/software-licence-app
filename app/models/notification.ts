@@ -44,11 +44,11 @@ export default class Notification extends compose(
   }
 
   /**
-   * The plan keys or user ids this targets, whichever the type calls for.
+   * The product ids or user ids this targets, whichever the type calls for.
    * Empty arrays rather than nulls so callers never branch on shape.
    */
-  get planKeys(): string[] {
-    return this.audience?.planKeys ?? []
+  get productIds(): number[] {
+    return this.audience?.productIds ?? []
   }
 
   get userIds(): number[] {

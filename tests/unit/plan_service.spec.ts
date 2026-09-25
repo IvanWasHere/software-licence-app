@@ -116,84 +116,49 @@ test.group('PlanService — account limits', () => {
   })
 })
 
-test.group('PlanService — usage', (group) => {
-  group.each.setup(() => testUtils.db().truncate())
-
-  test('counts seats from the same source enforcement uses', async ({ assert }) => {
-    const { user, organization } = await createWorkspace()
-    await addMember(organization, user, 'sam@example.com')
-
-    const usage = await plans.usage(organization)
-
-    assert.equal(usage.quotas.seats!.current, 2)
-    assert.equal(usage.quotas.seats!.limit, catalogue.standard.limits.seats)
-    assert.deepEqual(
-      usage.meters.map((meter) => meter.key),
-      ['seats', 'storageMb']
-    )
-  })
-
-  test('a meter turns amber at 80% and full at the cap', async ({ assert }) => {
-    const { user, organization } = await createWorkspace()
-
-    /**
-     * Five so that 80% is a whole number of seats — the boundary is what is
-     * under test, not the rounding.
-     */
-    organization.limitOverrides = { seats: 5 }
-    await organization.save()
-
-    for (const email of ['a@example.com', 'b@example.com']) {
-      await addMember(organization, user, email)
-    }
-
-    let usage = await plans.usage(organization)
-    assert.isFalse(usage.quotas.seats!.isNearLimit, '3 of 5 is 60%')
-
-    await addMember(organization, user, 'c@example.com')
-
-    usage = await plans.usage(organization)
-    assert.isTrue(usage.quotas.seats!.isNearLimit, '4 of 5 is exactly 80%')
-    assert.isFalse(usage.quotas.seats!.isFull)
-
-    await addMember(organization, user, 'd@example.com')
-
-    usage = await plans.usage(organization)
-    assert.isTrue(usage.quotas.seats!.isFull)
-    assert.equal(usage.quotas.seats!.remaining, 0)
+/**
+ * The meter arithmetic (plan §7.4). No quota is registered since licence plan
+ * M5, but the rules a meter follows are kept — and pinned — for the day one is.
+ */
+test.group('PlanService — meters', () => {
+  test('turns amber at 80% and full at the cap', ({ assert }) => {
+    assert.isFalse(plans.describeCount(3, 5).isNearLimit, '3 of 5 is 60%')
+    assert.isTrue(plans.describeCount(4, 5).isNearLimit, '4 of 5 is exactly 80%')
+    assert.isFalse(plans.describeCount(4, 5).isFull)
+    assert.isTrue(plans.describeCount(5, 5).isFull)
+    assert.equal(plans.describeCount(5, 5).remaining, 0)
   })
 
   /**
    * Lowering a limit can leave usage *above* the ceiling. That must read as
    * full rather than as negative headroom (plan §7.4, soft-lock).
    */
-  test('usage above the ceiling reads as full, not as negative headroom', async ({ assert }) => {
-    const { user, organization } = await createWorkspace()
+  test('usage above the ceiling reads as full, not as negative headroom', ({ assert }) => {
+    const usage = plans.describeCount(4, 2)
 
-    for (const email of ['a@example.com', 'b@example.com', 'c@example.com']) {
-      await addMember(organization, user, email)
-    }
-
-    organization.limitOverrides = { seats: 2 }
-    await organization.save()
-
-    const usage = await plans.usage(organization)
-    assert.equal(usage.quotas.seats!.current, 4)
-    assert.equal(usage.quotas.seats!.limit, 2)
-    assert.equal(usage.quotas.seats!.remaining, 0, 'clamped, never negative')
-    assert.isTrue(usage.quotas.seats!.isFull)
+    assert.equal(usage.remaining, 0, 'clamped, never negative')
+    assert.isTrue(usage.isFull)
   })
 
-  test('an unlimited limit never reads as full or near', async ({ assert }) => {
-    const { organization } = await createWorkspace()
+  test('an unlimited limit never reads as full or near', ({ assert }) => {
+    const usage = plans.describeCount(10_000, null)
 
-    organization.limitOverrides = { seats: null }
-    await organization.save()
+    assert.isNull(usage.remaining)
+    assert.isFalse(usage.isFull)
+    assert.isFalse(usage.isNearLimit)
+  })
+})
+
+test.group('PlanService — usage', (group) => {
+  group.each.setup(() => testUtils.db().truncate())
+
+  test('reports no meters while no quota is registered', async ({ assert }) => {
+    const { user, organization } = await createWorkspace()
+    await addMember(organization, user, 'sam@example.com')
 
     const usage = await plans.usage(organization)
-    assert.isNull(usage.quotas.seats!.limit)
-    assert.isNull(usage.quotas.seats!.remaining)
-    assert.isFalse(usage.quotas.seats!.isFull)
-    assert.isFalse(usage.quotas.seats!.isNearLimit)
+
+    assert.isEmpty(usage.meters)
+    assert.isEmpty(usage.atCap)
   })
 })

@@ -1,24 +1,14 @@
 {{--
-  The tenant sidebar (plan §13.6.1).
+  The customer sidebar (licence plan M5).
 
-  Diverges from the mockup deliberately: three sections instead of one flat
-  list, Billing and API Keys gated on the owner role, and a usage counter
-  rendered inline on each quota-bearing item so the ceiling is visible before
-  it is hit.
-
-  Every item is guarded by `hasRoute`, so a destination appears the milestone
-  its routes land — the shell never links somewhere that does not exist.
-
-  Expects (all optional until the milestone that supplies them):
-    usage.quotas — { lists: { current, limit }, seats: { … } } from PlanService
-    isOwner — boolean
+  Every item is guarded by `hasRoute`, and the account features by the flags
+  `RequireOrganizationMiddleware` shares: with one seat there is no team to
+  manage, with no storage no Files screen, with no API keys no API Keys screen.
+  A staff override on the account brings each back.
 --}}
-@let(navQuotas = state.usage && state.usage.quotas ? state.usage.quotas : {})
 @let(navIsOwner = state.isOwner ?? false)
 
-@if(hasRoute('dashboard.index') || hasRoute('licenses.index') || hasRoute('lists.index') || hasRoute('files.index'))
-  <div class="nav-section-title">Main</div>
-@end
+<div class="nav-section-title">Main</div>
 
 @if(hasRoute('dashboard.index'))
   @!navItem({ route: 'dashboard.index', icon: 'barChart', label: 'Overview' })
@@ -26,37 +16,22 @@
 @if(hasRoute('licenses.index'))
   @!navItem({ route: 'licenses.index', icon: 'key', label: 'Licenses' })
 @end
-@if(hasRoute('lists.index'))
-  @!navItem({
-    route: 'lists.index',
-    icon: 'list',
-    label: 'Lists',
-    usage: navQuotas.lists,
-  })
-@end
-@if(hasRoute('files.index'))
+@if(state.filesEnabled && hasRoute('files.index'))
   @!navItem({ route: 'files.index', icon: 'folder', label: 'Files' })
 @end
 
-@if(hasRoute('members.index'))
+@if(state.teamEnabled && hasRoute('members.index'))
   <div class="nav-section-title">Team</div>
-  @!navItem({
-    route: 'members.index',
-    icon: 'users',
-    label: 'Members',
-    usage: navQuotas.seats,
-  })
+  @!navItem({ route: 'members.index', icon: 'users', label: 'Members' })
 @end
 
-@if(hasRoute('billing.index') || hasRoute('api_keys.index') || hasRoute('settings.profile'))
-  <div class="nav-section-title">Account</div>
-@end
+<div class="nav-section-title">Account</div>
 
 {{-- Billing and API keys are owner-only (plan §6) --}}
 @if(navIsOwner && hasRoute('billing.index'))
   @!navItem({ route: 'billing.index', icon: 'creditCard', label: 'Billing' })
 @end
-@if(navIsOwner && hasRoute('api_keys.index'))
+@if(navIsOwner && state.apiKeysEnabled && hasRoute('api_keys.index'))
   @!navItem({ route: 'api_keys.index', icon: 'key', label: 'API Keys' })
 @end
 @if(hasRoute('settings.profile'))

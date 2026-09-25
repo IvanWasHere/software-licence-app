@@ -6,7 +6,7 @@ import File from '#models/file'
 import files from '#storage/file_service'
 import storage from '#storage/disk_storage'
 import purgeDeletedFilesJob, { RETENTION_DAYS } from '#queue/jobs/purge_deleted_files_job'
-import { clearStorage, createWorkspace, fixtureUpload, runQueue } from '#tests/helpers'
+import { clearStorage, createWorkspaceWithFeatures, fixtureUpload, runQueue } from '#tests/helpers'
 
 /**
  * The purge job (plan §10).
@@ -20,7 +20,7 @@ test.group('Purging deleted files', (group) => {
   group.each.setup(() => clearStorage)
 
   const deletedDaysAgo = async (days: number) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
     const file = await files.upload(organization, user, await fixtureUpload('pdf'))
 
     await files.delete(file)
@@ -50,7 +50,7 @@ test.group('Purging deleted files', (group) => {
   })
 
   test('never touches a file that was not deleted', async ({ assert }) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
     const file = await files.upload(organization, user, await fixtureUpload('png'))
 
     await purgeDeletedFilesJob.handle()

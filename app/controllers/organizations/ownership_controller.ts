@@ -19,12 +19,12 @@ export default class OwnershipController {
     const { memberPublicId, confirmation } = await request.validateUsing(transferOwnershipValidator)
 
     /**
-     * Handing the workspace to someone else cannot be undone by the person
-     * doing it, so it asks for the workspace name in the same way deletion
+     * Handing the account to someone else cannot be undone by the person
+     * doing it, so it asks for the account name in the same way deletion
      * does.
      */
     if (confirmation.trim() !== organization.name) {
-      session.flash('error', 'Type the workspace name exactly to confirm the transfer.')
+      session.flash('error', 'Type the account name exactly to confirm the transfer.')
       return response.redirect().toRoute('settings.organization')
     }
 
@@ -38,7 +38,7 @@ export default class OwnershipController {
       : null
 
     if (!target) {
-      session.flash('error', 'Choose a member of this workspace to transfer ownership to.')
+      session.flash('error', 'Choose a member of this account to transfer ownership to.')
       return response.redirect().toRoute('settings.organization')
     }
 

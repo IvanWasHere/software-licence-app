@@ -7,8 +7,8 @@ import type Invitation from '#models/invitation'
 import type Organization from '#models/organization'
 
 /**
- * The invitation link is a credential for somebody else's workspace, so the
- * message names who sent it and which workspace it opens — an unexpected
+ * The invitation link is a credential for somebody else's account, so the
+ * message names who sent it and which account it opens — an unexpected
  * invitation should be obviously ignorable.
  */
 export default class TeamInvitationNotification extends BaseMail {

@@ -5,7 +5,13 @@ import User from '#models/user'
 import Invitation from '#models/invitation'
 import invitations, { InvitationError } from '#organizations/invitation_service'
 import { seatUsage } from '#organizations/seats'
-import { addMember, createWorkspace, queuedMailsTo, TEST_PASSWORD } from '#tests/helpers'
+import {
+  allowAccountFeatures,
+  addMember,
+  createWorkspaceWithFeatures,
+  queuedMailsTo,
+  TEST_PASSWORD,
+} from '#tests/helpers'
 
 test.group('Invitations', (group) => {
   group.each.setup(() => {
@@ -14,7 +20,7 @@ test.group('Invitations', (group) => {
   })
 
   test('the owner can invite someone', async ({ client, assert }) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
 
     const response = await client
       .post('/members/invite')
@@ -37,7 +43,7 @@ test.group('Invitations', (group) => {
   })
 
   test('stores only the hash of the invitation token', async ({ assert }) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
     const { invitation, token } = await invitations.invite({
       organization,
       invitedBy: user,
@@ -49,7 +55,7 @@ test.group('Invitations', (group) => {
   })
 
   test('a member cannot invite', async ({ client, assert }) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
     const member = await addMember(organization, user, 'sam@example.com')
 
     const response = await client
@@ -67,7 +73,7 @@ test.group('Invitations', (group) => {
   })
 
   test('accepting creates a member of that organisation', async ({ client, assert }) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
     const { token } = await invitations.invite({
       organization,
       invitedBy: user,
@@ -93,7 +99,7 @@ test.group('Invitations', (group) => {
   })
 
   test('an invitation can only be accepted once', async ({ client, assert }) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
     const { token } = await invitations.invite({
       organization,
       invitedBy: user,
@@ -125,7 +131,7 @@ test.group('Invitations', (group) => {
   })
 
   test('a revoked invitation stops working', async ({ client, assert }) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
     const { invitation, token } = await invitations.invite({
       organization,
       invitedBy: user,
@@ -146,7 +152,7 @@ test.group('Invitations', (group) => {
   })
 
   test('an expired invitation stops working', async ({ client }) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
     const { invitation, token } = await invitations.invite({
       organization,
       invitedBy: user,
@@ -166,7 +172,7 @@ test.group('Invitations', (group) => {
    * forwarded to the wrong person, which is why it is being resent.
    */
   test('resending retires the previous link', async ({ client }) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
     const { invitation, token: first } = await invitations.invite({
       organization,
       invitedBy: user,
@@ -184,7 +190,7 @@ test.group('Invitations', (group) => {
   })
 
   test('refuses an address that is already a member', async ({ assert }) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
     await addMember(organization, user, 'sam@example.com')
 
     await assert.rejects(
@@ -198,8 +204,8 @@ test.group('Invitations', (group) => {
    * rather than failing with a confusing "email already taken" (plan §5.4).
    */
   test('refuses an address that belongs to another workspace', async ({ client }) => {
-    const { user } = await createWorkspace()
-    const other = await createWorkspace({ email: 'elsewhere@example.com' })
+    const { user } = await createWorkspaceWithFeatures()
+    const other = await createWorkspaceWithFeatures({ email: 'elsewhere@example.com' })
 
     const response = await client
       .post('/members/invite')
@@ -210,12 +216,13 @@ test.group('Invitations', (group) => {
 
     response.assertFlashMessage(
       'error',
-      'That address already belongs to another workspace. Ask them to leave it first, or invite a different address.'
+      'That address already belongs to another account. Ask them to leave it first, or invite a different address.'
     )
   })
 
   test('a pending invitation holds a seat', async ({ assert }) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
+    await allowAccountFeatures(organization, { seats: 2 })
 
     const before = await seatUsage(organization)
     assert.equal(before.used, 1)
@@ -225,11 +232,11 @@ test.group('Invitations', (group) => {
     const after = await seatUsage(organization)
     assert.equal(after.used, 2)
     assert.equal(after.pendingInvitations, 1)
-    assert.isTrue(after.isFull, 'the free plan allows two seats')
+    assert.isTrue(after.isFull, 'two seats: the owner and the invitation')
   })
 
   test('revoking releases the seat it held', async ({ assert }) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
     const { invitation } = await invitations.invite({
       organization,
       invitedBy: user,

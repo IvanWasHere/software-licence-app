@@ -18,6 +18,26 @@ import { storefrontCheckoutValidator } from '#validators/storefront'
  * found or created from it when the payment is confirmed.
  */
 export default class PricingController {
+  /**
+   * The home page (licence plan M5): every product on sale, each linking to
+   * its pricing page. Drafts do not exist to the outside; retired products
+   * are not for sale.
+   */
+  async index({ view }: HttpContext) {
+    const products = await Product.query()
+      .where('status', 'active')
+      .preload('plans', (query) =>
+        query
+          .where('status', 'active')
+          .where('is_public', true)
+          .whereNotNull('provider_product_id')
+          .orderBy('price_cents', 'asc')
+      )
+      .orderBy('name', 'asc')
+
+    return view.render('pages/home', { products })
+  }
+
   async show({ params, view, response }: HttpContext) {
     const product = await Product.query()
       .where('slug', String(params.product))

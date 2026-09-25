@@ -5,6 +5,7 @@ import Notification from '#models/notification'
 import type Organization from '#models/organization'
 import type StaffUser from '#models/staff_user'
 import { appliesTo, type AudienceViewer } from '#notifications/audience'
+import { productIdsHeldBy } from '#licensing/holdings'
 import { normalizeAudience, type AudienceInput } from '#notifications/input'
 
 /**
@@ -32,7 +33,7 @@ export interface FeedEntry {
  *
  * The audience question is answered in exactly one place — `appliesTo` — and
  * this class is what feeds it. It deliberately does not re-implement the rule
- * in SQL: matching `planKeys` or `userIds` needs JSON operators, which
+ * in SQL: matching `productIds` or `userIds` needs JSON operators, which
  * portability rule 5 forbids, so candidates are fetched and filtered in
  * memory (plan §20.4).
  */
@@ -74,9 +75,17 @@ export class NotificationService {
   async unreadCountFor(user: User, organization: Organization): Promise<number> {
     const candidates = await this.publishedSince(user.notificationsSeenAt)
 
-    return candidates.filter((notification) =>
-      appliesTo(notification, this.viewerFor(user, organization))
-    ).length
+    /**
+     * This runs on every rendered page, so the account's products — one
+     * indexed query — are only looked up when there is something to check.
+     */
+    if (candidates.length === 0) {
+      return 0
+    }
+
+    const viewer = await this.viewerFor(user, organization)
+
+    return candidates.filter((notification) => appliesTo(notification, viewer)).length
   }
 
   /**
@@ -101,9 +110,9 @@ export class NotificationService {
   private async liveFor(user: User, organization: Organization): Promise<Notification[]> {
     const candidates = await this.publishedSince(null)
 
-    return candidates.filter((notification) =>
-      appliesTo(notification, this.viewerFor(user, organization))
-    )
+    const viewer = await this.viewerFor(user, organization)
+
+    return candidates.filter((notification) => appliesTo(notification, viewer))
   }
 
   /**
@@ -132,8 +141,10 @@ export class NotificationService {
     })
   }
 
-  private viewerFor(user: User, organization: Organization): AudienceViewer {
-    return { id: user.id, role: user.role, planKey: organization.planKey }
+  private async viewerFor(user: User, organization: Organization): Promise<AudienceViewer> {
+    const held = await productIdsHeldBy([organization.id])
+
+    return { id: user.id, role: user.role, productIds: held.get(organization.id) ?? [] }
   }
 
   /**
@@ -212,13 +223,16 @@ export class NotificationService {
    * sees it, and the disagreement would only surface after publishing.
    */
   async reachOf(notification: Pick<Notification, 'audienceType' | 'audience'>): Promise<number> {
-    const users = await User.query().whereNull('deleted_at').preload('organization')
+    const [users, held] = await Promise.all([
+      User.query().whereNull('deleted_at'),
+      productIdsHeldBy(),
+    ])
 
     return users.filter((user) =>
       appliesTo(notification, {
         id: user.id,
         role: user.role,
-        planKey: user.organization?.planKey ?? 'standard',
+        productIds: held.get(user.organizationId) ?? [],
       })
     ).length
   }

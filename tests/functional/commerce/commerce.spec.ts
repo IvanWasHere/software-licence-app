@@ -110,7 +110,7 @@ test.group('Commerce — the integration API', (group) => {
    * arbitrary addresses — however it is scoped.
    */
   test('refuses every key but the system account’s', async ({ client }) => {
-    const { headers } = await createApiWorkspace({ planKey: 'business' })
+    const { headers } = await createApiWorkspace()
     const { product } = await createSellablePlan({ slug: 'lifetime' })
 
     for (const request of [
@@ -397,7 +397,7 @@ test.group('Commerce — subscriptions', (group) => {
     await order.refresh()
     const user = await User.findByOrFail('email', 'buyer@example.com')
     await user.load('organization')
-    assert.equal(user.organization.planKey, 'free')
+    assert.equal(user.organization.planKey, 'standard')
 
     const { result } = await licenses.check(license.keyEncrypted, product.slug)
     assert.isTrue(result.valid)
@@ -517,31 +517,6 @@ test.group('Commerce — subscriptions', (group) => {
     const license = await License.firstOrFail()
     const { result } = await licenses.check(license.keyEncrypted, product.slug)
     assert.equal(result.reason, 'subscription_inactive')
-  })
-
-  /**
-   * The starter's SaaS tiers still work beside the licensing path until M5.
-   */
-  test('a SaaS-tier subscription still takes the old path', async ({ client, assert }) => {
-    const { organization } = await createWorkspace()
-
-    await deliver(client, {
-      id: 'evt_saas_1',
-      eventType: 'subscription.active',
-      created_at: new Date().toISOString(),
-      object: {
-        id: 'sub_saas_1',
-        status: 'active',
-        customer: { id: 'cus_1' },
-        product: { id: 'prod_test_pro' },
-        current_period_end_date: new Date(Date.now() + 30 * 86_400_000).toISOString(),
-        metadata: { organization_public_id: organization.publicId },
-      },
-    })
-
-    await organization.refresh()
-    assert.equal(organization.planKey, 'pro')
-    assert.lengthOf(await License.all(), 0)
   })
 })
 

@@ -286,7 +286,7 @@ export class WebhookHandler {
      * outside the catalog — parked for a human rather than guessed at.
      */
     throw new Error(
-      `Subscription ${incoming.id} (product ${incoming.productId ?? 'unknown'}) maps to no catalog plan`
+      `Subscription ${incoming.id} could not be attributed: product ${incoming.productId ?? 'unknown'} maps to no catalog plan`
     )
   }
 

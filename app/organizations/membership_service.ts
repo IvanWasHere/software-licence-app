@@ -29,7 +29,7 @@ export class MembershipService {
    */
   async remove(organization: Organization, member: User): Promise<void> {
     if (member.organizationId !== organization.id) {
-      throw new MembershipError('That person is not a member of this workspace.', 'not_a_member')
+      throw new MembershipError('That person is not a member of this account.', 'not_a_member')
     }
 
     if (member.id === organization.ownerId) {
@@ -46,16 +46,16 @@ export class MembershipService {
    * Move ownership to another member.
    *
    * There is exactly one owner: `organizations.owner_id` and the two `role`
-   * columns move together inside one transaction, so the workspace is never
+   * columns move together inside one transaction, so the account is never
    * observed with two owners or none.
    */
   async transferOwnership(organization: Organization, from: User, to: User): Promise<void> {
     if (to.organizationId !== organization.id) {
-      throw new MembershipError('That person is not a member of this workspace.', 'not_a_member')
+      throw new MembershipError('That person is not a member of this account.', 'not_a_member')
     }
 
     if (to.id === from.id) {
-      throw new MembershipError('You already own this workspace.', 'already_owner')
+      throw new MembershipError('You already own this account.', 'already_owner')
     }
 
     await db.transaction(async (trx) => {
@@ -74,7 +74,7 @@ export class MembershipService {
   }
 
   /**
-   * Leave the workspace (plan §13.6.3 — the member-safe half of the mockup's
+   * Leave the account (plan §13.6.3 — the member-safe half of the mockup's
    * "delete account").
    *
    * The owner cannot simply leave: an organisation with no owner has nobody
@@ -83,7 +83,7 @@ export class MembershipService {
   async leave(organization: Organization, user: User): Promise<void> {
     if (user.id === organization.ownerId) {
       throw new MembershipError(
-        'Transfer ownership to someone else before leaving, or delete the workspace.',
+        'Transfer ownership to someone else before leaving, or delete the account.',
         'owner_cannot_leave'
       )
     }
@@ -93,7 +93,7 @@ export class MembershipService {
 
   /**
    * Soft-delete an organisation and everyone in it. Owner-only, and the UI
-   * asks for the workspace name to be typed first (plan §13.6.3).
+   * asks for the account name to be typed first (plan §13.6.3).
    *
    * Nothing is erased. Whether deleted organisations are eventually purged
    * after a grace period is plan §19 Q2, still open — until it is answered,

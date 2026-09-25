@@ -48,10 +48,10 @@ export class SupportService {
   /**
    * The tickets this user may see, newest activity first.
    *
-   * Owners see the whole workspace's tickets because they are already its
+   * Owners see the whole account's tickets because they are already its
    * billing and membership authority; a member sees their own. A support
    * ticket can carry a billing dispute or a complaint about a colleague,
-   * which is why this is narrower than the workspace-wide rule lists follow
+   * which is why this is narrower than the account-wide rule lists follow
    * (D8, §21.4).
    */
   private scopeFor(organization: Organization, user: User) {

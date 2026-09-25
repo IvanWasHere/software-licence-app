@@ -11,8 +11,8 @@ import Organization from '#models/organization'
  * router is populated after this module loads and a reservation that arrived
  * late would be a reservation that did not hold. So **a feature that adds a
  * top-level route segment adds it here** — `lists` is the demo domain's
- * (docs/modules.md). Leaving a stale word in costs a workspace one possible
- * name; leaving a live one out lets a workspace shadow a route.
+ * (docs/modules.md). Leaving a stale word in costs an account one possible
+ * name; leaving a live one out lets an account shadow a route.
  */
 const RESERVED = new Set([
   'admin',
@@ -50,7 +50,7 @@ export async function generateOrganizationSlug(
   name: string,
   trx?: TransactionClientContract
 ): Promise<string> {
-  const base = string.slug(name, { lower: true, strict: true }).slice(0, 48) || 'workspace'
+  const base = string.slug(name, { lower: true, strict: true }).slice(0, 48) || 'account'
 
   for (let attempt = 0; attempt < 50; attempt++) {
     const candidate = attempt === 0 ? base : `${base}-${attempt + 1}`

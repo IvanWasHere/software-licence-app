@@ -70,18 +70,18 @@ export class RegistrationService {
   }
 
   /**
-   * Someone signing up through Google is not asked to name a workspace, so
-   * one is derived from their own name — "Jane Cooper's workspace" — which
+   * Someone signing up through Google is not asked to name an account, so
+   * one is derived from their own name — "Jane Cooper's account" — which
    * they can rename later in organisation settings.
    */
   private defaultOrganizationName(input: RegistrationInput, email: string): string {
     const name = input.fullName?.trim()
 
     if (name) {
-      return `${name}'s workspace`
+      return `${name}'s account`
     }
 
-    return `${email.split('@')[0]}'s workspace`
+    return `${email.split('@')[0]}'s account`
   }
 }
 

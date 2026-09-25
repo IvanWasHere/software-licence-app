@@ -132,6 +132,24 @@ export async function addMember(
   fullName = 'Sam Member'
 ): Promise<User> {
   const { default: invitations } = await import('#organizations/invitation_service')
+  const { default: plans } = await import('#billing/plan_service')
+  const { seatUsage } = await import('#organizations/seats')
+
+  /**
+   * An account has one seat by default (licence plan M5), so a test that
+   * needs a team raises it the way support would — a staff override — just
+   * far enough for this person. Seat limits themselves have their own suite,
+   * which sets its overrides explicitly.
+   */
+  await organization.refresh()
+  const limit = plans.limit(organization, 'seats')
+  const { used } = await seatUsage(organization)
+
+  if (limit !== null && used + 1 > limit) {
+    organization.limitOverrides = { ...(organization.limitOverrides ?? {}), seats: used + 1 }
+    await organization.save()
+  }
+
   const { token } = await invitations.invite({ organization, invitedBy: owner, email })
 
   return invitations.accept({ token, fullName, password: TEST_PASSWORD })
@@ -393,7 +411,7 @@ export async function clearStorage(): Promise<void> {
  * quietly granting itself a scope another does not have.
  */
 export async function createApiWorkspace(
-  options: { planKey?: 'pro' | 'business'; scopes?: ApiScope[]; name?: string } = {}
+  options: { scopes?: ApiScope[]; name?: string } = {}
 ): Promise<{
   user: User
   organization: Organization
@@ -405,7 +423,11 @@ export async function createApiWorkspace(
 
   const { user, organization } = await createWorkspace()
 
-  organization.planKey = options.planKey ?? 'pro'
+  /**
+   * API keys are off by default (licence plan M5); switched on here the way
+   * staff switch them on for a customer who asks.
+   */
+  organization.limitOverrides = { ...(organization.limitOverrides ?? {}), apiKeys: 5 }
   await organization.save()
 
   const { apiKey, secret } = await apiKeys.create(organization, user, {
@@ -480,8 +502,8 @@ export async function createNotification(
   overrides: {
     title?: string
     body?: string
-    audienceType?: 'all' | 'plan' | 'owners' | 'users'
-    planKeys?: string[]
+    audienceType?: 'all' | 'product' | 'owners' | 'users'
+    productIds?: number[]
     userIds?: number[]
     publishNow?: boolean
     publishedAt?: DateTime | null
@@ -495,7 +517,7 @@ export async function createNotification(
     title: overrides.title ?? 'Something changed',
     body: overrides.body ?? 'The body of the announcement.',
     audienceType: overrides.audienceType ?? 'all',
-    audience: { planKeys: overrides.planKeys, userIds: overrides.userIds },
+    audience: { productIds: overrides.productIds, userIds: overrides.userIds },
     publishNow: overrides.publishNow,
     expiresAt: overrides.expiresAt ?? null,
   })
@@ -718,4 +740,35 @@ export const creemLicensing = {
       object: { id: 'dsp_1', order: { id: options.providerOrderId } },
     }
   },
+}
+
+/**
+ * The limits a staff override grants an account that needs the starter's
+ * features — a team, uploads, API keys — which are off by default since
+ * licence plan M5 (one seat, no storage, no keys). Suites that test those
+ * features create their accounts with these, the way support would switch
+ * them on for a customer who asked.
+ */
+export const OVERRIDE_LIMITS = { seats: 10, storageMb: 1_000, apiKeys: 5 } as const
+
+export async function allowAccountFeatures(
+  organization: Organization,
+  limits: Record<string, number | null> = OVERRIDE_LIMITS
+): Promise<Organization> {
+  organization.limitOverrides = { ...(organization.limitOverrides ?? {}), ...limits }
+  await organization.save()
+
+  return organization
+}
+
+/**
+ * `createWorkspace`, with the starter's features switched on.
+ */
+export async function createWorkspaceWithFeatures(
+  overrides: Parameters<typeof createWorkspace>[0] = {}
+): Promise<{ user: User; organization: Organization }> {
+  const workspace = await createWorkspace(overrides)
+  await allowAccountFeatures(workspace.organization)
+
+  return workspace
 }

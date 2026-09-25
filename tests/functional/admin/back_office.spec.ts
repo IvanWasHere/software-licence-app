@@ -128,8 +128,7 @@ test.group('Back-office — organisations', (group) => {
 
     response.assertStatus(200)
     response.assertTextIncludes('sam@example.com')
-    response.assertTextIncludes('Lists')
-    response.assertTextIncludes('Seats')
+    response.assertTextIncludes('Override one limit')
   })
 
   /**
@@ -137,7 +136,7 @@ test.group('Back-office — organisations', (group) => {
    * — which is the whole reason these are policy checks inside the
    * controller rather than middleware on the route (plan §6).
    */
-  test('support sees the detail screen without the plan or suspend controls', async ({
+  test('support sees the detail screen without the limit or suspend controls', async ({
     client,
     assert,
   }) => {
@@ -150,7 +149,7 @@ test.group('Back-office — organisations', (group) => {
       .loginAs(staff)
 
     response.assertStatus(200)
-    assert.notInclude(response.text(), 'Apply plan override')
+    assert.notInclude(response.text(), 'Apply limit override')
     assert.notInclude(response.text(), 'Suspend workspace')
   })
 
@@ -159,10 +158,10 @@ test.group('Back-office — organisations', (group) => {
     const { organization } = await createWorkspace()
 
     const response = await client
-      .post(`/admin/organizations/${organization.publicId}/plan`)
+      .post(`/admin/organizations/${organization.publicId}/limits`)
       .withGuard('staff')
       .loginAs(staff)
-      .form({ plan_key: 'business' })
+      .form({ limit: 'seats', value: '50' })
       .withCsrfToken()
       .redirects(0)
 
@@ -174,38 +173,7 @@ test.group('Back-office — organisations', (group) => {
     response.assertStatus(302)
 
     await organization.refresh()
-    assert.equal(organization.planKey, 'free', 'nothing changed')
-  })
-
-  test('an admin can override the plan, and it is audited with the reason', async ({
-    client,
-    assert,
-  }) => {
-    const staff = await createStaff({ role: 'admin' })
-    const { organization } = await createWorkspace()
-
-    const response = await client
-      .post(`/admin/organizations/${organization.publicId}/plan`)
-      .withGuard('staff')
-      .loginAs(staff)
-      .form({ plan_key: 'business', reason: 'ticket-4412' })
-      .withCsrfToken()
-      .redirects(0)
-
-    response.assertStatus(302)
-
-    await organization.refresh()
-    assert.equal(organization.planKey, 'business')
-
-    const entry = await AuditLog.query()
-      .where('action', 'organization.plan_overridden')
-      .firstOrFail()
-    assert.equal(entry.actorType, 'staff')
-    assert.equal(entry.actorId, staff.id)
-    assert.equal(entry.organizationId, organization.id)
-    assert.equal(entry.metadata?.from, 'free')
-    assert.equal(entry.metadata?.to, 'business')
-    assert.equal(entry.metadata?.reason, 'ticket-4412')
+    assert.isNull(organization.limitOverrides, 'nothing changed')
   })
 
   test('an admin can raise a single limit, and clear it again', async ({ client, assert }) => {
@@ -220,15 +188,15 @@ test.group('Back-office — organisations', (group) => {
         .withCsrfToken()
         .redirects(0)
 
-    await raise().form({ limit: 'lists', value: '99' })
+    await raise().form({ limit: 'seats', value: '99' })
     await organization.refresh()
-    assert.deepEqual(organization.limitOverrides, { lists: 99 })
+    assert.deepEqual(organization.limitOverrides, { seats: 99 })
 
-    await raise().form({ limit: 'lists', value: 'unlimited' })
+    await raise().form({ limit: 'seats', value: 'unlimited' })
     await organization.refresh()
-    assert.deepEqual(organization.limitOverrides, { lists: null })
+    assert.deepEqual(organization.limitOverrides, { seats: null })
 
-    await raise().form({ limit: 'lists', value: '' })
+    await raise().form({ limit: 'seats', value: '' })
     await organization.refresh()
     assert.isNull(organization.limitOverrides, 'cleared back to the plan’s own limit')
   })
@@ -415,7 +383,7 @@ test.group('Impersonation', (group) => {
 
     const started = await start(client, staff, user.publicId)
 
-    for (const path of ['/dashboard', '/lists']) {
+    for (const path of ['/dashboard', '/licenses']) {
       const response = await client.get(path).withSession(started.session())
 
       response.assertStatus(200)

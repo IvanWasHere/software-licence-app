@@ -59,24 +59,24 @@
           @!field.label({ text: 'Who sees it' })
           @radio.group({ name: 'audienceType' })
             @!radio.control({ value: 'all', label: 'Everyone' })
-            @!radio.control({ value: 'plan', label: 'Everyone on a specific plan' })
-            @!radio.control({ value: 'owners', label: 'Workspace owners only' })
+            @!radio.control({ value: 'product', label: 'Customers of a product' })
+            @!radio.control({ value: 'owners', label: 'Account owners only' })
             @!radio.control({ value: 'users', label: 'Named people only' })
           @end
           @!field.error()
         @end
 
         <div class="field-row" style="grid-template-columns: 1fr 1fr">
-          @field.root({ name: 'planKeys' })
-            @!field.label({ text: 'Plans' })
-            @checkbox.group({ name: 'planKeys' })
-              @each(key in planKeys)
-                @!checkbox.control({ value: key, label: key })
+          @field.root({ name: 'productIds' })
+            @!field.label({ text: 'Products' })
+            @checkbox.group({ name: 'productIds' })
+              @each(product in products)
+                @!checkbox.control({ value: product.id, label: product.name })
               @end
             @end
             <p class="field-hint">
-              Used by “on a specific plan”, and optional for “owners only” — no plans there means
-              owners on every plan.
+              Used by “customers of a product” — everyone holding a live license for one of these —
+              and optional for “owners only”, where none means every owner.
             </p>
           @end
 
@@ -97,7 +97,7 @@
         <div class="field-row" style="grid-template-columns: 1fr 2fr">
           @field.root({ name: 'actionLabel' })
             @!field.label({ text: 'Button label' })
-            @!input.control({ placeholder: 'See plans' })
+            @!input.control({ placeholder: 'See what is new' })
             @!field.error()
           @end
 

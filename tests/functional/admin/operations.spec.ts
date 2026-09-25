@@ -11,8 +11,11 @@ import audit, { AUDIT_ACTIONS } from '#audit/audit_service'
 import metrics from '#admin/metrics_service'
 import pruneAuditLogsJob, { AUDIT_RETENTION_DAYS } from '#queue/jobs/prune_audit_logs_job'
 import {
+  createCatalogPlan,
+  createSellablePlan,
   createStaff,
   createWorkspace,
+  creemLicensing,
   restorePaymentProvider,
   runQueue,
   signedWebhook,
@@ -122,38 +125,59 @@ test.group('Audit trail', (group) => {
 test.group('Back-office — the dashboard', (group) => {
   group.each.setup(() => testUtils.db().truncate())
 
-  const subscribe = async (organizationId: number, planKey: string, status: string) =>
-    Subscription.create({
+  /**
+   * A license subscription on a catalog plan: $29 a month unless the test
+   * says otherwise.
+   */
+  const subscribe = async (
+    organizationId: number,
+    status: string,
+    plan: { billing?: 'monthly' | 'yearly'; priceCents?: number; name?: string } = {}
+  ) => {
+    const { plan: catalogPlan, product } = await createCatalogPlan({
+      product: { name: plan.name ?? 'Invoice Pro' },
+      plan: {
+        billing: plan.billing ?? 'monthly',
+        licenseTerm: 'subscription',
+        priceCents: plan.priceCents ?? 2900,
+      },
+    })
+
+    const subscription = await Subscription.create({
       organizationId,
       provider: 'creem',
-      providerSubscriptionId: `sub_${planKey}_${status}_${Math.random().toString(36).slice(2, 8)}`,
-      planKey,
+      providerSubscriptionId: `sub_${status}_${Math.random().toString(36).slice(2, 8)}`,
+      planKey: 'license',
+      planId: catalogPlan.id,
       status: status as never,
       cancelAtPeriodEnd: false,
     })
 
+    return Object.assign(subscription, { product })
+  }
+
   /**
    * MRR is the list price of every *entitling* subscription. `past_due`
-   * counts — the customer is still on the plan and we are still trying to
+   * counts — the customer is still subscribed and we are still trying to
    * collect, so excluding them would make a dunning problem look like churn.
    */
   test('MRR counts past_due, because we are still trying to collect', async ({ assert }) => {
     const a = await createWorkspace({ email: 'a@example.com' })
     const b = await createWorkspace({ email: 'b@example.com' })
 
-    await subscribe(a.organization.id, 'pro', 'active')
-    await subscribe(b.organization.id, 'pro', 'past_due')
+    await subscribe(a.organization.id, 'active')
+    await subscribe(b.organization.id, 'past_due')
 
     const figures = await metrics.collect()
 
-    assert.equal(figures.mrrCents, 5800, 'two Pro subscriptions at $29')
+    assert.equal(figures.mrrCents, 5800, 'two monthly subscriptions at $29')
     assert.equal(figures.activeSubscriptions, 1)
     assert.equal(figures.pastDueSubscriptions, 1)
   })
 
   test('a cancelled subscription stops counting toward MRR', async ({ assert }) => {
     const { organization } = await createWorkspace()
-    const subscription = await subscribe(organization.id, 'business', 'canceled')
+    const subscription = await subscribe(organization.id, 'canceled')
 
     subscription.canceledAt = DateTime.utc().minus({ days: 3 })
     await subscription.save()
@@ -226,7 +250,7 @@ test.group('Back-office — the dashboard', (group) => {
 
   test('counts cancellations in the month they happened', async ({ assert }) => {
     const { organization } = await createWorkspace()
-    const subscription = await subscribe(organization.id, 'pro', 'canceled')
+    const subscription = await subscribe(organization.id, 'canceled')
 
     subscription.canceledAt = DateTime.utc().minus({ months: 1 })
     await subscription.save()
@@ -277,25 +301,46 @@ test.group('Back-office — the dashboard', (group) => {
     assert.equal(growth.months.at(-1)!.heightPercent, 100, 'the busiest month sets the scale')
   })
 
-  test('splits workspaces by the plan they are entitled to now', async ({ assert }) => {
-    const free = await createWorkspace({ email: 'free@example.com' })
-    const pro = await createWorkspace({ email: 'pro@example.com' })
-    void free
+  /**
+   * A yearly plan is monthly recurring revenue spread over twelve months.
+   */
+  test('a yearly subscription counts a twelfth of its price', async ({ assert }) => {
+    const { organization } = await createWorkspace()
+    await subscribe(organization.id, 'active', { billing: 'yearly', priceCents: 12_000 })
 
-    pro.organization.planKey = 'pro'
-    await pro.organization.save()
+    const figures = await metrics.collect()
+
+    assert.equal(figures.mrrCents, 1000)
+  })
+
+  test('splits active licenses by product, and counts accounts that bought', async ({ assert }) => {
+    const { default: licenses, SYSTEM_ACTOR } = await import('#licensing/license_service')
+    const buyer = await createWorkspace({ email: 'buyer@example.com' })
+    const comped = await createWorkspace({ email: 'comped@example.com' })
+
+    const invoice = await createCatalogPlan({ product: { name: 'Invoice Pro' } })
+    const booking = await createCatalogPlan({ product: { name: 'Booking Pro' } })
+
+    await licenses.issue({
+      organization: buyer.organization,
+      plan: invoice.plan,
+      source: 'order',
+      actor: SYSTEM_ACTOR,
+    })
+    await licenses.issue({
+      organization: comped.organization,
+      plan: booking.plan,
+      source: 'manual',
+      actor: SYSTEM_ACTOR,
+    })
 
     const growth = await metrics.growth()
-    const mix = Object.fromEntries(growth.planMix.map((plan) => [plan.key, plan]))
+    const mix = Object.fromEntries(growth.planMix.map((share) => [share.name, share]))
 
-    assert.equal(mix.free.count, 1)
-    assert.equal(mix.pro.count, 1)
-    assert.equal(mix.business.count, 0)
-    assert.equal(mix.pro.percent, 50)
-    assert.isFalse(mix.free.isPaid)
-    assert.isTrue(mix.pro.isPaid)
-    assert.equal(growth.payingWorkspaces, 1)
-    assert.equal(growth.payingPercent, 50)
+    assert.equal(mix['Invoice Pro'].count, 1)
+    assert.equal(mix['Booking Pro'].count, 1)
+    assert.equal(mix['Invoice Pro'].percent, 50)
+    assert.equal(growth.payingWorkspaces, 1, 'a license issued by hand is not a sale')
   })
 
   /*
@@ -373,13 +418,9 @@ test.group('Back-office — the dashboard', (group) => {
     assert.deepEqual(revenue.otherCurrencies, [{ currency: 'EUR', netCents: 3000 }])
   })
 
-  test('attributes volume to the plan the subscription was on', async ({ assert }) => {
+  test('attributes volume to the product the subscription was for', async ({ assert }) => {
     const { organization } = await createWorkspace()
-    const subscription = await subscribe(organization.id, 'business', 'active')
-
-    /* The workspace has since been moved to Pro; the charge was for Business. */
-    organization.planKey = 'pro'
-    await organization.save()
+    const subscription = await subscribe(organization.id, 'active', { name: 'Booking Pro' })
 
     const payment = await pay(organization.id, DateTime.utc().minus({ days: 1 }), 9900)
     payment.subscriptionId = subscription.id
@@ -388,8 +429,8 @@ test.group('Back-office — the dashboard', (group) => {
     const revenue = await metrics.revenue('30d')
 
     assert.deepEqual(
-      revenue.byPlan.map((plan) => [plan.key, plan.cents, Math.round(plan.percent)]),
-      [['business', 9900, 100]]
+      revenue.byPlan.map((share) => [share.key, share.cents, Math.round(share.percent)]),
+      [[subscription.product.slug, 9900, 100]]
     )
   })
 
@@ -480,16 +521,15 @@ test.group('Back-office — the webhook ledger', (group) => {
   })
   group.each.setup(() => testUtils.db().truncate())
 
-  const deliverButBreak = async (client: any, organizationPublicId?: string) => {
-    const body = subscriptionWebhook({ organizationPublicId })
+  const deliverButBreak = async (client: any, body = subscriptionWebhook({})) => {
     const { headers } = signedWebhook(body)
 
     await client.post('/webhooks/creem').redirects(0).headers(headers).json(body)
 
     /**
-     * Drain the queue: with no attributable organisation the job fails and
-     * the ledger row stays unprocessed, which is exactly the state this
-     * screen exists for.
+     * Drain the queue: a subscription for a product we do not sell, with no
+     * order of ours behind it, fails and the ledger row stays unprocessed —
+     * exactly the state this screen exists for.
      */
     await runQueue('default')
 
@@ -527,19 +567,29 @@ test.group('Back-office — the webhook ledger', (group) => {
    */
   test('support can replay one, and it applies', async ({ client, assert }) => {
     const staff = await createStaff({ role: 'support' })
-    const { organization } = await createWorkspace()
 
     /**
-     * Delivered before the workspace could be attributed, then replayed once
-     * it can — which is the real-world sequence this screen exists for.
+     * Delivered before its product was mapped to a plan, then replayed once
+     * it is — which is the real-world sequence this screen exists for.
      */
     const event = await deliverButBreak(client)
+
+    const { plan } = await createSellablePlan({ billing: 'yearly', licenseTerm: 'subscription' })
+    plan.providerProductId = 'prod_test_pro'
+    await plan.save()
+
+    const { default: orders } = await import('#commerce/order_service')
+    const { order } = await orders.startCheckout({
+      plan,
+      email: 'late@example.com',
+      successUrl: 'https://example.com',
+    })
 
     event.payload = {
       ...(event.payload as Record<string, any>),
       object: {
         ...(event.payload as Record<string, any>).object,
-        metadata: { organization_public_id: organization.publicId },
+        metadata: { order_public_id: order.publicId },
       },
     }
     await event.save()
@@ -556,8 +606,8 @@ test.group('Back-office — the webhook ledger', (group) => {
     await event.refresh()
     assert.isNotNull(event.processedAt)
 
-    await organization.refresh()
-    assert.equal(organization.planKey, 'pro')
+    const { default: License } = await import('#models/license')
+    assert.lengthOf(await License.query().where('order_id', order.id), 1)
 
     assert.lengthOf(await AuditLog.query().where('action', 'webhook.replayed'), 1)
   })
@@ -588,9 +638,21 @@ test.group('Back-office — the webhook ledger', (group) => {
    */
   test('replaying twice changes nothing the second time', async ({ client, assert }) => {
     const staff = await createStaff()
-    const { organization } = await createWorkspace()
+    const { plan } = await createSellablePlan({ billing: 'yearly', licenseTerm: 'subscription' })
+    const { default: orders } = await import('#commerce/order_service')
+    const { order } = await orders.startCheckout({
+      plan,
+      email: 'twice@example.com',
+      successUrl: 'https://example.com',
+    })
 
-    const event = await deliverButBreak(client, organization.publicId)
+    const event = await deliverButBreak(
+      client,
+      creemLicensing.subscription({
+        orderPublicId: order.publicId,
+        productId: plan.providerProductId!,
+      })
+    )
 
     const replay = () =>
       client
@@ -603,7 +665,9 @@ test.group('Back-office — the webhook ledger', (group) => {
     await replay()
     await replay()
 
+    const { default: License } = await import('#models/license')
     assert.lengthOf(await Subscription.all(), 1)
+    assert.lengthOf(await License.all(), 1)
   })
 })
 
@@ -625,28 +689,41 @@ test.group('Back-office — subscriptions', (group) => {
   })
   group.each.setup(() => testUtils.db().truncate())
 
-  const local = async (organizationId: number) =>
-    Subscription.create({
+  const local = async (organizationId: number) => {
+    const { plan } = await createCatalogPlan({
+      plan: { billing: 'yearly', licenseTerm: 'subscription', providerProductId: 'prod_test_pro' },
+    })
+
+    return Subscription.create({
       organizationId,
       provider: 'creem',
       providerSubscriptionId: 'sub_1',
       providerCustomerId: 'cus_1',
-      planKey: 'pro',
+      planKey: 'license',
+      planId: plan.id,
       status: 'active',
       cancelAtPeriodEnd: false,
     })
+  }
 
-  test('syncing applies what the provider says, and the entitlement follows', async ({
+  test('syncing applies what the provider says, and the license follows', async ({
     client,
     assert,
   }) => {
     const staff = await createStaff({ role: 'support' })
     const { organization } = await createWorkspace()
 
-    organization.planKey = 'pro'
-    await organization.save()
-
     const subscription = await local(organization.id)
+    const { default: licenses, SYSTEM_ACTOR } = await import('#licensing/license_service')
+    const { default: Plan } = await import('#models/plan')
+    const { license } = await licenses.issue({
+      organization,
+      plan: await Plan.findOrFail(subscription.planId),
+      source: 'order',
+      actor: SYSTEM_ACTOR,
+      subscriptionId: subscription.id,
+      expiresAt: DateTime.utc().plus({ days: 10 }),
+    })
 
     provider.subscriptions.set('sub_1', {
       id: 'sub_1',
@@ -670,10 +747,11 @@ test.group('Back-office — subscriptions', (group) => {
     response.assertStatus(302)
 
     await subscription.refresh()
-    await organization.refresh()
-
     assert.equal(subscription.status, 'canceled')
-    assert.equal(organization.planKey, 'free', 'the entitlement followed')
+
+    await license.load('product')
+    const { result } = await licenses.check(license.keyEncrypted, license.product.slug)
+    assert.equal(result.reason, 'subscription_inactive', 'the license followed')
     assert.lengthOf(await AuditLog.query().where('action', 'subscription.synced'), 1)
   })
 

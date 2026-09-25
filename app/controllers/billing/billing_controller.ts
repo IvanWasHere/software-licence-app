@@ -1,6 +1,7 @@
 import logger from '@adonisjs/core/services/logger'
 import type { HttpContext } from '@adonisjs/core/http'
 
+import licensingConfig from '#config/licensing'
 import billing, { BillingError } from '#billing/billing_service'
 
 /**
@@ -10,7 +11,10 @@ import billing, { BillingError } from '#billing/billing_service'
  */
 export default class BillingController {
   async index({ view, organization }: HttpContext) {
-    return view.render('pages/billing/index', await billing.overview(organization))
+    return view.render('pages/billing/index', {
+      ...(await billing.overview(organization)),
+      renewalGraceDays: licensingConfig.renewalGraceDays,
+    })
   }
 
   async portal({ response, session, organization }: HttpContext) {

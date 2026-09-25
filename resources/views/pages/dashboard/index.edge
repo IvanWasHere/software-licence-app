@@ -23,18 +23,15 @@
     enforcement, which is the only reason a meter is worth showing: a gauge
     that disagrees with the block is worse than no gauge.
   --}}
-  @panel.root({ title: `Usage on the ${usage.plan.name} plan` })
-    @slot('actions')
-      @if(isOwner && hasRoute('billing.index'))
-        @!link({ route: 'billing.index', text: 'Billing', class: 'btn-ghost' })
-      @end
+  @if(usage.meters.length)
+    @panel.root({ title: 'Account usage' })
+      {{-- Whatever `start/quotas.ts` registers, in that file's order. --}}
+      <div class="usage-grid">
+        @each(meter in usage.meters)
+          @!usageMeter({ label: meter.label, current: meter.current, limit: meter.limit })
+        @end
+      </div>
     @end
-    {{-- Whatever `start/quotas.ts` registers, in that file's order. --}}
-    <div class="usage-grid">
-      @each(meter in usage.meters)
-        @!usageMeter({ label: meter.label, current: meter.current, limit: meter.limit })
-      @end
-    </div>
   @end
 
   @if(widgets.panels.length)
@@ -45,8 +42,8 @@
     </div>
   @else
     {{--
-      An application with no dashboard widgets registered. The meters above
-      are still worth the screen, so this is a hint rather than a whole empty
+      An application with no dashboard widgets registered. Anything above is
+      still worth the screen, so this is a hint rather than a whole empty
       state.
     --}}
     <p class="field-hint">

@@ -34,7 +34,7 @@ test.group('Registration', (group) => {
     assert.equal(organization.ownerId, user.id)
     assert.equal(organization.name, 'Acme')
     assert.equal(organization.slug, 'acme')
-    assert.equal(organization.planKey, 'free')
+    assert.equal(organization.planKey, 'standard')
     assert.match(user.publicId, /^usr_/)
     assert.match(organization.publicId, /^org_/)
   })
@@ -152,13 +152,13 @@ test.group('Registration', (group) => {
     assert.isNull(await Organization.findBy('name', 'Second Attempt'))
   })
 
-  test('names the workspace after the user when none is given', async ({ assert }) => {
+  test('names the account after the user when none is given', async ({ assert }) => {
     const { organization } = await registration.register({
       fullName: 'Jane Cooper',
       email: 'jane2@example.com',
       password: TEST_PASSWORD,
     })
 
-    assert.equal(organization.name, "Jane Cooper's workspace")
+    assert.equal(organization.name, "Jane Cooper's account")
   })
 })

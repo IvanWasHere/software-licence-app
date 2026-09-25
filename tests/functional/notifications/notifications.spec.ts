@@ -7,7 +7,13 @@ import notifications from '#notifications/notification_service'
 import pruneNotificationsJob, {
   NOTIFICATION_RETENTION_DAYS,
 } from '#queue/jobs/prune_notifications_job'
-import { addMember, createNotification, createWorkspace, runQueue } from '#tests/helpers'
+import {
+  addMember,
+  createCatalogPlan,
+  createNotification,
+  createWorkspace,
+  runQueue,
+} from '#tests/helpers'
 
 /**
  * Unread state (plan §20.4) — one timestamp column, no receipts table.
@@ -153,18 +159,31 @@ test.group('Notifications — what counts as unread', (group) => {
 test.group('Notifications — who receives them', (group) => {
   group.each.setup(() => testUtils.db().truncate())
 
-  const workspaceOn = async (planKey: string, email: string) => {
+  /**
+   * An account, and optionally a live license for a product it then counts
+   * as a customer of.
+   */
+  const customer = async (email: string, product?: { id: number; slug: string } | null) => {
     const { user, organization } = await createWorkspace({ email })
 
-    organization.planKey = planKey
-    await organization.save()
+    if (product) {
+      const { default: licenses, SYSTEM_ACTOR } = await import('#licensing/license_service')
+      const { default: Plan } = await import('#models/plan')
+      const plan = await Plan.query().where('product_id', product.id).firstOrFail()
+      await licenses.issue({ organization, plan, source: 'manual', actor: SYSTEM_ACTOR })
+    }
 
     return { user, organization }
   }
 
+  const aProduct = async () => {
+    const { product } = await createCatalogPlan()
+    return product
+  }
+
   test('everyone means everyone', async ({ assert }) => {
-    const free = await workspaceOn('free', 'free@example.com')
-    const pro = await workspaceOn('pro', 'pro@example.com')
+    const free = await customer('free@example.com')
+    const pro = await customer('pro@example.com', await aProduct())
 
     await createNotification({ audienceType: 'all' })
 
@@ -172,14 +191,39 @@ test.group('Notifications — who receives them', (group) => {
     assert.lengthOf(await notifications.feedFor(pro.user, pro.organization), 1)
   })
 
-  test('a plan audience reaches that plan only', async ({ assert }) => {
-    const free = await workspaceOn('free', 'free@example.com')
-    const pro = await workspaceOn('pro', 'pro@example.com')
+  test('a product audience reaches its customers only', async ({ assert }) => {
+    const invoicePro = await aProduct()
+    const bookingPro = await aProduct()
 
-    await createNotification({ audienceType: 'plan', planKeys: ['pro'] })
+    const nobody = await customer('nobody@example.com')
+    const other = await customer('other@example.com', bookingPro)
+    const buyer = await customer('buyer@example.com', invoicePro)
 
-    assert.isEmpty(await notifications.feedFor(free.user, free.organization))
-    assert.lengthOf(await notifications.feedFor(pro.user, pro.organization), 1)
+    await createNotification({ audienceType: 'product', productIds: [invoicePro.id] })
+
+    assert.isEmpty(await notifications.feedFor(nobody.user, nobody.organization))
+    assert.isEmpty(await notifications.feedFor(other.user, other.organization))
+    assert.lengthOf(await notifications.feedFor(buyer.user, buyer.organization), 1)
+  })
+
+  /**
+   * A revoked or expired license is no longer "a customer of" the product.
+   */
+  test('a license that is no longer live stops the announcement reaching them', async ({
+    assert,
+  }) => {
+    const invoicePro = await aProduct()
+    const buyer = await customer('buyer@example.com', invoicePro)
+    const { default: License } = await import('#models/license')
+    const { default: licenses, SYSTEM_ACTOR } = await import('#licensing/license_service')
+
+    await createNotification({ audienceType: 'product', productIds: [invoicePro.id] })
+    assert.lengthOf(await notifications.feedFor(buyer.user, buyer.organization), 1)
+
+    const license = await License.findByOrFail('organization_id', buyer.organization.id)
+    await licenses.revoke(license, 'refund', SYSTEM_ACTOR)
+
+    assert.isEmpty(await notifications.feedFor(buyer.user, buyer.organization))
   })
 
   test('an owners audience reaches no members', async ({ assert }) => {
@@ -207,13 +251,17 @@ test.group('Notifications — who receives them', (group) => {
    * predicate the feed uses, so what it promises is what happens.
    */
   test('the reach figure matches who actually sees it', async ({ assert }) => {
-    const free = await workspaceOn('free', 'free@example.com')
-    const pro = await workspaceOn('pro', 'pro@example.com')
+    const invoicePro = await aProduct()
+    const free = await customer('free@example.com')
+    const pro = await customer('pro@example.com', invoicePro)
     await addMember(pro.organization, pro.user, 'sam@example.com')
 
-    const notification = await createNotification({ audienceType: 'plan', planKeys: ['pro'] })
+    const notification = await createNotification({
+      audienceType: 'product',
+      productIds: [invoicePro.id],
+    })
 
-    assert.equal(await notifications.reachOf(notification), 2, 'the pro owner and their member')
+    assert.equal(await notifications.reachOf(notification), 2, 'the customer and their member')
 
     const seen = await Promise.all(
       [free, pro].map(async (workspace) => {
@@ -232,11 +280,23 @@ test.group('Notifications — who receives them', (group) => {
 test.group('Notifications — the back-office', (group) => {
   group.each.setup(() => testUtils.db().truncate())
 
+  const aProductForAuthoring = async () => {
+    const { product } = await createCatalogPlan()
+    return product
+  }
+
+  const customerOf = async (product: { id: number }) => {
+    const { organization } = await createWorkspace()
+    const { default: licenses, SYSTEM_ACTOR } = await import('#licensing/license_service')
+    const { default: Plan } = await import('#models/plan')
+    const plan = await Plan.query().where('product_id', product.id).firstOrFail()
+    await licenses.issue({ organization, plan, source: 'manual', actor: SYSTEM_ACTOR })
+  }
+
   const form = (overrides: Record<string, unknown> = {}) => ({
-    title: 'We raised the Pro list limit',
-    body: 'Pro workspaces now get 40 lists.',
-    audienceType: 'plan',
-    planKeys: ['pro'],
+    title: 'Invoice Pro 2.5 is out',
+    body: 'Recurring invoices can now be paused.',
+    audienceType: 'all',
     ...overrides,
   })
 
@@ -244,23 +304,22 @@ test.group('Notifications — the back-office', (group) => {
     const { createStaff } = await import('#tests/helpers')
     const staff = await createStaff({ role: 'admin' })
 
-    const { organization } = await createWorkspace()
-    organization.planKey = 'pro'
-    await organization.save()
+    const invoicePro = await aProductForAuthoring()
+    await customerOf(invoicePro)
 
     const response = await client
       .post('/admin/notifications')
       .withGuard('staff')
       .loginAs(staff)
-      .form(form())
+      .form(form({ audienceType: 'product', productIds: [String(invoicePro.id)] }))
       .withCsrfToken()
       .redirects(0)
 
     response.assertStatus(302)
 
     const notification = await Notification.query().firstOrFail()
-    assert.equal(notification.audienceType, 'plan')
-    assert.deepEqual(notification.audience, { planKeys: ['pro'] })
+    assert.equal(notification.audienceType, 'product')
+    assert.deepEqual(notification.audience, { productIds: [invoicePro.id] })
     assert.isFalse(notification.isDraft)
     assert.equal(notification.createdByStaffId, staff.id)
 
@@ -299,7 +358,7 @@ test.group('Notifications — the back-office', (group) => {
       .post('/admin/notifications')
       .withGuard('staff')
       .loginAs(staff)
-      .form(form({ audienceType: 'all', planKeys: [], saveAsDraft: '1' }))
+      .form(form({ audienceType: 'all', saveAsDraft: '1' }))
       .withCsrfToken()
       .redirects(0)
 
@@ -350,7 +409,7 @@ test.group('Notifications — the back-office', (group) => {
       .post('/admin/notifications')
       .withGuard('staff')
       .loginAs(staff)
-      .form(form({ audienceType: 'users', planKeys: ['pro'], userIds: ['4'] }))
+      .form(form({ audienceType: 'users', productIds: ['3'], userIds: ['4'] }))
       .withCsrfToken()
       .redirects(0)
 

@@ -20,7 +20,7 @@ import '#start/routes/license_api'
 import '#start/routes/api'
 import '#start/routes/admin'
 
-router.on('/').render('pages/home').as('home')
+router.get('/', [controllers.storefront.Pricing, 'index']).as('home')
 
 /**
  * The public pricing page and checkout (licence plan §6, M5). Signed-in or

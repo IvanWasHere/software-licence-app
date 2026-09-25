@@ -24,46 +24,20 @@
 |
 */
 
-import quotas from '#billing/quotas'
-import plans from '#billing/plan_service'
-import { seatUsage } from '#organizations/seats'
-
 /**
- * The demo domain (D8) — delete with it.
+ * Nothing is registered (licence plan M5).
  *
- * `lists` is registered first only because it renders first. `todosPerList`
- * has no counter: it is a ceiling on each list rather than on the workspace,
- * so there is no one number to meter, but registering it is what lets a `402`
- * name it and the API report it.
- */
-/**
- * Core quotas. Seats are members plus outstanding invitations (plan §5.5) —
- * counting only members would let ten invitations to a two-seat plan all
- * succeed. Storage is read from the counter on the organisation row rather
- * than summed, the same rule `todos_count` follows (plan §10).
- */
-quotas.register({
-  key: 'seats',
-  label: 'Seats',
-  count: async (organization, trx) => {
-    const seats = await seatUsage(organization, trx)
-
-    return seats.used
-  },
-})
-
-quotas.register({
-  key: 'storageMb',
-  label: 'Storage (MB)',
-  count: (organization) => plans.storageMbUsed(organization),
-})
-
-/**
- * `apiKeys` and `apiCallsPerMonth` are deliberately absent.
+ * The account limits that remain — one seat, no uploads, API keys only when
+ * staff switch them on — are fixed per account rather than something a
+ * customer fills up over time, so a meter would only ever read "1 of 1, full"
+ * and put an at-cap banner on every screen. Each limit is still enforced
+ * where its rows are created, independently of this registry:
  *
- * Both are enforced against `config/plans.ts` and both render a meter, but
- * their numbers come from `ApiKeyService` and the usage rollup rather than
- * from a count over a tenant-owned table, and neither belongs on the grid
- * that every screen shows. They go through `PlanService.describeCount`
- * instead, which is the same arithmetic without the registration.
+ *   seats     `InvitationService` — row-locked, `plans.lockAndAssertLimit`
+ *   storage   `FileService`       — `plans.assertStorageWithinLimit`
+ *   apiKeys   `ApiKeyService`     — row-locked, `plans.lockAndAssertLimit`
+ *
+ * Register a quota here again if a limit ever becomes something customers
+ * spend down; the meters, the banner and the API's usage payload follow.
  */
+export {}

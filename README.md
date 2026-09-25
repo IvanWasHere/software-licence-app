@@ -41,6 +41,10 @@ rows in the database, so adding a tenth product needs no code change.
   - Refunds revoke, disputes suspend, and a failed renewal gets a grace period before the license lapses.
 - 🛒 **A pricing page and checkout**, or an **integration API** if your marketing site lives somewhere else.
 - 👤 **A customer portal.** Keys, where each one is installed, a button to free a slot, orders and invoices.
+  Accounts are one person by default: no uploads and no API keys. Staff can switch any of these on
+  per account.
+- 📣 **Announcements** to everyone, to account owners, to named people, or to **customers of a
+  product** ("Invoice Pro 2.5 is out").
 - 🧑‍💼 **A back-office.**
   - Products, plans, licenses, orders, webhooks, the job queue and the audit log.
   - Support can read keys back and free slots. Only admins can grant or revoke.
@@ -241,7 +245,9 @@ account.
 
 ### 👤 A customer's own tooling
 
-Account owners can mint API keys under **API Keys** in the sidebar, with the `licenses:read` scope:
+API access is **off by default** for customer accounts. Staff switch it on per account in the
+back-office (**Organisations → Override one limit → `apiKeys`**). The owner then mints keys under
+**API Keys** in the sidebar, with the `licenses:read` scope:
 
 ```bash
 curl -s $BASE/licenses -H "authorization: Bearer sk_live_…"
@@ -275,8 +281,8 @@ Some decisions worth knowing, all explained in [`plan.md`](./plan.md):
   means exactly one license gets issued.
 - 🔗 **A payment is matched to *our* order id**, which we put into the checkout ourselves. It is
   never matched by an email from the webhook, because the payer controls that.
-- ⏳ **Dunning without a job.** A subscription license expires at *end of paid period + 7 days*.
-  Each renewal moves it; failed renewals just let it lapse.
+- ⏳ **Dunning without a job.** A subscription license expires at *end of paid period + 30 days*.
+  Each renewal moves it; failed renewals just let it lapse, and the owner gets one email about it.
 - 🧊 **Validity is computed on every call, never stored.** Nothing has to flip a row at midnight.
 - 🧱 **What shipped is permanent.** Product slugs, a plan's billing and term, and entitlement keys
   can only change while a product is a draft. Prices can change any time; licenses copy what they
@@ -406,7 +412,7 @@ Creem · Resend · Cloudflare R2.
 | ✅ | **M2** Licensing core: keys, validation, activations, signing | `/admin/licenses` |
 | ✅ | **M3** Public license API | `/api/v1/licenses/*` |
 | ✅ | **M4** Payments → licenses: orders, Creem webhooks, integration API | `/admin/orders` |
-| 🚧 | **M5** Customer portal and pricing page; stripping the starter's SaaS demo | in progress |
+| ✅ | **M5** Customer portal, product list and pricing page; the starter's SaaS demo removed | `/licenses`, `/pricing/:product` |
 | ⏳ | **M6** JS SDK: tiny, zero-dependency, cached, signature-verifying | `sdk/js` |
 | ⏳ | **M7** PHP SDK for WordPress, and plugin updates served from releases | `sdk/php` |
 | ⏳ | **M8** Hardening: expiry reminders, abuse flags, load tests, production deploy | |

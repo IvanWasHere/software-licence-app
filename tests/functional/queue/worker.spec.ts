@@ -9,7 +9,7 @@ import invitations from '#organizations/invitation_service'
 import Invitation from '#models/invitation'
 import expireInvitationsJob from '#queue/jobs/expire_invitations_job'
 import VerifyEmailNotification from '#mail/mails/verify_email_notification'
-import { createWorkspace, runQueue } from '#tests/helpers'
+import { createWorkspaceWithFeatures, runQueue } from '#tests/helpers'
 
 test.group('Queue worker', (group) => {
   group.each.setup(() => {
@@ -23,7 +23,7 @@ test.group('Queue worker', (group) => {
    */
   test('delivers a queued email when the worker runs', async ({ assert }) => {
     const { mails } = mail.fake()
-    const { user } = await createWorkspace()
+    const { user } = await createWorkspaceWithFeatures()
 
     await mailer.send(new VerifyEmailNotification(user, 'a-token'))
 
@@ -57,7 +57,7 @@ test.group('Queue worker', (group) => {
    * email (plan §8).
    */
   test('carries a stable idempotency key that survives a retry', async ({ assert }) => {
-    const { user } = await createWorkspace()
+    const { user } = await createWorkspaceWithFeatures()
     await mailer.send(new VerifyEmailNotification(user, 'a-token'))
 
     const job = await Job.findByOrFail('name', 'send_mail')
@@ -91,7 +91,7 @@ test.group('Queue worker', (group) => {
   })
 
   test('a failed job can be retried and then succeeds', async ({ assert }) => {
-    const { user } = await createWorkspace()
+    const { user } = await createWorkspaceWithFeatures()
     await mailer.send(new VerifyEmailNotification(user, 'a-token'))
 
     const job = await Job.findByOrFail('name', 'send_mail')
@@ -112,7 +112,7 @@ test.group('Queue worker', (group) => {
   })
 
   test('expires invitations that have lapsed', async ({ assert }) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
     const { invitation } = await invitations.invite({
       organization,
       invitedBy: user,
@@ -133,7 +133,7 @@ test.group('Queue worker', (group) => {
    * At-least-once delivery means every handler runs twice sooner or later.
    */
   test('expiring invitations twice changes nothing the second time', async ({ assert }) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
     const { invitation } = await invitations.invite({
       organization,
       invitedBy: user,
@@ -156,7 +156,7 @@ test.group('Queue worker', (group) => {
   })
 
   test('leaves a live invitation alone', async ({ assert }) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
     const { invitation } = await invitations.invite({
       organization,
       invitedBy: user,

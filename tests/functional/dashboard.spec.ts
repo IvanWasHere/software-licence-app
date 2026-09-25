@@ -43,11 +43,10 @@ test.group('Dashboard', (group) => {
     response.assertTextIncludes('Invoice Pro')
 
     /**
-     * And the meters, which are not widgets — they come from the quota
-     * registry and are part of the page's own shell.
+     * No meters: the quota registry is empty since licence plan M5, and an
+     * empty usage panel is hidden rather than rendered blank.
      */
-    response.assertTextIncludes('Seats')
-    response.assertTextIncludes('Storage (MB)')
+    assert.notInclude(response.text(), 'Account usage')
 
     assert.notInclude(
       response.text(),
@@ -74,11 +73,6 @@ test.group('Dashboard', (group) => {
 
       response.assertStatus(200)
       response.assertTextIncludes('Register a widget in')
-
-      /**
-       * The meters survive, because they are the shell and not a widget.
-       */
-      response.assertTextIncludes('Storage (MB)')
 
       assert.notInclude(response.text(), 'Your licenses')
       assert.notInclude(response.text(), 'Active licenses')

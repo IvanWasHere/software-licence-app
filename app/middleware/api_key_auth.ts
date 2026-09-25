@@ -20,7 +20,7 @@ import type { ApiScope } from '#api/scopes'
  *    and never stored.
  * 3. Reject revoked or expired keys — with the *same* 401 as an unknown key,
  *    so somebody who found a key cannot probe whether it is still live.
- * 4. Check the plan includes the `api` feature. A workspace that downgrades
+ * 4. Check the plan includes the `api` feature. An account that downgrades
  *    stops being able to call the API without anybody having to revoke its
  *    keys.
  * 5. Put the organisation on the context. **The key is the scope** — no
@@ -59,7 +59,12 @@ export default class ApiKeyAuthMiddleware {
      * plan can change between the two — a cancelled subscription must close
      * the API immediately, not at the next key rotation.
      */
-    if (!plans.can(organization, 'api')) {
+    /**
+     * API access is a staff switch on the account (licence plan M5): keys are
+     * off by default, and setting the allowance back to 0 closes the API for
+     * keys that already exist rather than only stopping new ones.
+     */
+    if (!plans.can(organization, 'api') || plans.limit(organization, 'apiKeys') === 0) {
       throw new UpgradeRequiredException('api')
     }
 

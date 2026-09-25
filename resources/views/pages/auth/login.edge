@@ -1,7 +1,7 @@
 @component('layouts/auth', {
   title: 'Sign in',
   heading: 'Sign in to your account',
-  subtitle: 'Enter your credentials to access your workspace',
+  subtitle: 'Enter your credentials to access your account',
 })
   @form({ route: 'auth.session.store', method: 'POST' })
     @field.root({ name: 'email' })

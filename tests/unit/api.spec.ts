@@ -79,7 +79,7 @@ test.group('API keys', () => {
 
 test.group('API scopes', () => {
   test('the default is read-only', ({ assert }) => {
-    assert.deepEqual(scopes.defaults(), ['lists:read', 'todos:read', 'members:read'])
+    assert.deepEqual(scopes.defaults(), ['licenses:read', 'members:read'])
 
     for (const scope of scopes.defaults()) {
       assert.notInclude(scope, ':write', 'nothing a pasted script could destroy')
@@ -106,21 +106,21 @@ test.group('API scopes', () => {
   })
 
   test('recognises only the registered scopes', ({ assert }) => {
-    assert.isFalse(scopes.has('lists:delete'))
+    assert.isFalse(scopes.has('licenses:delete'))
     assert.isFalse(scopes.has('*'))
     assert.isFalse(scopes.has(undefined))
   })
 
   test('normalising drops anything unrecognised', ({ assert }) => {
-    assert.deepEqual(scopes.normalize(['lists:read', 'admin', '*']), ['lists:read'])
-    assert.deepEqual(scopes.normalize('lists:read'), [], 'not an array')
+    assert.deepEqual(scopes.normalize(['licenses:read', 'admin', '*']), ['licenses:read'])
+    assert.deepEqual(scopes.normalize('licenses:read'), [], 'not an array')
     assert.deepEqual(scopes.normalize(undefined), [])
   })
 
   test('normalising de-duplicates and gives a stable order', ({ assert }) => {
-    assert.deepEqual(scopes.normalize(['todos:read', 'lists:read', 'lists:read']), [
-      'lists:read',
-      'todos:read',
+    assert.deepEqual(scopes.normalize(['members:read', 'licenses:read', 'licenses:read']), [
+      'licenses:read',
+      'members:read',
     ])
   })
 })

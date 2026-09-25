@@ -367,9 +367,9 @@ export class NotificationSchema extends BaseModel {
   @column()
   declare actionUrl: string | null
   @jsonColumn()
-  declare audience: { planKeys?: string[]; userIds?: number[] } | null
+  declare audience: { productIds?: number[]; userIds?: number[] } | null
   @column()
-  declare audienceType: 'all' | 'plan' | 'owners' | 'users'
+  declare audienceType: 'all' | 'product' | 'owners' | 'users'
   @column()
   declare body: string
   @column.dateTime({ autoCreate: true })

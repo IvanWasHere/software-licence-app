@@ -95,10 +95,10 @@ test.group('API authentication', (group) => {
    * checked per request. A cancelled subscription closes the API without
    * anybody having to revoke anything.
    */
-  test('a plan without the api feature is a 402, not a 401', async ({ client }) => {
+  test('an account whose API access was switched off is a 402, not a 401', async ({ client }) => {
     const { organization, headers } = await createApiWorkspace()
 
-    organization.planKey = 'free'
+    organization.limitOverrides = { apiKeys: 0 }
     await organization.save()
 
     const response = await client.get('/api/v1/licenses').headers(headers)
@@ -188,7 +188,7 @@ test.group('API key management', (group) => {
   test('the owner can create a key and sees it once', async ({ client, assert }) => {
     const { user, organization } = await createWorkspace()
 
-    organization.planKey = 'pro'
+    organization.limitOverrides = { apiKeys: 5 }
     await organization.save()
 
     const response = await client
@@ -210,7 +210,7 @@ test.group('API key management', (group) => {
   test('a member cannot reach the API keys screen', async ({ client }) => {
     const { user, organization } = await createWorkspace()
 
-    organization.planKey = 'pro'
+    organization.limitOverrides = { apiKeys: 5 }
     await organization.save()
 
     const member = await addMember(organization, user, 'sam@example.com')
@@ -218,7 +218,7 @@ test.group('API key management', (group) => {
     const response = await client.get('/settings/api-keys').loginAs(member).redirects(0)
 
     response.assertStatus(302)
-    response.assertFlashMessage('error', 'Only the workspace owner can do that.')
+    response.assertFlashMessage('error', 'Only the account owner can do that.')
   })
 
   /**
@@ -284,7 +284,7 @@ test.group('API key management', (group) => {
   test('a revoked key is kept but not listed', async ({ assert }) => {
     const { user, organization } = await createWorkspace()
 
-    organization.planKey = 'pro'
+    organization.limitOverrides = { apiKeys: 5 }
     await organization.save()
 
     const { apiKey } = await apiKeys.create(organization, user, { name: 'leaked' })
@@ -297,7 +297,7 @@ test.group('API key management', (group) => {
   test('a key with no scopes is refused', async ({ assert }) => {
     const { user, organization } = await createWorkspace()
 
-    organization.planKey = 'pro'
+    organization.limitOverrides = { apiKeys: 5 }
     await organization.save()
 
     const { ApiKeyError } = await import('#api/api_key_service')
@@ -357,7 +357,7 @@ test.group('API request logging', (group) => {
   test('records a refused call too', async ({ client, assert }) => {
     const { organization, headers } = await createApiWorkspace()
 
-    organization.planKey = 'free'
+    organization.limitOverrides = { apiKeys: 0 }
     await organization.save()
 
     const response = await client.get('/api/v1/licenses').headers(headers)

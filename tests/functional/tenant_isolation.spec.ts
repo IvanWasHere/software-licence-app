@@ -41,7 +41,7 @@ test.group('Tenant isolation', (group) => {
      * assertions.
      */
     for (const workspace of [a, b]) {
-      workspace.organization.limitOverrides = { seats: 5 }
+      workspace.organization.limitOverrides = { seats: 5, storageMb: 1_000 }
       await workspace.organization.save()
     }
 
@@ -438,8 +438,18 @@ test.group('Tenant isolation', (group) => {
    * in the account whose order it pays for, and only through the order id we
    * wrote into the checkout ourselves.
    */
-  test('a paid order issues its license to its own account and no other', async ({ assert }) => {
+  test('a paid order issues its license to its own account and no other', async ({
+    assert,
+    cleanup,
+  }) => {
     const { a, b } = await twoWorkspaces()
+
+    /**
+     * Checkout calls the payment provider; a test must never reach it.
+     */
+    const { useFakePaymentProvider, restorePaymentProvider } = await import('#tests/helpers')
+    useFakePaymentProvider()
+    cleanup(() => restorePaymentProvider())
     const { default: webhooks } = await import('#billing/webhook_handler')
     const { paymentProvider } = await import('#billing/provider')
     const { default: orders } = await import('#commerce/order_service')
@@ -467,8 +477,18 @@ test.group('Tenant isolation', (group) => {
    * subscription's own history is more trustworthy than metadata that can be
    * replayed with an edit.
    */
-  test('a follow-up event cannot move a subscription to another workspace', async ({ assert }) => {
+  test('a follow-up event cannot move a subscription to another workspace', async ({
+    assert,
+    cleanup,
+  }) => {
     const { a, b } = await twoWorkspaces()
+
+    /**
+     * Checkout calls the payment provider; a test must never reach it.
+     */
+    const { useFakePaymentProvider, restorePaymentProvider } = await import('#tests/helpers')
+    useFakePaymentProvider()
+    cleanup(() => restorePaymentProvider())
     const { default: Subscription } = await import('#models/subscription')
     const { default: webhooks } = await import('#billing/webhook_handler')
     const { paymentProvider } = await import('#billing/provider')
@@ -664,13 +684,13 @@ test.group('Tenant isolation', (group) => {
   }) => {
     const { keyed, other } = await twoKeyedWorkspaces()
 
-    other.organization.planKey = 'business'
+    other.organization.name = 'Somebody else'
     await other.organization.save()
 
     const response = await client.get('/api/v1/organization').headers(keyed.headers)
 
     assert.equal(response.body().data.id, keyed.organization.publicId)
-    assert.equal(response.body().data.plan.key, 'pro', 'not the other workspace’s plan')
+    assert.notEqual(response.body().data.name, 'Somebody else', 'not the other account')
   })
 
   /**
@@ -737,7 +757,10 @@ test.group('Tenant isolation', (group) => {
     const other = await createApiWorkspace({ name: 'B key' })
 
     for (const workspace of [keyed, other]) {
-      workspace.organization.limitOverrides = { seats: 5 }
+      workspace.organization.limitOverrides = {
+        ...workspace.organization.limitOverrides,
+        seats: 5,
+      }
       await workspace.organization.save()
     }
 
@@ -773,15 +796,20 @@ test.group('Tenant isolation', (group) => {
     )
   })
 
-  test('a plan announcement is invisible to a workspace on another plan', async ({ assert }) => {
+  test('a product announcement is invisible to an account without that product', async ({
+    assert,
+  }) => {
     const { a, b } = await twoWorkspaces()
     const { createNotification } = await import('#tests/helpers')
     const { default: notifications } = await import('#notifications/notification_service')
 
-    b.organization.planKey = 'pro'
-    await b.organization.save()
+    const { product } = await createLicense({ organization: b.organization })
 
-    await createNotification({ title: 'Pro only', audienceType: 'plan', planKeys: ['pro'] })
+    await createNotification({
+      title: 'Customers only',
+      audienceType: 'product',
+      productIds: [product.id],
+    })
 
     assert.lengthOf(await notifications.feedFor(b.user, b.organization), 1)
     assert.isEmpty(await notifications.feedFor(a.user, a.organization))

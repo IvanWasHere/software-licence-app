@@ -55,6 +55,12 @@ export const licensingDemoSeeder: DemoSeeder = {
       maxActivations: 3,
       isPublic: true,
       sortOrder: 1,
+      /**
+       * Placeholder provider ids, so the pricing page shows its Buy buttons.
+       * Replace them with real Creem product ids in the back-office to take a
+       * payment; until then checkout says it cannot sell online.
+       */
+      providerProductId: 'prod_seed_yearly',
     })
     await catalog.setPlanEntitlements(product, yearly, { pdf_export: '1', max_clients: '500' })
 
@@ -69,6 +75,7 @@ export const licensingDemoSeeder: DemoSeeder = {
       maxActivations: null,
       isPublic: true,
       sortOrder: 2,
+      providerProductId: 'prod_seed_lifetime',
     })
     await catalog.setPlanEntitlements(product, lifetime, {
       pdf_export: '1',

@@ -7,7 +7,11 @@ import Subscription from '#models/subscription'
 import type Organization from '#models/organization'
 import reconciliation from '#billing/reconciliation'
 import type { ProviderSubscription } from '#billing/contracts'
+import License from '#models/license'
+import licensingConfig from '#config/licensing'
+import licenses, { SYSTEM_ACTOR } from '#licensing/license_service'
 import {
+  createCatalogPlan,
   createWorkspace,
   restorePaymentProvider,
   useFakePaymentProvider,
@@ -27,22 +31,44 @@ const theirs = (overrides: Partial<ProviderSubscription> = {}): ProviderSubscrip
   ...overrides,
 })
 
+/**
+ * A license subscription as the webhook would have left it, with the license
+ * it keeps alive — mapped to `prod_test_pro`, which is what `theirs()` names,
+ * so a fresh pair agrees about the plan.
+ */
 async function localSubscription(organization: Organization, overrides: Record<string, any> = {}) {
-  organization.planKey = 'pro'
-  await organization.save()
+  const { product, plan } = await createCatalogPlan({
+    plan: {
+      billing: 'yearly',
+      licenseTerm: 'subscription',
+      providerProductId: 'prod_test_pro',
+    },
+  })
 
-  return Subscription.create({
+  const subscription = await Subscription.create({
     organizationId: organization.id,
     provider: 'creem',
     providerSubscriptionId: 'sub_1',
     providerCustomerId: 'cus_1',
-    planKey: 'pro',
+    planKey: 'license',
+    planId: plan.id,
     status: 'active',
     currentPeriodStart: DateTime.fromISO('2026-09-01T00:00:00.000Z', { zone: 'utc' }),
     currentPeriodEnd: DateTime.fromISO('2026-10-01T00:00:00.000Z', { zone: 'utc' }),
     cancelAtPeriodEnd: false,
     ...overrides,
   })
+
+  const { license } = await licenses.issue({
+    organization,
+    plan,
+    source: 'order',
+    actor: SYSTEM_ACTOR,
+    subscriptionId: subscription.id,
+    expiresAt: DateTime.utc().plus({ days: 10 }),
+  })
+
+  return { subscription, license, product }
 }
 
 /**
@@ -85,11 +111,11 @@ test.group('Reconciliation', (group) => {
    * Leaving the customer on a plan they stopped paying for costs money, so
    * this one *is* corrected rather than only reported.
    */
-  test('corrects a status the provider disagrees with, and the entitlement with it', async ({
+  test('corrects a status the provider disagrees with, and the license follows', async ({
     assert,
   }) => {
     const { organization } = await createWorkspace()
-    await localSubscription(organization)
+    const { license, product } = await localSubscription(organization)
 
     provider.subscriptions.set('sub_1', theirs({ status: 'canceled' }))
 
@@ -102,25 +128,32 @@ test.group('Reconciliation', (group) => {
     const subscription = await Subscription.query().firstOrFail()
     assert.equal(subscription.status, 'canceled')
 
-    await organization.refresh()
-    assert.equal(organization.planKey, 'free', 'the entitlement followed the status')
+    const { result } = await licenses.check(license.keyEncrypted, product.slug)
+    assert.equal(result.reason, 'subscription_inactive', 'the license followed the status')
   })
 
-  test('the reverse too — a customer who is paying gets their plan back', async ({ assert }) => {
+  test('the reverse too — a customer who is paying keeps a working license', async ({ assert }) => {
     const { organization } = await createWorkspace()
-    await localSubscription(organization, { status: 'past_due' })
-
-    organization.planKey = 'free'
-    organization.status = 'past_due'
-    await organization.save()
+    const { license, product } = await localSubscription(organization, { status: 'paused' })
 
     provider.subscriptions.set('sub_1', theirs({ status: 'active' }))
 
     await reconciliation.reconcile()
 
-    await organization.refresh()
-    assert.equal(organization.planKey, 'pro')
-    assert.equal(organization.status, 'active')
+    const { result } = await licenses.check(license.keyEncrypted, product.slug)
+    assert.isTrue(result.valid)
+
+    /**
+     * And its expiry is re-derived from the period we have: the period end
+     * plus the renewal grace.
+     */
+    const refreshed = await License.findOrFail(license.id)
+    assert.equal(
+      refreshed.expiresAt!.toMillis(),
+      DateTime.fromISO('2026-10-01T00:00:00.000Z', { zone: 'utc' })
+        .plus({ days: licensingConfig.renewalGraceDays })
+        .toMillis()
+    )
   })
 
   /**
@@ -188,8 +221,5 @@ test.group('Reconciliation', (group) => {
 
     const subscription = await Subscription.query().firstOrFail()
     assert.equal(subscription.status, 'active', 'untouched')
-
-    await organization.refresh()
-    assert.equal(organization.planKey, 'pro')
   })
 })

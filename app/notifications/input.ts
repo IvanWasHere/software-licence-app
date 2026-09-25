@@ -1,11 +1,10 @@
-import { plans } from '#config/plans'
 import type Notification from '#models/notification'
 
 /**
  * What an authoring form may say about an audience, before it is trusted.
  */
 export interface AudienceInput {
-  planKeys?: unknown
+  productIds?: unknown
   userIds?: unknown
 }
 
@@ -15,10 +14,9 @@ export interface AudienceInput {
  *
  * Two jobs, and the second is the important one:
  *
- * 1. Drop anything unrecognised — a plan key that no longer exists, an id
- *    that is not a number.
+ * 1. Drop anything unrecognised — an id that is not a positive integer.
  * 2. **Drop the fields the type does not use.** An author who picks `users`
- *    after filling in plans must not leave a `planKeys` list behind in the
+ *    after ticking products must not leave a `productIds` list behind in the
  *    row: it would be invisible in the UI, ignored by the predicate today,
  *    and quietly wrong the day somebody widens the rule.
  */
@@ -26,21 +24,21 @@ export function normalizeAudience(
   audienceType: Notification['audienceType'],
   input: AudienceInput | null | undefined
 ): Notification['audience'] {
-  const planKeys = toPlanKeys(input?.planKeys)
-  const userIds = toUserIds(input?.userIds)
+  const productIds = toIds(input?.productIds)
+  const userIds = toIds(input?.userIds)
 
   switch (audienceType) {
     case 'all':
       return null
 
-    case 'plan':
-      return { planKeys }
+    case 'product':
+      return { productIds }
 
     case 'owners':
       /**
-       * Optional here: no plans means "owners on any plan".
+       * Optional here: no products means "every owner".
        */
-      return planKeys.length ? { planKeys } : null
+      return productIds.length ? { productIds } : null
 
     case 'users':
       return { userIds }
@@ -50,18 +48,7 @@ export function normalizeAudience(
   }
 }
 
-function toPlanKeys(value: unknown): string[] {
-  const submitted = Array.isArray(value) ? value : value === undefined ? [] : [value]
-
-  return Object.keys(plans).filter((key) => submitted.includes(key))
-}
-
-/**
- * Ids are stored as numbers, and compared as numbers by the predicate — so a
- * form value of `"7"` becomes `7` here rather than sitting in the row as a
- * string that would silently never match.
- */
-function toUserIds(value: unknown): number[] {
+function toIds(value: unknown): number[] {
   const submitted = Array.isArray(value) ? value : value === undefined ? [] : [value]
 
   const ids = submitted

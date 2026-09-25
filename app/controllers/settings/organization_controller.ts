@@ -11,7 +11,7 @@ import {
 } from '#validators/organization'
 
 /**
- * Workspace settings — the mockup's "Store Settings" card, on its own route
+ * Account settings — the mockup's "Store Settings" card, on its own route
  * so the owner-only permission maps onto a URL rather than onto a section of
  * a page (plan §13.6.4).
  */
@@ -33,11 +33,11 @@ export default class OrganizationSettingsController {
   }
 
   /**
-   * A workspace logo, on the **public** disk for the same reason an avatar is
+   * An account logo, on the **public** disk for the same reason an avatar is
    * (plan §10): the shell renders it on every page, so it must have a plain
    * cacheable URL rather than one that expires.
    *
-   * Owner-only, through the same policy that guards renaming the workspace.
+   * Owner-only, through the same policy that guards renaming the account.
    */
   async updateLogo({ request, response, session, auth, organization, bouncer }: HttpContext) {
     await bouncer.with('OrganizationPolicy').authorize('update', organization)
@@ -94,13 +94,13 @@ export default class OrganizationSettingsController {
 
     await organization.save()
 
-    session.flash('success', 'Workspace settings saved.')
+    session.flash('success', 'Account settings saved.')
     return response.redirect().toRoute('settings.organization')
   }
 
   /**
-   * Deleting soft-deletes the workspace and everyone in it — nothing is
-   * erased (D9). Whether deleted workspaces are eventually purged is plan
+   * Deleting soft-deletes the account and everyone in it — nothing is
+   * erased (D9). Whether deleted accounts are eventually purged is plan
    * §19 Q2, still open.
    */
   async destroy({ request, response, session, auth, organization, bouncer }: HttpContext) {
@@ -109,7 +109,7 @@ export default class OrganizationSettingsController {
     const { confirmation } = await request.validateUsing(deleteOrganizationValidator)
 
     if (confirmation.trim() !== organization.name) {
-      session.flash('error', 'Type the workspace name exactly to confirm deletion.')
+      session.flash('error', 'Type the account name exactly to confirm deletion.')
       return response.redirect().toRoute('settings.organization')
     }
 

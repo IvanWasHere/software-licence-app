@@ -1,14 +1,14 @@
 import { test } from '@japa/runner'
 
-import { createStaff, createWorkspace, TEST_PASSWORD } from '#tests/helpers'
+import { createStaff, createWorkspaceWithFeatures, TEST_PASSWORD } from '#tests/helpers'
 
 const PAYLOAD = '<img src=x onerror="alert(1)">'
 
 /**
  * Escaping regressions, pinned.
  *
- * Several flash messages are built from something a person typed — a list
- * name, a file name, an address — and the toast that renders them used to
+ * Several flash messages are built from something a person typed — an
+ * account name, a file name, an address — and the toast that renders them used to
  * print its `text` prop raw. So did the textarea, which is worse: old input
  * containing `</textarea>` closes the element and everything after it is
  * markup.
@@ -17,15 +17,14 @@ const PAYLOAD = '<img src=x onerror="alert(1)">'
  */
 test.group('Output escaping', () => {
   test('escapes a flash message built from what somebody typed', async ({ client, assert }) => {
-    const { user } = await createWorkspace()
+    const { user } = await createWorkspaceWithFeatures()
 
     /**
-     * The exact message `ListController` flashes after a list is created,
-     * seeded onto the request because a flash does not survive between two
-     * calls of the test client.
+     * A message quoting something typed, seeded onto the request because a
+     * flash does not survive between two calls of the test client.
      */
     const page = await client
-      .get('/lists')
+      .get('/licenses')
       .loginAs(user)
       .withFlashMessages({ success: `"${PAYLOAD}" is ready.` })
 
@@ -37,12 +36,17 @@ test.group('Output escaping', () => {
     assert.notInclude(page.text(), '<img src=x')
   })
 
-  test('escapes a list name rendered on the page', async ({ client, assert }) => {
-    const { user } = await createWorkspace()
+  /**
+   * The account name is typed by the customer and rendered in the shell of
+   * every screen.
+   */
+  test('escapes an account name rendered on the page', async ({ client, assert }) => {
+    const { user, organization } = await createWorkspaceWithFeatures()
 
-    await client.post('/lists').form({ name: PAYLOAD }).loginAs(user).withCsrfToken().redirects(0)
+    organization.name = PAYLOAD
+    await organization.save()
 
-    const page = await client.get('/lists').loginAs(user)
+    const page = await client.get('/licenses').loginAs(user)
 
     assert.notInclude(page.text(), 'onerror="alert(1)"')
   })
@@ -79,7 +83,7 @@ test.group('Output escaping', () => {
  */
 test.group('Flashed input', () => {
   test('does not flash a password back after a failed sign-in', async ({ client }) => {
-    await createWorkspace({ email: 'jane@example.com' })
+    await createWorkspaceWithFeatures({ email: 'jane@example.com' })
 
     const response = await client
       .post('/login')

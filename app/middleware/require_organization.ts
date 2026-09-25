@@ -9,7 +9,7 @@ import support from '#support/support_service'
 
 /**
  * Loads the signed-in user's organisation onto the context and shares it with
- * Edge, so the shell can render the workspace name, the owner-only nav items,
+ * Edge, so the shell can render the account name, the owner-only nav items,
  * the plan usage meters and the unread notification dot without every
  * controller fetching them.
  *
@@ -27,13 +27,13 @@ export default class RequireOrganizationMiddleware {
 
     if (!organization) {
       await ctx.auth.use('web').logout()
-      ctx.session.flash('error', 'That workspace is no longer available.')
+      ctx.session.flash('error', 'That account is no longer available.')
       return ctx.response.redirect().toRoute('auth.session.create')
     }
 
     if (organization.isSuspended) {
       await ctx.auth.use('web').logout()
-      ctx.session.flash('error', 'That workspace has been suspended. Contact support.')
+      ctx.session.flash('error', 'That account has been suspended. Contact support.')
       return ctx.response.redirect().toRoute('auth.session.create')
     }
 
@@ -68,6 +68,16 @@ export default class RequireOrganizationMiddleware {
         organization,
         isOwner: user.isOwner,
         usage,
+
+        /**
+         * Which account features exist for this account (licence plan M5).
+         * One seat means no team to manage, no storage means no Files
+         * screen, no API keys means no API Keys screen — each hidden rather
+         * than shown empty. A staff override brings the screen back.
+         */
+        teamEnabled: plans.limit(organization, 'seats') !== 1,
+        filesEnabled: plans.limit(organization, 'storageMb') !== 0,
+        apiKeysEnabled: plans.limit(organization, 'apiKeys') !== 0,
         unreadNotifications,
         awaitingSupportReplies,
 

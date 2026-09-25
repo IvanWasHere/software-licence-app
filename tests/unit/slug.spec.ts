@@ -13,7 +13,7 @@ test.group('Organisation slugs', (group) => {
   })
 
   test('falls back for a name with nothing slugifiable in it', async ({ assert }) => {
-    assert.equal(await generateOrganizationSlug('!!!'), 'workspace')
+    assert.equal(await generateOrganizationSlug('!!!'), 'account')
   })
 
   test('disambiguates against existing slugs', async ({ assert }) => {

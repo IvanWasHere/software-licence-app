@@ -12,7 +12,7 @@ import { hasSeatAvailable, seatUsage } from '#organizations/seats'
 /**
  * How long an invitation stays open. Long enough to survive a holiday, short
  * enough that a forgotten link in an inbox is not a standing key to a
- * workspace.
+ * account.
  */
 const LIFETIME = { days: 14 }
 
@@ -30,7 +30,7 @@ export class InvitationError extends Error {
  * Invitations: issuing, accepting, revoking.
  *
  * Only the sha256 hash of the token is stored — the invitation link grants
- * access to somebody's workspace, so a leaked database row must not be
+ * access to somebody's account, so a leaked database row must not be
  * replayable.
  */
 export class InvitationService {
@@ -57,8 +57,8 @@ export class InvitationService {
        *
        * This happens *before* the seat check: the invitation being replaced
        * already holds the seat, so counting it would make resending an
-       * invitation impossible on a workspace that is at its cap — which is
-       * exactly the workspace most likely to be resending one.
+       * invitation impossible on an account that is at its cap — which is
+       * exactly the account most likely to be resending one.
        */
       await Invitation.query({ client: trx })
         .where('organization_id', input.organization.id)
@@ -164,7 +164,7 @@ export class InvitationService {
        */
       if (!(await hasSeatAvailable(organization, trx))) {
         throw new InvitationError(
-          'This workspace has no seats left. Ask the owner to free one up.',
+          'This account has no seats left. Ask the owner to free one up.',
           'seat_limit'
         )
       }
@@ -202,7 +202,7 @@ export class InvitationService {
 
   /**
    * Three reasons an address cannot be invited, each with its own message.
-   * "That address already belongs to another workspace" in particular is the
+   * "That address already belongs to another account" in particular is the
    * cost of one-organisation-per-user (D1) and must be said out loud rather
    * than failing silently (plan §5.4).
    */
@@ -219,13 +219,13 @@ export class InvitationService {
     if (existing) {
       if (existing.organizationId === organization.id) {
         throw new InvitationError(
-          'That person is already a member of this workspace.',
+          'That person is already a member of this account.',
           'already_a_member'
         )
       }
 
       throw new InvitationError(
-        'That address already belongs to another workspace. Ask them to leave it first, or invite a different address.',
+        'That address already belongs to another account. Ask them to leave it first, or invite a different address.',
         'belongs_to_another_workspace'
       )
     }

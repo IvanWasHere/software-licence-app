@@ -218,6 +218,14 @@ export default class DevSeed extends BaseCommand {
     const { DateTime } = await import('luxon')
     const { default: invitations } = await import('#organizations/invitation_service')
 
+    /**
+     * An agency that asked support for a team, uploads and API access — the
+     * staff overrides that switch on what accounts do not get by default
+     * (licence plan M5: one seat, no storage, no API keys).
+     */
+    organization.limitOverrides = { seats: 10, storageMb: 1_000, apiKeys: 5 }
+    await organization.save()
+
     const joining = await invitations.invite({
       organization,
       invitedBy: owner,

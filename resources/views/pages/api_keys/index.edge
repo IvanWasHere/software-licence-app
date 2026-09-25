@@ -112,7 +112,7 @@
       @!emptyState({
         icon: 'key',
         title: 'No API keys yet',
-        description: 'A key authenticates your whole workspace, not a person. Give each integration its own so you can revoke one without breaking the others.',
+        description: 'A key authenticates your whole account, not a person. Give each integration its own so you can revoke one without breaking the others.',
       })
     @end
   @end
@@ -142,7 +142,7 @@
   @modal({
     id: 'new-api-key',
     title: 'New API key',
-    description: 'It authenticates your whole workspace. Grant only what the integration needs.',
+    description: 'It authenticates your whole account. Grant only what the integration needs.',
   })
     @form({ route: 'api_keys.store', method: 'POST', id: 'new-api-key-form' })
       @field.root({ name: 'name' })
@@ -170,7 +170,7 @@
           ],
         })
         <p class="field-hint">
-          Only the prefix differs — both work against this workspace. The marker is there so a
+          Only the prefix differs — both work against this account. The marker is there so a
           script cannot be pointed at the wrong environment by accident.
         </p>
       @end

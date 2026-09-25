@@ -1,6 +1,7 @@
 import type { HttpContext } from '@adonisjs/core/http'
 
 import WebhookEvent from '#models/webhook_event'
+import Order from '#models/order'
 import Organization from '#models/organization'
 import webhooks, { markProcessed } from '#billing/webhook_handler'
 import audit, { AUDIT_ACTIONS } from '#audit/audit_service'
@@ -54,16 +55,29 @@ export default class AdminWebhookController {
      * handler resolves it — so the screen shows what the handler saw rather
      * than a second guess at it.
      */
-    const organizationPublicId = (event.payload as Record<string, any>)?.object?.metadata
-      ?.organization_public_id
+    const object = (event.payload as Record<string, any>)?.object ?? {}
+    const metadata = object.metadata ?? object.subscription?.metadata ?? {}
 
-    const organization = organizationPublicId
-      ? await Organization.query().where('public_id', organizationPublicId).first()
+    /**
+     * Our own order id first (the licensing path, licence plan M4), then an
+     * organisation id from a checkout the starter made.
+     */
+    const order = metadata.order_public_id
+      ? await Order.query().where('public_id', String(metadata.order_public_id)).first()
       : null
+
+    const organization = order?.organizationId
+      ? await Organization.find(order.organizationId)
+      : metadata.organization_public_id
+        ? await Organization.query()
+            .where('public_id', String(metadata.organization_public_id))
+            .first()
+        : null
 
     return view.render('pages/admin/webhooks/show', {
       event,
       organization,
+      order,
       /**
        * Pretty-printed for reading, not for machines. The stored payload is
        * the machine-readable copy.

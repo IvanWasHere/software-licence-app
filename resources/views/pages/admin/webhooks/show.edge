@@ -50,16 +50,22 @@
       <span class="settings-row-value">{{ event.attempts }}</span>
     </div>
     <div class="settings-row">
-      <span class="settings-row-label">Workspace</span>
+      <span class="settings-row-label">Customer</span>
       <span class="settings-row-value">
         @if(organization)
           <a href="{{ urlFor('admin.organizations.show', { id: organization.publicId }) }}">
             {{ organization.name }}
           </a>
+          @if(order)
+            · order <a href="{{ urlFor('admin.orders.show', { id: order.publicId }) }}"><code>{{ order.publicId }}</code></a>
+          @end
+        @elseif(order)
+          Order <a href="{{ urlFor('admin.orders.show', { id: order.publicId }) }}"><code>{{ order.publicId }}</code></a>,
+          not fulfilled yet
         @else
           <span class="field-hint">
-            Not attributable — the checkout metadata carried no organisation id, which is why the
-            handler could not apply it.
+            Not attributable — the event names no order of ours, which is why the handler could
+            not apply it. A subscription for a product that is no catalog plan lands here too.
           </span>
         @end
       </span>

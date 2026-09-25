@@ -5,11 +5,27 @@ import invitations from '#organizations/invitation_service'
 import PlanLimitExceededException from '#exceptions/plan_limit_exceeded_exception'
 import { seatUsage } from '#organizations/seats'
 import { limitFor, planFor, plans } from '#config/plans'
-import { addMember, createWorkspace } from '#tests/helpers'
+import {
+  addMember,
+  allowAccountFeatures,
+  createWorkspace as createDefaultWorkspace,
+} from '#tests/helpers'
+
+/**
+ * An account with two seats — a staff override, since accounts have one by
+ * default (licence plan M5). Two is the smallest team the rules below can be
+ * exercised on: a member, an invitation, and the cap between them.
+ */
+async function createWorkspace() {
+  const workspace = await createDefaultWorkspace()
+  await allowAccountFeatures(workspace.organization, { seats: 2 })
+
+  return workspace
+}
 
 test.group('Account limits', () => {
   test('reads the limit from the account tier', ({ assert }) => {
-    assert.equal(limitFor({ planKey: 'standard', limitOverrides: null }, 'seats'), 10)
+    assert.equal(limitFor({ planKey: 'standard', limitOverrides: null }, 'seats'), 1)
   })
 
   /**
@@ -42,6 +58,19 @@ test.group('Account limits', () => {
 
 test.group('Seats', (group) => {
   group.each.setup(() => testUtils.db().truncate())
+
+  test('an account has one seat by default, and its owner fills it', async ({ assert }) => {
+    const { user, organization } = await createDefaultWorkspace()
+    const usage = await seatUsage(organization)
+
+    assert.equal(usage.limit, 1)
+    assert.isTrue(usage.isFull)
+
+    await assert.rejects(
+      () => invitations.invite({ organization, invitedBy: user, email: 'sam@example.com' }),
+      PlanLimitExceededException
+    )
+  })
 
   test('counts the owner', async ({ assert }) => {
     const { organization } = await createWorkspace()

@@ -11,7 +11,7 @@ import PlanLimitExceededException from '#exceptions/plan_limit_exceeded_exceptio
 import {
   addMember,
   clearStorage,
-  createWorkspace,
+  createWorkspaceWithFeatures,
   FILE_FIXTURES,
   fixtureUpload,
 } from '#tests/helpers'
@@ -25,7 +25,7 @@ test.group('Uploads', (group) => {
   group.each.setup(() => clearStorage)
 
   test('stores the object and records disk and key, never a URL', async ({ assert }) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
 
     const file = await files.upload(organization, user, await fixtureUpload('png'))
 
@@ -48,7 +48,7 @@ test.group('Uploads', (group) => {
    * nothing to it (plan §10).
    */
   test('keeps the original name for display and nothing else', async ({ assert }) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
 
     const file = await files.upload(
       organization,
@@ -61,7 +61,7 @@ test.group('Uploads', (group) => {
   })
 
   test('strips any path from the name it displays', async ({ assert }) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
 
     const file = await files.upload(
       organization,
@@ -74,7 +74,7 @@ test.group('Uploads', (group) => {
   })
 
   test('measures the size itself rather than believing the request', async ({ assert }) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
     const upload = await fixtureUpload('pdf')
 
     const file = await files.upload(organization, user, { ...upload, sizeBytes: 1 })
@@ -84,7 +84,7 @@ test.group('Uploads', (group) => {
   })
 
   test('records a checksum of the bytes', async ({ assert }) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
 
     const file = await files.upload(organization, user, await fixtureUpload('pdf'))
 
@@ -92,7 +92,7 @@ test.group('Uploads', (group) => {
   })
 
   test('moves the storage counter in the same transaction as the row', async ({ assert }) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
     const upload = await fixtureUpload('pdf')
 
     await files.upload(organization, user, upload)
@@ -103,7 +103,7 @@ test.group('Uploads', (group) => {
   })
 
   test('any member can upload', async ({ assert, client }) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
     const member = await addMember(organization, user, 'sam@example.com')
 
     const upload = await fixtureUpload('csv')
@@ -125,7 +125,7 @@ test.group('Upload validation', (group) => {
   group.each.setup(() => clearStorage)
 
   const reject = async (upload: Awaited<ReturnType<typeof fixtureUpload>>, reason: string) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
 
     try {
       await files.upload(organization, user, upload)
@@ -224,7 +224,7 @@ test.group('Storage quota', (group) => {
    * the ceiling under test is the real one without uploading 100 MB.
    */
   const cappedWorkspace = async (limitMb: number) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
 
     organization.limitOverrides = { storageMb: limitMb }
     await organization.save()
@@ -341,7 +341,7 @@ test.group('Storage quota', (group) => {
    * for 30 days (plan §10).
    */
   test('deleting is soft — the object stays until the purge job runs', async ({ assert }) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
     const file = await files.upload(organization, user, await fixtureUpload('png'))
 
     await files.delete(file)
@@ -351,7 +351,7 @@ test.group('Storage quota', (group) => {
   })
 
   test('an unlimited plan has no storage ceiling', async ({ assert }) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
 
     organization.limitOverrides = { storageMb: null }
     await organization.save()
@@ -371,14 +371,14 @@ test.group('Storage quota', (group) => {
    * The meter and the enforcement read the same number (plan §7.4).
    */
   test('the meter rounds up, so one byte is not reported as nothing', async ({ assert }) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
 
     await files.upload(organization, user, await fixtureUpload('txt'))
     await organization.refresh()
 
     const usage = plans.storageUsage(organization)
     assert.equal(usage.current, 1)
-    assert.equal(usage.limit, 100)
+    assert.equal(usage.limit, 1_000)
   })
 })
 
@@ -391,7 +391,7 @@ test.group('Downloads', (group) => {
    * proxied through the application (plan §10).
    */
   test('redirects to a signed URL rather than streaming the bytes', async ({ client, assert }) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
     const file = await files.upload(organization, user, await fixtureUpload('pdf'))
 
     const response = await client.get(`/files/${file.publicId}`).loginAs(user).redirects(0)
@@ -414,7 +414,7 @@ test.group('Downloads', (group) => {
     client,
     assert,
   }) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
     const file = await files.upload(organization, user, await fixtureUpload('pdf'))
 
     const response = await client
@@ -441,7 +441,7 @@ test.group('Downloads', (group) => {
   })
 
   test('a download carries the name the customer uploaded', async ({ client, assert }) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
     const file = await files.upload(
       organization,
       user,
@@ -458,7 +458,7 @@ test.group('Downloads', (group) => {
   })
 
   test('a file that does not exist is a message, not a 500', async ({ client }) => {
-    const { user } = await createWorkspace()
+    const { user } = await createWorkspaceWithFeatures()
 
     const response = await client.get('/files/fil_zzzzzzzzzzzz').loginAs(user).redirects(0)
 
@@ -479,7 +479,7 @@ test.group('Attachments', (group) => {
   group.each.setup(() => clearStorage)
 
   test('an avatar goes on the public disk and is stored as a key', async ({ client, assert }) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
 
     const response = await client
       .post('/settings/profile/avatar')
@@ -510,7 +510,7 @@ test.group('Attachments', (group) => {
     client,
     assert,
   }) => {
-    const { user } = await createWorkspace()
+    const { user } = await createWorkspaceWithFeatures()
 
     const upload = () =>
       client
@@ -534,7 +534,7 @@ test.group('Attachments', (group) => {
   })
 
   test('a logo is owner-only', async ({ client, assert }) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
     const member = await addMember(organization, user, 'sam@example.com')
 
     const response = await client
@@ -551,7 +551,7 @@ test.group('Attachments', (group) => {
   })
 
   test('the owner can set a logo', async ({ client, assert }) => {
-    const { user, organization } = await createWorkspace()
+    const { user, organization } = await createWorkspaceWithFeatures()
 
     await client
       .post('/settings/organization/logo')
@@ -565,7 +565,7 @@ test.group('Attachments', (group) => {
   })
 
   test('a non-image is refused as an avatar', async ({ client, assert }) => {
-    const { user } = await createWorkspace()
+    const { user } = await createWorkspaceWithFeatures()
 
     const response = await client
       .post('/settings/profile/avatar')

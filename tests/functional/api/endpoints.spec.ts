@@ -174,10 +174,10 @@ test.group('API — account usage', (group) => {
   group.each.setup(() => testUtils.db().truncate())
 
   /**
-   * The usage payload is built from the quota registry (`start/quotas.ts`)
-   * rather than written out, so this pins the published shape: a quota that
-   * is renamed, added or dropped changes a documented API, and it should
-   * break a test here rather than a customer's integration.
+   * The usage payload is built from the quota registry (`start/quotas.ts`),
+   * which is empty since licence plan M5: account limits are fixed per
+   * account rather than spent down. Pinned so that registering a quota again
+   * is a visible change to a documented API.
    */
   test('GET /organization reports every registered quota, and nothing else', async ({
     client,
@@ -188,25 +188,7 @@ test.group('API — account usage', (group) => {
     const response = await client.get('/api/v1/organization').headers(headers)
 
     response.assertStatus(200)
-
-    const usage = response.body().data.usage
-
-    assert.deepEqual(Object.keys(usage).sort(), ['seats', 'storage_mb'])
-
-    for (const [key, quota] of Object.entries(usage)) {
-      assert.deepEqual(Object.keys(quota as object).sort(), ['limit', 'remaining', 'used'], key)
-    }
-  })
-
-  test('unlimited is reported as null, not as a large number', async ({ client, assert }) => {
-    const { organization, headers } = await createApiWorkspace()
-    organization.limitOverrides = { seats: null }
-    await organization.save()
-
-    const response = await client.get('/api/v1/organization').headers(headers)
-
-    assert.isNull(response.body().data.usage.seats.limit)
-    assert.isNull(response.body().data.usage.seats.remaining)
+    assert.deepEqual(response.body().data.usage, {})
   })
 })
 
@@ -311,7 +293,7 @@ test.group('API — the published document', () => {
       response.body().paths['/organization'].get.responses['200'].content['application/json'].schema
         .properties.data.properties.usage
 
-    assert.deepEqual(Object.keys(usage.properties).sort(), ['seats', 'storage_mb'])
+    assert.deepEqual(Object.keys(usage.properties), [])
   })
 
   test('is readable without a key, because that is when people read it', async ({ client }) => {

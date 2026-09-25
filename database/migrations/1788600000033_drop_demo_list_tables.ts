@@ -9,7 +9,10 @@ import { BaseSchema } from '@adonisjs/lucid/schema'
  * `docs/modules.md` prescribes for an install that already has them.
  *
  * `down` does not recreate them: the module that owned them no longer exists,
- * so a table with nothing to read it would only be clutter.
+ * so a table with nothing to read it would only be clutter. The two create
+ * migrations drop with `dropTableIfExists` for the same reason, so a full
+ * rollback (which the test suite does after every run) passes over tables
+ * this migration already removed.
  */
 export default class extends BaseSchema {
   async up() {

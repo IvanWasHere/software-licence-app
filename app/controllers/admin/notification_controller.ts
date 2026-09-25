@@ -4,7 +4,8 @@ import type { HttpContext } from '@adonisjs/core/http'
 import notifications from '#notifications/notification_service'
 import audit, { AUDIT_ACTIONS } from '#audit/audit_service'
 import { describeAudience } from '#notifications/audience'
-import { plans } from '#config/plans'
+import Product from '#models/product'
+import type Notification from '#models/notification'
 import { createNotificationValidator } from '#validators/admin'
 
 /**
@@ -31,11 +32,15 @@ export default class AdminNotificationController {
       reach.set(notification.id, await notifications.reachOf(notification))
     }
 
+    const products = await Product.query().orderBy('name', 'asc')
+    const productNames = new Map(products.map((product) => [product.id, product.name]))
+
     return view.render('pages/admin/notifications/index', {
       notifications: all,
       reach,
-      describeAudience,
-      planKeys: Object.keys(plans),
+      describeAudience: (notification: Notification) =>
+        describeAudience(notification, productNames),
+      products,
       canManage: await staffBouncer.with('StaffPolicy').allows('manageNotifications'),
     })
   }
@@ -68,7 +73,7 @@ export default class AdminNotificationController {
       level: payload.level,
       audienceType: payload.audienceType,
       audience: {
-        planKeys: request.input('planKeys'),
+        productIds: request.input('productIds'),
         userIds: request.input('userIds'),
       },
       actionLabel: payload.actionLabel ?? null,
@@ -85,7 +90,7 @@ export default class AdminNotificationController {
       subjectId: notification.publicId,
       metadata: {
         title: notification.title,
-        audience: describeAudience(notification),
+        audience: describeAudience(notification, await this.productNames()),
         reach,
         draft: notification.isDraft,
       },
@@ -173,5 +178,10 @@ export default class AdminNotificationController {
     )
 
     return response.redirect().toRoute('admin.notifications.index')
+  }
+
+  private async productNames(): Promise<Map<number, string>> {
+    const products = await Product.all()
+    return new Map(products.map((product) => [product.id, product.name]))
   }
 }

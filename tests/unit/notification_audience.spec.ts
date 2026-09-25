@@ -3,127 +3,142 @@ import { test } from '@japa/runner'
 import { appliesTo, describeAudience, type AudienceViewer } from '#notifications/audience'
 
 /**
- * The audience predicate, exhaustively (plan §20.3, §20.7).
+ * The audience predicate, exhaustively (plan §20.3, §20.7; licence plan M5).
  *
  * This is the one place in the application that decides something without an
  * `organization_id` filter, because crossing tenants *is* the feature. A bug
  * here shows one customer another customer's announcement and nothing
  * downstream would catch it — so this file enumerates every combination
- * rather than spot-checking, the way `plan_service.spec.ts` does for limits.
+ * rather than spot-checking.
  */
-const PLANS = ['free', 'pro', 'business'] as const
+const INVOICE_PRO = 1
+const BOOKING_PRO = 2
+
+/**
+ * The shapes an account's holdings take: nothing yet, one product, both.
+ */
+const HOLDINGS: readonly (readonly number[])[] = [[], [INVOICE_PRO], [INVOICE_PRO, BOOKING_PRO]]
 const ROLES = ['owner', 'member'] as const
 
 const viewer = (overrides: Partial<AudienceViewer> = {}): AudienceViewer => ({
   id: 1,
   role: 'member',
-  planKey: 'free',
+  productIds: [],
   ...overrides,
 })
 
 test.group('Audience — all', () => {
-  test('reaches every role on every plan', ({ assert }) => {
-    for (const planKey of PLANS) {
+  test('reaches every role, whatever it holds', ({ assert }) => {
+    for (const productIds of HOLDINGS) {
       for (const role of ROLES) {
         assert.isTrue(
-          appliesTo({ audienceType: 'all', audience: null }, viewer({ role, planKey })),
-          `${role} on ${planKey}`
+          appliesTo({ audienceType: 'all', audience: null }, viewer({ role, productIds })),
+          `${role} holding ${JSON.stringify(productIds)}`
         )
       }
     }
   })
 
   test('ignores an audience payload it does not need', ({ assert }) => {
-    assert.isTrue(appliesTo({ audienceType: 'all', audience: { planKeys: ['pro'] } }, viewer()))
+    assert.isTrue(
+      appliesTo({ audienceType: 'all', audience: { productIds: [INVOICE_PRO] } }, viewer())
+    )
   })
 })
 
-test.group('Audience — plan', () => {
-  test('reaches every role on a listed plan, and nobody on an unlisted one', ({ assert }) => {
-    const notification = { audienceType: 'plan' as const, audience: { planKeys: ['pro'] } }
+test.group('Audience — customers of a product', () => {
+  test('reaches every role holding a listed product, and nobody else', ({ assert }) => {
+    const notification = {
+      audienceType: 'product' as const,
+      audience: { productIds: [INVOICE_PRO] },
+    }
 
     for (const role of ROLES) {
-      assert.isTrue(appliesTo(notification, viewer({ role, planKey: 'pro' })), `${role} on pro`)
-      assert.isFalse(appliesTo(notification, viewer({ role, planKey: 'free' })), `${role} on free`)
+      assert.isTrue(appliesTo(notification, viewer({ role, productIds: [INVOICE_PRO] })), role)
+      assert.isTrue(
+        appliesTo(notification, viewer({ role, productIds: [BOOKING_PRO, INVOICE_PRO] })),
+        `${role} holding both`
+      )
+      assert.isFalse(appliesTo(notification, viewer({ role, productIds: [BOOKING_PRO] })), role)
       assert.isFalse(
-        appliesTo(notification, viewer({ role, planKey: 'business' })),
-        `${role} on business`
+        appliesTo(notification, viewer({ role, productIds: [] })),
+        `${role} holding none`
       )
     }
   })
 
-  test('several plans at once', ({ assert }) => {
+  test('several products at once', ({ assert }) => {
     const notification = {
-      audienceType: 'plan' as const,
-      audience: { planKeys: ['pro', 'business'] },
+      audienceType: 'product' as const,
+      audience: { productIds: [INVOICE_PRO, BOOKING_PRO] },
     }
 
-    assert.isTrue(appliesTo(notification, viewer({ planKey: 'pro' })))
-    assert.isTrue(appliesTo(notification, viewer({ planKey: 'business' })))
-    assert.isFalse(appliesTo(notification, viewer({ planKey: 'free' })))
+    assert.isTrue(appliesTo(notification, viewer({ productIds: [INVOICE_PRO] })))
+    assert.isTrue(appliesTo(notification, viewer({ productIds: [BOOKING_PRO] })))
+    assert.isFalse(appliesTo(notification, viewer({ productIds: [] })))
   })
 
   /**
    * Closed by default: an announcement that reaches nobody is a support
    * ticket, one that reaches everybody is an incident.
    */
-  test('an empty plan list reaches nobody, not everybody', ({ assert }) => {
-    for (const audience of [{ planKeys: [] }, {}, null]) {
-      for (const planKey of PLANS) {
+  test('an empty product list reaches nobody, not everybody', ({ assert }) => {
+    for (const audience of [{ productIds: [] }, {}, null]) {
+      for (const productIds of HOLDINGS) {
         assert.isFalse(
-          appliesTo({ audienceType: 'plan', audience }, viewer({ planKey })),
-          `${JSON.stringify(audience)} on ${planKey}`
+          appliesTo({ audienceType: 'product', audience }, viewer({ productIds })),
+          `${JSON.stringify(audience)} for ${JSON.stringify(productIds)}`
         )
       }
     }
   })
 
-  test('a plan key that no longer exists matches nobody', ({ assert }) => {
+  test('a product that no longer exists matches nobody', ({ assert }) => {
     assert.isFalse(
       appliesTo(
-        { audienceType: 'plan', audience: { planKeys: ['enterprise-that-never-shipped'] } },
-        viewer({ planKey: 'business' })
+        { audienceType: 'product', audience: { productIds: [999] } },
+        viewer({ productIds: [INVOICE_PRO, BOOKING_PRO] })
       )
     )
   })
 })
 
 test.group('Audience — owners', () => {
-  test('reaches owners on every plan and no members at all', ({ assert }) => {
+  test('reaches owners whatever they hold, and no members at all', ({ assert }) => {
     const notification = { audienceType: 'owners' as const, audience: null }
 
-    for (const planKey of PLANS) {
-      assert.isTrue(appliesTo(notification, viewer({ role: 'owner', planKey })), `owner ${planKey}`)
-      assert.isFalse(
-        appliesTo(notification, viewer({ role: 'member', planKey })),
-        `member ${planKey}`
-      )
+    for (const productIds of HOLDINGS) {
+      assert.isTrue(appliesTo(notification, viewer({ role: 'owner', productIds })))
+      assert.isFalse(appliesTo(notification, viewer({ role: 'member', productIds })))
     }
   })
 
   /**
-   * Unlike `plan`, an empty list here means "owners on any plan" — the type
-   * has already narrowed the audience, so the list is a further filter rather
+   * Unlike `product`, an empty list here means "every owner" — the type has
+   * already narrowed the audience, so the list is a further filter rather
    * than the whole selection.
    */
-  test('narrows by plan when asked, and does not when not', ({ assert }) => {
-    const anyPlan = { audienceType: 'owners' as const, audience: { planKeys: [] } }
-    const proOnly = { audienceType: 'owners' as const, audience: { planKeys: ['pro'] } }
+  test('narrows by product when asked, and does not when not', ({ assert }) => {
+    const every = { audienceType: 'owners' as const, audience: { productIds: [] } }
+    const invoiceOnly = {
+      audienceType: 'owners' as const,
+      audience: { productIds: [INVOICE_PRO] },
+    }
 
-    assert.isTrue(appliesTo(anyPlan, viewer({ role: 'owner', planKey: 'free' })))
-    assert.isTrue(appliesTo(proOnly, viewer({ role: 'owner', planKey: 'pro' })))
-    assert.isFalse(appliesTo(proOnly, viewer({ role: 'owner', planKey: 'free' })))
+    assert.isTrue(appliesTo(every, viewer({ role: 'owner', productIds: [] })))
+    assert.isTrue(appliesTo(invoiceOnly, viewer({ role: 'owner', productIds: [INVOICE_PRO] })))
+    assert.isFalse(appliesTo(invoiceOnly, viewer({ role: 'owner', productIds: [BOOKING_PRO] })))
 
     /**
-     * And still never a member, whatever the plan says.
+     * And still never a member, whatever they hold.
      */
-    assert.isFalse(appliesTo(proOnly, viewer({ role: 'member', planKey: 'pro' })))
+    assert.isFalse(appliesTo(invoiceOnly, viewer({ role: 'member', productIds: [INVOICE_PRO] })))
   })
 })
 
 /**
  * The sharpest edge: a notification for one person must be invisible to
- * everybody else, including people in the same workspace.
+ * everybody else, including people in the same account.
  */
 test.group('Audience — named users', () => {
   test('reaches exactly the ids listed', ({ assert }) => {
@@ -134,14 +149,14 @@ test.group('Audience — named users', () => {
     assert.isFalse(appliesTo(notification, viewer({ id: 8 })))
   })
 
-  test('role and plan do not widen it', ({ assert }) => {
+  test('role and holdings do not widen it', ({ assert }) => {
     const notification = { audienceType: 'users' as const, audience: { userIds: [7] } }
 
-    for (const planKey of PLANS) {
+    for (const productIds of HOLDINGS) {
       for (const role of ROLES) {
         assert.isFalse(
-          appliesTo(notification, viewer({ id: 8, role, planKey })),
-          `${role} on ${planKey} is still not user 7`
+          appliesTo(notification, viewer({ id: 8, role, productIds })),
+          `${role} holding ${JSON.stringify(productIds)} is still not user 7`
         )
       }
     }
@@ -172,41 +187,59 @@ test.group('Audience — closed by default', () => {
     assert.isFalse(
       appliesTo(
         { audienceType: 'everyone-forever' as never, audience: null },
-        viewer({ role: 'owner', planKey: 'business' })
+        viewer({ role: 'owner', productIds: [INVOICE_PRO] })
+      )
+    )
+  })
+
+  /**
+   * Rows written before M5 said `plan`. A migration moves them, and this is
+   * what happens to one it missed.
+   */
+  test('the retired plan audience reaches nobody', ({ assert }) => {
+    assert.isFalse(
+      appliesTo(
+        { audienceType: 'plan' as never, audience: null },
+        viewer({ role: 'owner', productIds: [INVOICE_PRO] })
       )
     )
   })
 })
 
 test.group('Audience — how it reads in the back-office', () => {
+  const names = new Map([
+    [INVOICE_PRO, 'Invoice Pro'],
+    [BOOKING_PRO, 'Booking Pro'],
+  ])
+
   test('says who it reaches, not which enum was chosen', ({ assert }) => {
-    assert.equal(describeAudience({ audienceType: 'all', audience: null }), 'Everyone')
+    assert.equal(describeAudience({ audienceType: 'all', audience: null }, names), 'Everyone')
     assert.equal(
-      describeAudience({ audienceType: 'plan', audience: { planKeys: ['pro'] } }),
-      'Everyone on pro'
+      describeAudience({ audienceType: 'product', audience: { productIds: [INVOICE_PRO] } }, names),
+      'Customers of Invoice Pro'
     )
     assert.equal(
-      describeAudience({ audienceType: 'owners', audience: null }),
-      'All workspace owners'
+      describeAudience({ audienceType: 'owners', audience: null }, names),
+      'All account owners'
     )
     assert.equal(
-      describeAudience({ audienceType: 'owners', audience: { planKeys: ['business'] } }),
-      'Owners on business'
+      describeAudience({ audienceType: 'owners', audience: { productIds: [BOOKING_PRO] } }, names),
+      'Owners with Booking Pro'
     )
     assert.equal(
-      describeAudience({ audienceType: 'users', audience: { userIds: [1] } }),
+      describeAudience({ audienceType: 'users', audience: { userIds: [1] } }, names),
       '1 named person'
     )
   })
 
   /**
-   * The one that matters: an author who picked a plan audience and no plans
-   * should be told so before they publish, not afterwards.
+   * The one that matters: an author who picked a product audience and no
+   * products should be told so before they publish, not afterwards.
    */
   test('says plainly when a choice would reach nobody', ({ assert }) => {
     assert.equal(
-      describeAudience({ audienceType: 'plan', audience: { planKeys: [] } }),
-      'Nobody — no plan chosen'
+      describeAudience({ audienceType: 'product', audience: { productIds: [] } }, names),
+      'Nobody — no product chosen'
     )
   })
 })

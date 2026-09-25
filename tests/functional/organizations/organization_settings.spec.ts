@@ -3,7 +3,7 @@ import mail from '@adonisjs/mail/services/main'
 
 import { addMember, createWorkspace } from '#tests/helpers'
 
-test.group('Workspace settings', (group) => {
+test.group('Account settings', (group) => {
   group.each.setup(() => {
     mail.fake()
     return () => mail.restore()
@@ -36,7 +36,7 @@ test.group('Workspace settings', (group) => {
     const page = await client.get('/settings/organization').loginAs(member)
     page.assertStatus(200)
     page.assertTextIncludes(organization.publicId)
-    page.assertTextIncludes('Only the workspace owner can change these')
+    page.assertTextIncludes('Only the account owner can change these')
 
     await client
       .post('/settings/organization')

@@ -63,7 +63,7 @@ test.group('Billing screen', (group) => {
     const response = await client.get('/billing').loginAs(member).redirects(0)
 
     response.assertStatus(302)
-    response.assertFlashMessage('error', 'Only the workspace owner can do that.')
+    response.assertFlashMessage('error', 'Only the account owner can do that.')
   })
 
   test('the owner sees an empty record before buying anything', async ({ client, assert }) => {
@@ -195,46 +195,5 @@ test.group('Billing — the provider portal', (group) => {
       assert.instanceOf(error, BillingError)
       assert.equal((error as BillingError).reason, 'no_customer')
     }
-  })
-})
-
-/**
- * The account-state banner (plan §7.5, §13.5). A `past_due` workspace stays
- * fully usable — the banner is how the owner finds out before the period ends.
- */
-test.group('Billing — the past_due banner', (group) => {
-  group.each.setup(() => {
-    mail.fake()
-    useFakePaymentProvider()
-
-    return () => {
-      mail.restore()
-      restorePaymentProvider()
-    }
-  })
-  group.each.setup(() => testUtils.db().truncate())
-
-  test('shows on every screen and says nothing was switched off', async ({ client }) => {
-    const { user, organization } = await createWorkspace()
-
-    organization.status = 'past_due'
-    await organization.save()
-
-    const response = await client.get('/dashboard').loginAs(user)
-
-    response.assertStatus(200)
-    response.assertTextIncludes('We could not take payment')
-    response.assertTextIncludes('Nothing has been switched off yet')
-  })
-
-  test('a past_due account can still see its licenses', async ({ client }) => {
-    const { user, organization } = await createWorkspace()
-
-    organization.status = 'past_due'
-    await organization.save()
-
-    const response = await client.get('/licenses').loginAs(user)
-
-    response.assertStatus(200)
   })
 })

@@ -33,11 +33,21 @@ export interface PlanDefinition {
 export const plans = {
   standard: {
     name: 'Standard',
+    /**
+     * Decided for M5:
+     * - One person per account. A license is used by whoever installs it;
+     *   an agency that needs a team gets a staff override.
+     * - No uploads. Nothing a customer does here needs a file.
+     * - No API keys by default. The organisation API is for the odd customer
+     *   who asks, switched on per account by staff (`apiKeys` override).
+     * - Unlimited calls for the keys that do exist: request volume is
+     *   governed by the burst limit, not by a monthly allowance.
+     */
     limits: {
-      seats: 10,
-      storageMb: 1_000,
-      apiKeys: 5,
-      apiCallsPerMonth: 50_000,
+      seats: 1,
+      storageMb: 0,
+      apiKeys: 0,
+      apiCallsPerMonth: null,
     },
     features: ['api'],
   },
