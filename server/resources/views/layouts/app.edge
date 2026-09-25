@@ -1,0 +1,184 @@
+{{--
+  The signed-in tenant shell: a full-width header over a sidebar and content,
+  as in ui-example/index.html.
+
+  The header spans the whole window rather than sitting beside the sidebar,
+  so the workspace's identity, the page it is showing and the account controls
+  all live on one line. Everything above `.dash-layout` is chrome: it stays
+  put and only the content column scrolls, which is what lets the billing and
+  impersonation banners be permanently visible without a sticky of their own.
+
+  Props:
+    title     — page <title> and the header's page label
+    usage     — plan usage passed through to the sidebar (plan §13.6.1)
+    isOwner   — whether the current user owns the organisation
+
+  Slots:
+    main      — the page
+    banner    — optional extra banner. The billing-state and impersonation
+                banners are rendered by this layout and need no slot.
+
+  There is deliberately no `actions` slot. The header is chrome — which
+  workspace, which page, the bell, the account menu — and a page's own
+  buttons go in the page, with the thing they act on: `@pageHeader`, a
+  panel's `actions` slot, or a `.danger-zone` card for the destructive ones.
+--}}
+@component('layouts/base', { title: $props.get('title') })
+  <div class="dash-shell" x-data="sidebar">
+    <header class="dash-topbar">
+      {{--
+        Sized to the sidebar column, so the divider after it lands exactly on
+        the sidebar's right edge instead of floating somewhere near it.
+      --}}
+      <div class="topbar-brand">
+        <button type="button" class="mobile-toggle" @click="toggle" aria-label="Open navigation">
+          @!icon({ name: 'menu', width: 18, height: 18 })
+        </button>
+
+        <a
+          href="{{ hasRoute('dashboard.index') ? urlFor('dashboard.index') : urlFor('home') }}"
+          class="logo"
+        >
+          {{--
+            A workspace that uploaded a logo gets it here; everyone else keeps
+            the product mark. Public disk, so this is a plain cacheable URL —
+            a signed one would expire while somebody had the page open.
+          --}}
+          @if(organization && organization.logoKey)
+            <img
+              class="logo-image"
+              src="{{ await publicFileUrl(organization.logoKey) }}"
+              alt="{{ organization.name }}"
+            />
+          @else
+            <span class="logo-icon">
+              @!icon({ name: 'layers' })
+            </span>
+          @end
+          <span class="logo-text">{{ organization ? organization.name : appName }}</span>
+        </a>
+      </div>
+
+      <span class="topbar-divider" aria-hidden="true"></span>
+      <h1 class="dash-topbar-title">{{ $props.get('title') ?? '' }}</h1>
+
+      <div class="dash-topbar-actions">
+        {{--
+          The announcements bell (plan §20.5). A permanent entry point with a
+          red dot when there is something unread — the dot is the feature, the
+          bell is just where it lives.
+        --}}
+        @if(hasRoute('notifications.index'))
+          <a
+            href="{{ urlFor('notifications.index') }}"
+            class="topbar-icon-btn"
+            aria-label="{{ unreadNotifications ? `Announcements, ${unreadNotifications} unread` : 'Announcements' }}"
+          >
+            @!icon({ name: 'bell', width: 16, height: 16 })
+            @if(unreadNotifications)
+              <span class="notif-dot" aria-hidden="true"></span>
+            @end
+          </a>
+        @end
+
+        {{--
+          The account menu. Signing out is a form POST inside it rather than a
+          link, because a GET that ends a session is a session ended by a
+          prefetch.
+        --}}
+        @if(auth.user)
+          <details class="dropdown" x-data="menu" @click.outside="close" @keydown.escape="close">
+            <summary class="topbar-avatar" aria-haspopup="true" aria-label="Account menu">
+              @!avatar({
+                initials: auth.user.initials,
+                src: await publicFileUrl(auth.user.avatarKey),
+                alt: auth.user.fullName ?? auth.user.email,
+              })
+            </summary>
+
+            <div class="dropdown-menu">
+              <div class="dropdown-header">
+                <span class="dropdown-name">{{ auth.user.fullName ?? auth.user.email }}</span>
+                <span class="dropdown-email">{{ auth.user.email }}</span>
+              </div>
+
+              @if(hasRoute('settings.profile'))
+                <a class="dropdown-item" href="{{ urlFor('settings.profile') }}">
+                  @!icon({ name: 'settings', width: 15, height: 15 })
+                  Profile settings
+                </a>
+              @end
+
+              @if(hasRoute('notifications.index'))
+                <a class="dropdown-item" href="{{ urlFor('notifications.index') }}">
+                  @!icon({ name: 'alert', width: 15, height: 15 })
+                  Announcements
+                  @if(unreadNotifications)
+                    <span class="dropdown-count">{{ unreadNotifications }}</span>
+                  @end
+                </a>
+              @end
+
+              {{--
+                Support (plan §21.5). The count is tickets staff have replied
+                to and the customer has not answered — derived from the
+                status, so there is no second definition of "unread" to
+                disagree with the announcements dot (§21.7).
+              --}}
+              @if(hasRoute('support.index'))
+                <a class="dropdown-item" href="{{ urlFor('support.index') }}">
+                  @!icon({ name: 'lifebuoy', width: 15, height: 15 })
+                  Support
+                  @if(awaitingSupportReplies)
+                    <span class="dropdown-count">{{ awaitingSupportReplies }}</span>
+                  @end
+                </a>
+              @end
+
+              <div class="dropdown-divider"></div>
+
+              @form({ route: 'auth.session.destroy', method: 'POST' })
+                <button type="submit" class="dropdown-item">
+                  @!icon({ name: 'logOut', width: 15, height: 15 })
+                  Sign out
+                </button>
+              @end
+            </div>
+          </details>
+        @end
+      </div>
+    </header>
+
+    {{--
+      Both banners sit in the chrome, below the header and above the columns:
+      full width, on every screen, and — because the chrome does not scroll —
+      impossible to leave behind (plan §6, §7.5).
+    --}}
+    @include('partials/impersonation_banner')
+
+    @if(organization)
+      @include('partials/account_banner')
+    @end
+
+    @if($slots.banner)
+      {{{ await $slots.banner() }}}
+    @end
+
+    <div class="dash-layout">
+      <aside class="dash-sidebar" :class="open && 'open'">
+        <nav class="dash-sidebar-nav" aria-label="Main">
+          @include('partials/app_nav')
+        </nav>
+      </aside>
+
+      {{-- Closes the drawer on tap below 768px --}}
+      <div class="sidebar-overlay" :class="open && 'open'" @click="close" x-cloak></div>
+
+      <div class="dash-main">
+        <main class="dash-content">
+          {{{ await $slots.main() }}}
+        </main>
+      </div>
+    </div>
+  </div>
+@end

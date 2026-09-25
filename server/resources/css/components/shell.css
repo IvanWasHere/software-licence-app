@@ -1,0 +1,498 @@
+/*
+| The application shell: header, sidebar, content area and the mobile drawer.
+| Ported from ui-example/index.html (plan §13.4 "App shell").
+|
+| Two moves from the reference define the whole thing.
+|
+| The header spans the window *over* the sidebar rather than sitting beside
+| it, so identity, page and account controls share one line, and the sidebar
+| starts underneath. The brand block is sized to the sidebar column so the
+| divider after it lands exactly on that column's edge.
+|
+| The sidebar has no surface of its own: it sits directly on the page
+| background with no right-hand border, and the *active* item is the white
+| card. That inversion — chrome recedes, the current position is the only
+| raised thing — is the reference's most identifiable move, and it is why the
+| nav reads instantly without a single divider.
+|
+| Divergences from the mockup, per plan §13.6:
+|   - nav items are links to real URLs, not buttons calling navigate(); the
+|     `.nav-item` styles apply to <a> as well.
+|   - `.nav-usage` is new — each quota-bearing nav item shows its usage inline
+|     ("Lists 3/3") so the ceiling is visible before it is hit (§13.6.1).
+*/
+
+/*
+| The shell is the viewport: header and banners are fixed-height chrome, and
+| the row beneath them takes what is left. Only `.dash-main` scrolls.
+|
+| This is what makes the two banners work. Both have to be visible on every
+| screen and neither may be scrolled past (plan §6, §7.5); as part of a
+| chrome block that never moves, they need no `position: sticky` of their own
+| — and a page with both a banner and a sticky header stops having to agree
+| with itself about how far down the top is.
+*/
+.dash-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+
+  /* Excludes a mobile browser's collapsing toolbars, where 100vh does not. */
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.dash-layout {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.dash-sidebar {
+  width: var(--sidebar-width);
+  flex-shrink: 0;
+  background: var(--page);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.dash-sidebar-nav {
+  flex: 1;
+  padding: 14px 12px 16px;
+  overflow-y: auto;
+}
+
+.nav-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-muted);
+  padding: 14px 10px 5px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 2px 0;
+  padding: 7px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text-soft);
+  cursor: pointer;
+  background: none;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  text-decoration: none;
+  transition:
+    background var(--transition),
+    color var(--transition);
+}
+
+.nav-item:hover {
+  background: var(--slate-150);
+  color: var(--text);
+}
+
+/*
+| The current page is the one card in the sidebar: white, edged and lifted a
+| pixel off the page, with its icon in the accent. Nothing else in the nav has
+| a background, so there is never a question of where you are.
+*/
+.nav-item.active,
+.nav-item[aria-current='page'] {
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: var(--shadow-card);
+  color: var(--text-strong);
+}
+
+.nav-icon {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.nav-item.active .nav-icon,
+.nav-item[aria-current='page'] .nav-icon {
+  color: var(--accent-500);
+}
+
+.nav-label {
+  flex: 1;
+  min-width: 0;
+}
+
+/**
+ * Inline usage counter on quota-bearing nav items (plan §13.6.1).
+ */
+.nav-usage {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.nav-usage.warn {
+  color: var(--orange-500);
+}
+
+.nav-usage.full {
+  color: var(--red-600);
+}
+
+/*
+| Initials on ink, as in the reference's header avatar — a tinted circle
+| disappears against chrome that is already white or already page-coloured.
+*/
+.avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--slate-800);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--white);
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/*
+| The avatar component puts `.avatar` on the <img> itself when a picture
+| exists, rather than wrapping one — so the crop has to be declared for that
+| case too, or an uploaded non-square photo stretches.
+*/
+img.avatar {
+  object-fit: cover;
+  padding: 0;
+}
+
+.dash-main {
+  flex: 1;
+
+  /*
+   | Without this the column is a flex item at its default `min-width: auto`,
+   | which means it refuses to be narrower than its widest content — a table
+   | inside `.table-scroll` then pushes the whole row sideways instead of
+   | scrolling inside its own box.
+   */
+  min-width: 0;
+  overflow-y: auto;
+}
+
+/*
+| The header, over the full width of the window.
+|
+| It is a flex row of four things: the brand block, the page label, the
+| flexible gap, and the account controls. Fixed height, because the sidebar
+| below it is measured against what is left.
+*/
+.dash-topbar {
+  height: var(--topbar-height);
+  flex-shrink: 0;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 20px 0 22px;
+  z-index: 40;
+}
+
+/*
+| Sized to the sidebar column rather than to its own contents: 22px of header
+| padding + this width + the 12px gap puts the divider that follows exactly on
+| the sidebar's right edge. Change the padding or the gap and this number
+| changes with them.
+*/
+.topbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  width: calc(var(--sidebar-width) - 34px);
+  min-width: 0;
+}
+
+.topbar-brand .logo {
+  margin-bottom: 0;
+  min-width: 0;
+}
+
+.topbar-brand .logo-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.topbar-divider {
+  width: 1px;
+  height: 22px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+/*
+| The page's <h1>. Quieter than the workspace name beside it: at this point in
+| the header the question "where am I" has already been answered by the nav,
+| and a second bold string competes with the brand.
+*/
+.dash-topbar-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dash-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+/*
+| Borderless in the reference — the topbar's icon buttons are quiet targets
+| that only draw a background when the pointer is over them.
+*/
+.topbar-icon-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  background: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-soft);
+  transition:
+    background var(--transition),
+    color var(--transition);
+  position: relative;
+  flex-shrink: 0;
+}
+
+.topbar-icon-btn:hover {
+  background: var(--page);
+  color: var(--text);
+}
+
+/*
+| The account menu's trigger — a <summary>, so the menu opens without
+| JavaScript. A bare avatar with a ring on hover: the control around it must
+| not read as a button, or the header ends in two competing ones.
+*/
+.topbar-avatar {
+  list-style: none;
+  border: none;
+  background: none;
+  padding: 2px;
+  margin-left: 2px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 0 transparent;
+  transition: box-shadow var(--transition);
+}
+
+/* The disclosure triangle, in the two dialects that still need asking. */
+.topbar-avatar::-webkit-details-marker,
+.topbar-avatar::marker {
+  display: none;
+  content: '';
+}
+
+.topbar-avatar:hover {
+  box-shadow: 0 0 0 2px var(--slate-200);
+}
+
+[open] > .topbar-avatar {
+  box-shadow: 0 0 0 2px var(--accent-200);
+}
+
+.topbar-avatar .avatar {
+  width: 29px;
+  height: 29px;
+}
+
+/*
+| Staff wear the back-office violet, on the avatar as everywhere else, so a
+| glance at the header says which of the two applications this is.
+*/
+.topbar-avatar-admin .avatar {
+  background: var(--purple-500);
+}
+
+.logo-icon-admin {
+  background: var(--purple-500);
+}
+
+.notif-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 8px;
+  height: 8px;
+  background: var(--red-500);
+  border-radius: 50%;
+  border: 2px solid var(--surface);
+}
+
+.dash-content {
+  padding: 26px 32px 64px;
+  animation: pageFadeIn 0.3s ease;
+
+  /**
+   * Capped and centred in the space beside the sidebar. `width: 100%` keeps
+   * it filling narrower screens exactly as before — the cap only bites once
+   * there is more room than the content can use.
+   */
+  width: 100%;
+  max-width: var(--content-max-width);
+  margin-inline: auto;
+}
+
+.page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.mobile-toggle {
+  display: none;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-soft);
+}
+
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: var(--overlay);
+  z-index: 45;
+}
+
+/*
+| The account-state banner (plan §13.5).
+|
+| Sits above the topbar rather than inside the content, so it is the first
+| thing on the page on every screen and does not scroll away — a `past_due`
+| workspace that never notices is a workspace that churns without meaning to.
+*/
+.account-banner {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 10px 32px;
+  font-size: 13px;
+  line-height: 1.5;
+  border-bottom: 1px solid var(--orange-100);
+  background: var(--orange-50);
+  color: var(--orange-600);
+}
+
+.account-banner-danger {
+  background: var(--red-50);
+  border-bottom-color: var(--red-100);
+  color: var(--red-700);
+}
+
+.account-banner strong {
+  font-weight: 700;
+}
+
+.account-banner a {
+  color: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  white-space: nowrap;
+}
+
+/*
+| The impersonation banner (plan §6, §13.5).
+|
+| Purple, the admin accent, so it is never read as part of the customer's own
+| UI — and sticky rather than static, because an impersonation scrolled out of
+| view is an impersonation somebody forgets they are in.
+*/
+.impersonation-banner {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 32px;
+  font-size: 13px;
+  line-height: 1.5;
+  background: var(--purple-500);
+  color: var(--white);
+}
+
+.impersonation-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.2);
+  flex-shrink: 0;
+}
+
+.impersonation-mark svg {
+  fill: none;
+  stroke: var(--white);
+  stroke-width: 2;
+}
+
+.impersonation-text {
+  flex: 1;
+}
+
+.impersonation-stop {
+  margin: 0;
+}
+
+.impersonation-banner .btn-outline {
+  background: transparent;
+  border-color: rgb(255 255 255 / 0.6);
+  color: var(--white);
+}
+
+.impersonation-banner .btn-outline:hover {
+  background: rgb(255 255 255 / 0.15);
+}

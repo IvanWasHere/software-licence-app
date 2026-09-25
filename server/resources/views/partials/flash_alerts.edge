@@ -1,0 +1,25 @@
+{{--
+  Server flash messages, rendered into the mockup's toast markup.
+
+  `success` and `error` are the two keys controllers set; anything else falls
+  through as an informational toast.
+--}}
+@if(flashMessages.has('success') || flashMessages.has('error') || flashMessages.has('notice'))
+  <div class="toast-stack">
+    @if(flashMessages.has('error'))
+      @alert.root({ variant: 'error' })
+        @!alert.description({ text: flashMessages.get('error') })
+      @end
+    @end
+    @if(flashMessages.has('success'))
+      @alert.root({ variant: 'success' })
+        @!alert.description({ text: flashMessages.get('success') })
+      @end
+    @end
+    @if(flashMessages.has('notice'))
+      @alert.root({ variant: 'info' })
+        @!alert.description({ text: flashMessages.get('notice') })
+      @end
+    @end
+  </div>
+@end

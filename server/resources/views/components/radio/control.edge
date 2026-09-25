@@ -1,0 +1,25 @@
+{{--
+  One radio inside a `radio.group`.
+
+  Props:
+    value — the submitted value
+    label — the text beside it
+--}}
+@let(radioValue = String($props.get('value')))
+@let(radioId = `${$context.idPrefix}_${radioValue.replace(/[^a-z0-9]+/gi, '_')}`)
+
+<div class="check-row">
+  <input {{
+    $props
+      .except(['type', 'value', 'label'])
+      .merge({
+        type: 'radio',
+        name: $context.name,
+        id: radioId,
+        value: radioValue,
+        checked: String($context.oldValue) === radioValue,
+      })
+      .toAttrs()
+  }} />
+  <label for="{{ radioId }}">{{ $props.get('label') ?? radioValue }}</label>
+</div>

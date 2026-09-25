@@ -1,0 +1,227 @@
+/*
+| Breakpoints. These are the mockup's four, preserved exactly (plan §13.2):
+|
+|   1024px  grids collapse to 2-up
+|    900px  support layout goes single-column, list/detail toggle
+|    768px  sidebar becomes an off-canvas drawer with overlay
+|    480px  single column, full-width dropdowns
+|
+| Anything added later has to fit these — introducing a fifth breakpoint means
+| the new screen disagrees with every existing one.
+*/
+
+@media (max-width: 1024px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .panel-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .products-grid,
+  .card-grid,
+  .feature-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .plan-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .support-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .ticket-list {
+    display: none;
+  }
+
+  .ticket-list.show-mobile {
+    display: flex;
+    height: 400px;
+  }
+
+  .conversation-panel {
+    display: none;
+    height: auto;
+  }
+
+  .conversation-panel.show-mobile {
+    display: flex;
+    height: 600px;
+  }
+}
+
+@media (max-width: 768px) {
+  /*
+   | The sidebar leaves the flow and becomes a drawer over everything, header
+   | included — the reference's behaviour, and the only way a 232px column and
+   | a content area both fit on a phone.
+   |
+   | It separates itself from what it covers with a shadow: on the desktop
+   | layout it shares the page background and needs no edge, but a drawer with
+   | no edge over a white header has none.
+   */
+  .dash-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 90;
+    transform: translateX(-105%);
+    transition: transform 0.25s ease;
+    box-shadow: 8px 0 40px rgb(15 25 50 / 0.12);
+  }
+
+  .dash-sidebar.open {
+    transform: translateX(0);
+  }
+
+  .sidebar-overlay.open {
+    display: block;
+    z-index: 85;
+  }
+
+  .mobile-toggle {
+    display: flex;
+  }
+
+  /*
+   | The brand block stops standing in for the sidebar column — there is no
+   | column under it to line up with — and the page label gives way to the
+   | account controls, which are the only two things that must fit.
+   */
+  .topbar-brand {
+    width: auto;
+
+    /*
+     | Free to shrink here, unlike on the desktop layout where it is measured
+     | against the sidebar. The account controls are fixed-width and must not
+     | be pushed off the screen by a long workspace name.
+     */
+    flex-shrink: 1;
+    overflow: hidden;
+  }
+
+  .dash-topbar {
+    padding: 0 12px 0 14px;
+    gap: 10px;
+  }
+
+  .topbar-divider,
+  .dash-topbar-title {
+    display: none;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .settings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /*
+   | Two up, then one. The hairline between cells has to move with them or a
+   | wrapped row grows a stray vertical rule down its middle.
+   */
+  .snap {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .snap-cell:nth-child(3) {
+    border-left: none;
+  }
+
+  .snap-cell:nth-child(3),
+  .snap-cell:nth-child(4) {
+    border-top: 1px solid var(--border-soft);
+  }
+
+  .products-grid,
+  .card-grid,
+  .feature-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dash-content {
+    padding: 20px 16px 56px;
+  }
+
+  .field-row {
+    grid-template-columns: 1fr;
+  }
+
+  .marketing-header {
+    padding: 0 16px;
+  }
+
+  .banner,
+  .account-banner,
+  .impersonation-banner {
+    padding: 10px 16px;
+  }
+
+  .hero-title {
+    font-size: 34px;
+  }
+
+  .marketing-section {
+    padding: 48px 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .snap {
+    grid-template-columns: 1fr;
+  }
+
+  .snap-cell {
+    border-left: none;
+    border-top: 1px solid var(--border-soft);
+  }
+
+  .snap-cell:first-child {
+    border-top: none;
+  }
+
+  .bar-value {
+    display: none;
+  }
+
+  .auth-card {
+    padding: 28px 22px;
+  }
+
+  .settings-card,
+  .plan-card,
+  .new-ticket-card {
+    padding: 18px;
+  }
+
+  /*
+   | Menus stay anchored to the control that opened them — their container is
+   | the trigger, so a `left` offset here would walk them off the right edge —
+   | and are capped to the window instead.
+   */
+  .notif-menu,
+  .dropdown-menu {
+    width: max-content;
+    max-width: calc(100vw - 24px);
+    right: 0;
+    left: auto;
+  }
+
+  .toast-stack {
+    left: 16px;
+    right: 16px;
+    bottom: 16px;
+  }
+}

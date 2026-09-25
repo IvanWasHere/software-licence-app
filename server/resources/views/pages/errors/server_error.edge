@@ -1,0 +1,10 @@
+@component('layouts/auth', { title: 'Something went wrong' })
+  <div class="status-page">
+    <p class="status-code">500</p>
+    <h1 class="auth-title">Something went wrong</h1>
+    <p class="auth-subtitle">
+      The error has been logged. Try again in a moment — if it keeps happening, contact support.
+    </p>
+    @!link({ route: 'home', text: 'Back to safety', class: 'btn btn-primary btn-block' })
+  </div>
+@end

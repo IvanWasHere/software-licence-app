@@ -1,0 +1,493 @@
+<div align="center">
+
+<img src="docs/logo.svg" alt="" width="88" height="88" />
+
+# 🧱 Multi-tenant SaaS Starter
+
+**A production-shaped AdonisJS v7 SaaS boilerplate — organisations, plan-gated limits,
+subscriptions, background jobs, file storage, a public API and a support back-office.**
+
+🐿️ SQLite locally with zero setup · 🐘 PostgreSQL when deployed · 🧪 599 tests on both
+
+[Features](#-features) · [Quick start](#-quick-start) · [Environment](#-environment) ·
+[Screenshots](#-screenshots) · [Stack](#-stack) · [Commands](#-commands)
+
+</div>
+
+---
+
+## 🤔 What this is
+
+A **kitchen-sink starter** for a subscription SaaS. Not a demo: the awkward parts — the ones that
+usually get skipped and then bite in month three — are the parts that are actually built.
+
+- 💳 A **failed payment doesn't lock anyone out**, and a downgrade never deletes anything.
+- 🔒 Every tenant-owned query filters on `organization_id`, with a dedicated test suite that seeds
+  two workspaces and asserts, endpoint by endpoint, that one can never touch the other.
+- 🧮 Quotas are enforced **inside the insert transaction behind a row lock**, so two parallel
+  requests can't both take the last slot — proven by concurrency tests on PostgreSQL.
+- 🪝 Webhooks are idempotent, ordered by watermark, and replayable from a stored payload.
+- 🕵️ Staff impersonation is time-boxed, read-only for support, and audited with **both** actor ids.
+
+The demo domain is deliberately small — shared to-do lists — because it exists to exercise tenancy,
+quotas and the API, not to be the product. Swap it for yours:
+[`docs/modules.md`](./docs/modules.md) is the removal path, file by file.
+
+📓 [`plan.md`](./plan.md) is the full design document and the source of truth for scope.
+🛠️ [`CONTRIBUTING.md`](./CONTRIBUTING.md) has the rules that keep it working — read it before
+changing anything.
+
+---
+
+## ✨ Features
+
+| | Feature | What you get |
+|---|---|---|
+| 🔐 | **Authentication** | Register, login, logout, email verification, password reset |
+| 🔑 | **Two-factor auth** | TOTP with QR enrolment, recovery codes, mandatory for staff |
+| 🌐 | **Social login** | Google & GitHub via Ally, with account linking |
+| 🏢 | **Organisations** | One workspace per user, owner/member roles, ownership transfer |
+| 📨 | **Invitations** | Tokenised invites, expiry, revoke, resend, seat-limit enforcement |
+| 💳 | **Subscriptions** | Creem behind a `PaymentProvider` interface — swap in Stripe with one class |
+| 🪝 | **Webhooks** | Signature-verified, idempotency ledger, queued application, replay + sync |
+| 📊 | **Plan limits** | Seats, lists, todos-per-list, storage, API keys, monthly API calls |
+| 🚦 | **Soft-lock quotas** | Over-limit workspaces keep every row, readable *and* editable — only creation blocks |
+| 🎛️ | **Usage meters** | Amber at 80%, red at 100%, from the same numbers that enforce the limit |
+| 📁 | **File storage** | Local disk → Cloudflare R2 by one env var, signed URLs, MIME sniffing |
+| 🗑️ | **Recoverable deletes** | Files and announcements are soft-deleted with a 30-day purge job |
+| ⚙️ | **Background jobs** | Database-backed queue, exponential backoff, crash recovery, admin retry |
+| 📧 | **Transactional email** | Resend in production, Mailpit locally, every send through the durable queue |
+| 🔌 | **Organisation API** | `/api/v1`, bearer keys, scopes, cursor pagination, OpenAPI + `/docs` |
+| ⏱️ | **Rate limiting** | Per-key burst + per-workspace monthly quota, headers on every response |
+| 🛡️ | **Hardened front door** | Throttled sign-in, signup, reset and 2FA, keyed so nobody can lock out a stranger |
+| 🔒 | **Security headers** | Nonce-based CSP, HSTS, frame denial, referrer and permissions policy |
+| 🧑‍💼 | **Back-office** | Org/user search, subscription sync, webhook ledger, job queue, audit log |
+| 🕵️ | **Impersonation** | Time-boxed, banner on every screen, read-only for support, fully audited |
+| 📣 | **Announcements** | One-way in-app notices targeted by plan, owners, or named people |
+| 📜 | **Audit trail** | Append-only, two-year retention, filterable, both ids under impersonation |
+| 🎨 | **UI kit** | Edge + Alpine + custom CSS — no Tailwind, no component framework |
+| 🐳 | **Ships as an image** | Multi-stage Dockerfile, non-root, plus a compose stack of web + worker + Postgres |
+| 🩺 | **Health checks** | `/health` for restarts, `/ready` for the load balancer — they answer different questions |
+| 🧪 | **Tests** | 628 tests, including a real-browser suite, run against SQLite **and** PostgreSQL in CI |
+
+---
+
+## 🚀 Quick start
+
+You need **Node 24+**. Nothing else — SQLite needs no server.
+
+```bash
+# 1️⃣  Install
+npm install
+
+# 2️⃣  Configure
+cp .env.example .env
+node ace generate:key          # writes APP_KEY
+
+# 3️⃣  Create the database and demo data
+node ace migration:fresh --seed
+
+# 4️⃣  Run it
+npm run dev                    # 🌐 http://localhost:3333
+node ace queue:work            # ⚙️  second terminal — nothing is emailed without it
+```
+
+### 🔑 Seeded accounts
+
+Sign in with any of these. Staff and customers are **different tables behind different logins** —
+a staff address is rejected at `/login` exactly as a stranger would be.
+
+| Account | Password | Signs in at | Role |
+|---|---|---|---|
+| 🛡️ `admin@example.com` | `Admin12345` | `/admin/login` | Staff — **admin** |
+| 🎧 `support@example.com` | `Support12345` | `/admin/login` | Staff — **support** |
+| 👑 `user-manager@example.com` | `Manager12345` | `/login` | Workspace **owner** |
+| 👤 `user@example.com` | `User12345` | `/login` | Workspace **member** |
+
+> 🔢 Staff two-factor is mandatory. In development enter **`123456`** (see `DEV_TWO_FACTOR_CODE`),
+> or run `node ace dev:totp admin@example.com` for a real code.
+
+Want a richer playground — paid plans, a team, lists and todos, API traffic, payment history?
+
+```bash
+node ace dev:seed              # 🏭 five workspaces, a team, lists, keys, files, payments
+```
+
+### 📬 Seeing the email
+
+Everything goes through the queue, so run a worker. Locally the transport is
+[Mailpit](https://mailpit.axllent.org):
+
+```bash
+brew install mailpit && mailpit     # then open http://localhost:8025
+```
+
+### 🔍 The development toolbar
+
+`npm run dev` puts a stats bar at the foot of every page — Node version, uptime, CPU, event-loop
+lag, heap and RSS, requests per second, average latency, error rate, and the database pool. Click
+the tool icon at its far left and it opens into a debug panel over the page:
+
+| Panel | What is in it |
+|---|---|
+| 🗃️ **Queries** | Every SQL statement this request ran, with bindings, duration, and `EXPLAIN` on demand |
+| 📡 **Events** | Application events and their payloads |
+| ✉️ **Emails** | What was sent, to whom, and the rendered body — without leaving the page |
+| 🧭 **Routes** | Every registered route and its handler |
+| 📝 **Logs** | The log stream, filterable by level and correlated by request id |
+| ⏱️ **Requests** | A trace per request — the waterfall of queries and events inside it |
+| ⚙️ **Config / Internals** | Resolved configuration and the toolbar's own state |
+
+There is also a full page at **`http://localhost:3333/__stats`** — the same data kept over time,
+with charts, slowest endpoints, grouped query analysis and saved filters. Its history lives in a
+SQLite file under `.adonisjs/server-stats/`, which is git-ignored.
+
+Nothing to configure and nothing to start: it is wired up in `config/server_stats.ts` and appears
+on its own.
+
+> ⚠️ **There is no login on any of it.** The debug panel renders resolved environment variables,
+> email bodies and SQL with its bindings to anyone who can reach the port.
+
+That is deliberate, and it is safe for one reason only — **the toolbar cannot exist in a deployed
+environment.** [`adonisjs-server-stats`](https://www.npmjs.com/package/adonisjs-server-stats) is a
+**devDependency**, the runtime image is built with `npm ci --omit=dev`, and every place that
+registers it — the provider in `adonisrc.ts`, the middleware in `start/kernel.ts`, the config in
+`config/server_stats.ts`, the Edge global in `start/view.ts` and the partial it includes from
+`layouts/base.edge` — is guarded on one flag:
+
+```ts
+// start/dev_toolbar.ts
+export const serverStatsEnabled =
+  process.env.NODE_ENV !== 'production' &&
+  process.env.NODE_ENV !== 'test' &&
+  isInstalled('adonisjs-server-stats')
+```
+
+Read that flag before changing it; each clause is load-bearing and two of them are not obvious.
+`NODE_ENV` is compared against `production` rather than `development` because AdonisJS evaluates
+`adonisrc.ts` **before** it loads `.env`, so at that moment `NODE_ENV` is `undefined` on a laptop —
+the obvious spelling disables the toolbar for everyone and says nothing about why. `test` is
+excluded separately because the suite installs dev dependencies but boots the application in the
+`test` environment, where the provider does not load; without that clause the layout would include
+a tag nothing had registered and Edge would print `@serverStats()` into the HTML that every
+functional and browser test asserts against. The resolve check is what makes a deploy that forgets
+to set `NODE_ENV` degrade to *off* rather than to a crash loop on a missing module.
+
+`config/shield.ts` makes two concessions to it, both keyed on the same flag and both inert in
+production:
+
+- **CSP** — `script-src` trades the nonce for `'unsafe-inline'`. The toolbar inlines its own
+  client, and a browser **ignores** `'unsafe-inline'` as soon as a nonce appears in the directive,
+  so the two cannot simply be listed together. Deployed, the nonce policy is untouched.
+- **CSRF** — the toolbar's own routes are exempt. Its dashboard mutates state from `fetch()` calls
+  that carry no token; the package guards those handlers itself with a same-origin check.
+
+The collector list in `config/server_stats.ts` is spelled out rather than left on `'auto'`, to drop
+one collector that counts rows in three tables every three seconds — with `debug: app.inDev` on
+both connections that is sixty lines of SQL a minute in your terminal on an idle server. The cost
+is three tiles; the Queries panel is unaffected, because it reads `db:query` events rather than
+that collector.
+
+To remove the toolbar entirely: delete the guarded blocks in the five files above and in
+`config/shield.ts`, delete `start/dev_toolbar.ts` and `partials/server_stats.edge`, then
+`npm uninstall adonisjs-server-stats`. Uninstalling alone is not enough — the application still
+*runs*, because every import is lazy and behind the flag, but `npm run typecheck` fails on four
+modules it can no longer resolve.
+
+---
+
+## 🔧 Environment
+
+Copy `.env.example` to `.env`. It arrives with every value filled in except one — **`APP_KEY` is
+the only thing you have to generate.** Everything below it belongs to a feature you can leave
+switched off.
+
+### ✅ Required
+
+| Variable | Notes |
+|---|---|
+| `APP_KEY` | 🔑 **The only blank in `.env.example`** — run `node ace generate:key`. Signs cookies and encrypts 2FA secrets, so **rotating it invalidates both** |
+| `APP_URL` | 🌐 Pre-filled as `http://localhost:3333`. Used in emails and webhook return URLs, so it must be the real hostname in production |
+
+### 🗄️ Database
+
+| Variable | Default | Notes |
+|---|---|---|
+| `DB_CONNECTION` | `sqlite` | `sqlite` \| `postgres` |
+| `DB_SQLITE_PATH` | `./tmp/db.sqlite3` | SQLite only |
+| `DATABASE_URL` | — | 🐘 Postgres; or use the discrete vars below |
+| `DB_HOST` `DB_PORT` `DB_USER` `DB_PASSWORD` `DB_DATABASE` | — | Postgres, if not using `DATABASE_URL` |
+| `DB_SSL` | — | `true` for most managed Postgres |
+
+### 📧 Mail
+
+| Variable | Default | Notes |
+|---|---|---|
+| `MAIL_MAILER` | `smtp` | `smtp` (Mailpit) locally, `resend` in production |
+| `MAIL_FROM_ADDRESS` | `onboarding@resend.dev` | ⚠️ Resend only sends from a **DNS-verified domain** — until then the sandbox sender reaches only your own address |
+| `MAIL_FROM_NAME` | `Acme` | |
+| `RESEND_API_KEY` | — | Required when `MAIL_MAILER=resend` |
+| `SMTP_HOST` `SMTP_PORT` | `localhost` `1025` | Mailpit |
+
+### 💳 Payments — [Creem](https://creem.io)
+
+Leave blank and the app runs on the Free plan; billing screens render and refuse to check out.
+
+| Variable | Notes |
+|---|---|
+| `CREEM_API_KEY` | 🔐 Your secret key |
+| `CREEM_API_URL` | `https://test-api.creem.io` — the **live** host is a deliberate, visible change |
+| `CREEM_WEBHOOK_SECRET` | 🪝 HMAC secret for `POST /webhooks/creem` |
+| `CREEM_PRODUCT_PRO` / `CREEM_PRODUCT_BUSINESS` | Product ids, mapped back to plan keys |
+
+> 🚇 For local webhooks: `cloudflared tunnel --url http://localhost:3333`, then
+> `node ace billing:replay <id>` to re-run a stored payload with **no network at all**.
+
+### 📁 Storage
+
+| Variable | Default | Notes |
+|---|---|---|
+| `DRIVE_DISK` | `fs` | `fs` locally \| `r2` in production |
+| `DRIVE_FS_ROOT` | `storage` | Where the local disks live |
+| `R2_ACCOUNT_ID` `R2_ACCESS_KEY_ID` `R2_SECRET_ACCESS_KEY` `R2_BUCKET` | — | Cloudflare R2 |
+| `R2_ENDPOINT` | — | `https://<account_id>.r2.cloudflarestorage.com` |
+| `R2_PUBLIC_URL` | — | 🌍 Custom domain fronting the **public** disk (avatars, logos) |
+
+### 🌐 Social login
+
+| Variable | Notes |
+|---|---|
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Blank hides the Google button |
+| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | Blank hides the GitHub button |
+
+### 🧰 Operations
+
+| Variable | Default | Notes |
+|---|---|---|
+| `LIMITER_STORE` | `database` | `database` \| `memory` (tests) |
+| `QUEUE_WORKER_CONCURRENCY` | `5` | |
+| `QUEUE_POLL_INTERVAL_MS` | `1000` | |
+| `ADMIN_IP_ALLOWLIST` | — | 🚧 Comma-separated. Gates all of `/admin` including its login. Empty disables it. A second layer, **never** the boundary |
+| `SESSION_DRIVER` | `cookie` | |
+| `TRUST_PROXY` | `false` | ⚠️ Believe `X-Forwarded-For`. On behind a proxy you control; off otherwise — it decides what every rate limit counts against and what the audit trail records |
+| `CSP_REPORT_ONLY` | `false` | Report policy violations without blocking, while tightening a directive on a live site |
+| `LOG_LEVEL` | `info` | |
+| `DEV_TWO_FACTOR_CODE` | `123456` | ⚠️ Accepted in place of a real code, and **only** while `NODE_ENV=development`. Unset it anywhere that is not a laptop |
+
+---
+
+## 📸 Screenshots
+
+Every one of these is the seeded demo data — `node ace db:seed && node ace dev:seed` — so what is
+on the page is what you get after two commands, not a mock-up.
+
+Start with the four account types. Note what each role **cannot** see: the nav is gated, so nobody
+is offered a screen that would refuse them.
+
+| Account type | What it looks like |
+|---|---|
+| 👑 **Workspace owner** — usage meters, billing and API keys in the nav | <img src="docs/screenshots/owner-dashboard.jpg" alt="Owner dashboard with usage meters, recent todos and finished work" width="420" /> |
+| 👤 **Workspace member** — no Billing, no API Keys, and a 🔴 dot on the bell for a new announcement | <img src="docs/screenshots/member-dashboard.jpg" alt="Member dashboard with an unread announcement dot on the bell" width="420" /> |
+| 🛡️ **Staff — admin** — volume over 7/30/90 days, MRR and churn, who registered, started paying, renewed or left | <img src="docs/screenshots/staff-admin-dashboard.jpg" alt="Admin back-office dashboard with volume and growth" width="420" /> |
+| 🎧 **Staff — support** — every screen except Staff management, which is admin-only | <img src="docs/screenshots/staff-support-organisations.jpg" alt="Support view of organisation search" width="420" /> |
+
+<details>
+<summary>📂 <b>The tenant application</b></summary>
+
+| Screen | |
+|---|---|
+| ✅ **A list** — filters, priorities, assignees, due dates in red when they have passed, completed items struck through | <img src="docs/screenshots/owner-list.jpg" alt="A todo list with priorities, assignees and due dates" width="420" /> |
+| 📋 **Lists** — colour per list, a quota pill per card, archived hidden until asked for | <img src="docs/screenshots/owner-lists.jpg" alt="Lists screen with per-list quota pills" width="420" /> |
+| 👥 **Members** — seats against the plan, roles, last seen, and a pending invitation | <img src="docs/screenshots/owner-members.jpg" alt="Members screen with seats meter and a pending invitation" width="420" /> |
+| 📎 **Files** — drag and drop, type sniffing, storage counted against the plan | <img src="docs/screenshots/owner-files.jpg" alt="Files screen with uploads and a storage meter" width="420" /> |
+| 🔌 **API keys** — prefixes only, scope badges, and two weeks of requests with errors in red | <img src="docs/screenshots/owner-api-keys.jpg" alt="API keys screen with a request chart" width="420" /> |
+| 💳 **Billing** — current plan, usage, the plan grid, and every charge and refund | <img src="docs/screenshots/owner-billing.jpg" alt="Billing screen with plan grid and transaction history" width="420" /> |
+| 🔐 **Security** — two-factor turned on, recovery codes, and changing a password | <img src="docs/screenshots/owner-security.jpg" alt="Security settings with two-factor enabled" width="420" /> |
+| 📣 **Announcements** — one-way notices, new ones highlighted | <img src="docs/screenshots/member-announcements.jpg" alt="Announcements feed" width="420" /> |
+| 🎫 **Support** — the workspace's tickets, with the ones we have answered marked | <img src="docs/screenshots/owner-support.jpg" alt="Support ticket list with answered and resolved tickets" width="420" /> |
+| 💬 **A ticket** — the conversation with staff, attachments, and replying to a resolved ticket reopens it | <img src="docs/screenshots/owner-support-ticket.jpg" alt="A support conversation with a staff reply" width="420" /> |
+
+</details>
+
+<details>
+<summary>🛟 <b>When something is wrong</b></summary>
+
+| Screen | |
+|---|---|
+| ⚠️ **Past due** — a charge failed. Nothing is taken away; the banner is on every screen until it is fixed | <img src="docs/screenshots/owner-past-due.jpg" alt="Billing screen for a past-due workspace" width="420" /> |
+| 🔎 **A workspace, from the back office** — usage, members, the subscription mirror, plan and limit overrides, impersonation | <img src="docs/screenshots/staff-admin-organisation.jpg" alt="Back-office view of one workspace" width="420" /> |
+| 🧾 **Subscriptions** — every subscription, filterable by state, with what the provider last told us | <img src="docs/screenshots/staff-admin-subscriptions.jpg" alt="Back-office subscription ledger" width="420" /> |
+| 🎧 **The support queue** — waiting on us, waiting on them, resolved; every workspace's tickets beside the open conversation | <img src="docs/screenshots/staff-support-queue.jpg" alt="Back-office support queue with a conversation open" width="420" /> |
+
+</details>
+
+---
+
+## 🧑‍💻 Stack
+
+### 🗣️ Languages
+
+| | Language | Used for |
+|---|---|---|
+| 🟦 | **TypeScript** `~6.0` | All application code, strict, ESM only |
+| 🌐 | **Edge** `^6.5` | Server-rendered templates and the component library |
+| 🎨 | **CSS** | Custom properties + nesting. No Tailwind, no CSS-in-JS |
+| 🟨 | **JavaScript** | Alpine sprinkles only — every interaction works without it |
+| 🐿️ | **SQL** | Through Lucid. Raw SQL is banned in application code |
+
+### 🏗️ Framework & runtime
+
+| | Package | Version | Role |
+|---|---|---|---|
+| 🅰️ | `@adonisjs/core` | `^7.5` | HTTP, IoC, Ace CLI |
+| 🟢 | **Node.js** | `>=24` | Runtime |
+| 💧 | `@adonisjs/lucid` | `^22.4` | ORM, migrations, generated schema types |
+| 🍃 | `edge.js` | `^6.5` | Template engine |
+| ⚡ | `vite` | `^8.2` | Asset pipeline |
+| 🏔️ | `alpinejs` | `^3.16` | Client-side sprinkles |
+
+### 🧩 Adonis packages
+
+| | Package | Version | Role |
+|---|---|---|---|
+| 🔐 | `@adonisjs/auth` | `^10.1` | Session guards — separate tenant and staff guards |
+| 🛂 | `@adonisjs/bouncer` | `^4.0` | Policies. Every policy takes the actor explicitly |
+| 🌐 | `@adonisjs/ally` | `^6.3` | Google & GitHub OAuth |
+| 📧 | `@adonisjs/mail` | `^10.4` | Resend + SMTP transports |
+| 📁 | `@adonisjs/drive` | `^4.0` | Local filesystem + S3/R2 disks |
+| ⏱️ | `@adonisjs/limiter` | `^3.0` | Rate limiting, database store |
+| 🛡️ | `@adonisjs/shield` | `^9.0` | CSRF, CSP, security headers |
+| 🍪 | `@adonisjs/session` | `^8.1` | Sessions and flash messages |
+| 📦 | `@adonisjs/static` `@adonisjs/vite` | `^2.0` `^6.0` | Static files, asset tags |
+
+### 🔩 Libraries
+
+| | Package | Version | Role |
+|---|---|---|---|
+| ✅ | `@vinejs/vine` | `^4.4` | Request validation |
+| 🐿️ | `better-sqlite3` | `^13.0` | SQLite driver |
+| 🐘 | `pg` | `^8.23` | PostgreSQL driver |
+| ☁️ | `@aws-sdk/client-s3` + `s3-request-presigner` | `^3.1127` | R2 via the S3 API |
+| 🕰️ | `luxon` | `^3.7` | Dates. Everything is stored UTC |
+| 🆔 | `nanoid` | `^5.1` | Prefixed public ids — `org_…`, `usr_…`, `ntf_…` |
+| 🔢 | `otplib` + `qrcode` | `^13.5` `^1.5` | TOTP and enrolment QR codes |
+
+### 🧪 Tooling
+
+| | Package | Role |
+|---|---|---|
+| 🥋 | `@japa/runner` + `assert` + `api-client` + `browser-client` | Test runner and HTTP/browser clients |
+| 🎭 | `@faker-js/faker` | Factories |
+| 🧹 | `eslint` + `prettier` | Lint and format, Adonis configs |
+| 🔥 | `hot-hook` | HMR in development |
+| 🩺 | `youch` + `pino-pretty` | Readable errors and logs |
+| 🔍 | `adonisjs-server-stats` | [The development toolbar](#-the-development-toolbar) — stats bar, debug panel, `/__stats`. Dev only, and absent from the image |
+
+---
+
+## ⌨️ Commands
+
+```bash
+npm run dev            # 🔥 dev server with HMR
+npm start              # 🚀 production server
+npm run build          # 📦 compile
+npm test               # 🧪 628 tests (unit, functional, browser)
+npm run lint           # 🧹 eslint
+npm run typecheck      # 🟦 tsc --noEmit
+npm run format         # ✨ prettier
+```
+
+### 🗄️ Database
+
+```bash
+node ace migration:run           # apply migrations (regenerates database/schema.ts)
+node ace migration:fresh --seed  # drop, migrate, seed the test accounts
+node ace db:seed                 # seeders only
+node ace dev:seed                # 🏭 the demo dataset the screenshots come from
+```
+
+### ⚙️ Queue & schedule
+
+```bash
+node ace queue:work                     # the worker — required for email
+node ace queue:work --once              # drain what is due and exit
+node ace queue:retry --all              # re-queue failures
+node ace schedule:run --interval=daily  # 🕐 cron calls this; it only dispatches
+```
+
+### 💳 Billing & staff
+
+```bash
+node ace billing:sync --dry-run      # diff local subscriptions against the provider
+node ace billing:replay --failed     # re-apply stored webhooks, no network
+node ace staff:create --role=admin   # 🛡️ create a back-office account
+node ace dev:totp admin@example.com  # 🔢 a real TOTP code for a seeded account
+```
+
+### 🧪 Browser tests
+
+```bash
+npx playwright install chromium   # once
+node ace test browser             # 🌐 signup, 2FA, invitations, checkout, upload
+```
+
+---
+
+## 🧭 How it is organised
+
+```
+app/
+  api/            🔌 keys, scopes, cursors, OpenAPI
+  audit/          📜 the append-only trail
+  auth/           🔐 tokens, registration, TOTP
+  billing/        💳 PaymentProvider, plans, webhooks, reconciliation
+  notifications/  📣 the audience predicate and the feed
+  storage/        📁 keys, MIME sniffing, quota accounting
+  queue/          ⚙️ the queue and its job handlers
+  admin/          🧑‍💼 back-office services and the staff policy
+  modules/lists/  📋 the demo domain — one folder, deletable
+start/            quotas · dashboard · api · jobs · seeders — the registries a feature fills
+config/           plans.ts · payments.ts · drive.ts · limiter.ts · database.ts
+database/         migrations · seeders · generated schema types
+resources/views/  layouts · components · pages · emails
+start/routes/     web · auth · api · billing · admin
+tests/            unit · functional (incl. tenant isolation and hardening) · browser
+docs/             deployment.md · security.md
+```
+
+---
+
+## 🚢 Deployment
+
+Two processes, and the worker is not optional — every email, webhook and scheduled job goes through
+the queue, so an application without a worker accepts work it will never do:
+
+```bash
+node ace migration:run --force   # release phase
+node bin/server.js               # web
+node ace queue:work              # worker
+```
+
+Or the whole stack, the way it runs deployed:
+
+```bash
+docker compose up --build
+docker compose run --rm web node ace migration:run --force
+```
+
+📘 [`docs/deployment.md`](./docs/deployment.md) — the image, the processes, health checks, proxies,
+backups, what to alert on, and a checklist for the first deploy.
+🔐 [`docs/security.md`](./docs/security.md) — what this does about each of the OWASP Top 10, what it
+deliberately does not, and what is left to whoever deploys it.
+
+✅ CI runs lint, typecheck, the full suite against **both** SQLite and PostgreSQL, and a build of
+the image on every push. A migration that only works on one engine fails the build.
+
+---
+
+<div align="center">
+
+Built with 🅰️ [AdonisJS](https://adonisjs.com) · 📓 read [`plan.md`](./plan.md) for the reasoning
+behind every decision
+
+</div>

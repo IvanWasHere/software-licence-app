@@ -1,0 +1,26 @@
+{{--
+  One checkbox inside a `checkbox.group`.
+
+  Props:
+    value — the submitted value
+    label — the text beside it
+--}}
+@let(checkboxValue = String($props.get('value')))
+@let(checkboxId = `${$context.idPrefix}_${checkboxValue.replace(/[^a-z0-9]+/gi, '_')}`)
+@let(checkboxOld = Array.isArray($context.oldValues) ? $context.oldValues : [$context.oldValues])
+
+<div class="check-row">
+  <input {{
+    $props
+      .except(['type', 'value', 'label'])
+      .merge({
+        type: 'checkbox',
+        name: $context.name,
+        id: checkboxId,
+        value: checkboxValue,
+        checked: checkboxOld.includes(checkboxValue),
+      })
+      .toAttrs()
+  }} />
+  <label for="{{ checkboxId }}">{{ $props.get('label') ?? checkboxValue }}</label>
+</div>

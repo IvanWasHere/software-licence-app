@@ -1,0 +1,142 @@
+/*
+| The billing screen: current-plan banner and the plan grid.
+| Ported from ui-example/index.html (plan §13.4 "Billing").
+|
+| `.plan-card` doubles as the inline upsell shown when a create is blocked by
+| a plan limit (plan §7.4), which is why it works outside the plan grid too.
+*/
+
+.billing-current {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: 15px 20px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.billing-current-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.billing-current-plan {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.billing-current-meta {
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.plan-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.plan-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: 22px;
+  position: relative;
+  transition: box-shadow var(--transition);
+}
+
+.plan-card:hover {
+  box-shadow: var(--shadow-hover);
+}
+
+.plan-card.selected,
+.plan-card.current {
+  border-color: var(--accent-500);
+  box-shadow: var(--ring-selected);
+}
+
+.plan-badge {
+  position: absolute;
+  top: -1px;
+  right: 16px;
+  background: var(--accent-500);
+  color: var(--white);
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.plan-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-strong);
+  margin-bottom: 4px;
+}
+
+.plan-desc {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+.plan-price {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+  margin-bottom: 18px;
+}
+
+.plan-amount {
+  font-size: 31px;
+  font-weight: 600;
+  color: var(--text-strong);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.plan-period {
+  font-size: 13.5px;
+  color: var(--text-muted);
+}
+
+.plan-features {
+  list-style: none;
+  margin-bottom: 20px;
+}
+
+.plan-features li {
+  font-size: 13.5px;
+  color: var(--text-soft);
+  padding: 5px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.plan-check {
+  color: var(--green-600);
+  font-weight: 700;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.plan-empty {
+  color: var(--slate-300);
+}
+
+.plan-btn {
+  width: 100%;
+}

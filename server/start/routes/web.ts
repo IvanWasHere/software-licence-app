@@ -1,0 +1,150 @@
+/*
+|--------------------------------------------------------------------------
+| Application routes
+|--------------------------------------------------------------------------
+|
+| Everything behind a verified, signed-in tenant session. The middleware
+| stack is the same for every route here, which is what makes it impossible
+| to add a screen that forgets to scope itself to an organisation.
+|
+*/
+
+import router from '@adonisjs/core/services/router'
+import { middleware } from '#start/kernel'
+import { controllers } from '#generated/controllers'
+import { registerListWebRoutes } from '#modules/lists/routes'
+import { supportMessageThrottle, supportTicketThrottle } from '#start/limiter'
+
+router
+  .group(() => {
+    router.get('/dashboard', [controllers.Dashboard, 'index']).as('dashboard.index')
+
+    router.get('/settings/profile', [controllers.settings.Profile, 'edit']).as('settings.profile')
+    router
+      .post('/settings/profile', [controllers.settings.Profile, 'update'])
+      .as('settings.profile.update')
+    router
+      .post('/settings/profile/avatar', [controllers.settings.Profile, 'updateAvatar'])
+      .as('settings.profile.avatar')
+
+    /**
+     * Workspace settings and the team. Reading them is open to every member;
+     * the owner-only actions are gated by policy inside the controllers, so
+     * a member sees the screen without the buttons rather than a 403.
+     */
+    router
+      .get('/settings/organization', [controllers.settings.Organization, 'edit'])
+      .as('settings.organization')
+    router
+      .post('/settings/organization', [controllers.settings.Organization, 'update'])
+      .as('settings.organization.update')
+    router
+      .post('/settings/organization/logo', [controllers.settings.Organization, 'updateLogo'])
+      .as('settings.organization.logo')
+    router
+      .post('/settings/organization/transfer', [controllers.organizations.Ownership, 'transfer'])
+      .as('settings.organization.transfer')
+    router
+      .post('/settings/organization/delete', [controllers.settings.Organization, 'destroy'])
+      .as('settings.organization.destroy')
+    router
+      .post('/settings/organization/leave', [controllers.organizations.Member, 'leave'])
+      .as('settings.organization.leave')
+
+    /**
+     * Lists and todos — the demo domain (D8). Registered from the module so
+     * that removing it is two lines here (docs/modules.md), and registered
+     * *inside* this group so it inherits the same middleware stack as every
+     * other screen.
+     */
+    registerListWebRoutes()
+
+    /**
+     * Files (plan §10). Uploading is open to every member; deleting is the
+     * uploader's or the owner's, decided by `FilePolicy`.
+     *
+     * `show` redirects to a short-lived signed URL rather than streaming the
+     * bytes, so a download does not go through our event loop.
+     */
+    router.get('/files', [controllers.files.File, 'index']).as('files.index')
+    router.post('/files', [controllers.files.File, 'store']).as('files.store')
+    router.get('/files/:id', [controllers.files.File, 'show']).as('files.show')
+    router.post('/files/:id/delete', [controllers.files.File, 'destroy']).as('files.destroy')
+
+    /**
+     * Support tickets (plan §21). Reached from the account menu rather than
+     * the sidebar: it is a thing you do about the product, not a place in it.
+     *
+     * Opening and replying are throttled by account — a contact surface
+     * without a limiter is a spam target with a database behind it (§21.8).
+     * The attachment route authorises the *ticket* and only then mints a
+     * signed URL, so the grant never exists for somebody who cannot read the
+     * conversation.
+     */
+    router.get('/support', [controllers.support.Support, 'index']).as('support.index')
+    router.get('/support/new', [controllers.support.Support, 'create']).as('support.create')
+    router
+      .post('/support', [controllers.support.Support, 'store'])
+      .as('support.store')
+      .use(supportTicketThrottle)
+    router.get('/support/:id', [controllers.support.Support, 'show']).as('support.show')
+    router
+      .post('/support/:id/replies', [controllers.support.Support, 'reply'])
+      .as('support.reply')
+      .use(supportMessageThrottle)
+    router
+      .get('/support/:id/attachments/:fileId', [controllers.support.Support, 'attachment'])
+      .as('support.attachment')
+
+    /**
+     * Announcements (plan §20). Open to every member — there is nothing
+     * owner-only about being told something — and what each person sees is
+     * decided by the audience predicate rather than by a policy.
+     */
+    router
+      .get('/notifications', [controllers.notifications.Notification, 'index'])
+      .as('notifications.index')
+
+    router.get('/members', [controllers.organizations.Member, 'index']).as('members.index')
+    router
+      .post('/members/invite', [controllers.organizations.Member, 'invite'])
+      .as('members.invite')
+    router
+      .post('/members/:id/remove', [controllers.organizations.Member, 'remove'])
+      .as('members.remove')
+    router
+      .post('/invitations/:id/revoke', [controllers.organizations.Invitation, 'revoke'])
+      .as('invitations.revoke')
+    router
+      .post('/invitations/:id/resend', [controllers.organizations.Invitation, 'resend'])
+      .as('invitations.resend')
+
+    router
+      .get('/settings/security', [controllers.settings.Security, 'edit'])
+      .as('settings.security')
+    router
+      .post('/settings/security/password', [controllers.settings.Security, 'updatePassword'])
+      .as('settings.security.password')
+    router
+      .post('/settings/security/two-factor', [controllers.settings.Security, 'startTwoFactor'])
+      .as('settings.security.two_factor.start')
+    router
+      .post('/settings/security/two-factor/confirm', [
+        controllers.settings.Security,
+        'confirmTwoFactor',
+      ])
+      .as('settings.security.two_factor.confirm')
+    router
+      .post('/settings/security/two-factor/recovery-codes', [
+        controllers.settings.Security,
+        'regenerateRecoveryCodes',
+      ])
+      .as('settings.security.two_factor.recovery_codes')
+    router
+      .post('/settings/security/two-factor/disable', [
+        controllers.settings.Security,
+        'disableTwoFactor',
+      ])
+      .as('settings.security.two_factor.disable')
+  })
+  .use([middleware.auth(), middleware.verifiedEmail(), middleware.organization()])

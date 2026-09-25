@@ -1,0 +1,29 @@
+{{--
+  Props:
+    text    — label (or use the slot)
+    variant — primary | outline | ghost | danger  (default: primary)
+    size    — sm | xs                              (default: full height)
+    block   — stretch to the container width
+--}}
+@let(buttonTextFromSlot = await $slots.main())
+@let(variant = $props.get('variant') ?? 'primary')
+@let(classes = [
+  'btn',
+  `btn-${variant}`,
+  $props.get('size') ? `btn-${$props.get('size')}` : '',
+  $props.get('block') ? 'btn-block' : '',
+])
+
+<button {{
+  $props
+    .except(['text', 'variant', 'size', 'block'])
+    .merge({ class: classes, type: 'button' })
+    .toAttrs()
+}}>
+  {{-- Slot markup is printed as-is; a `text` prop is a value, so it is escaped. --}}
+  @if(buttonTextFromSlot.trim())
+    {{{ buttonTextFromSlot }}}
+  @else
+    {{ $props.get('text') ?? '' }}
+  @end
+</button>

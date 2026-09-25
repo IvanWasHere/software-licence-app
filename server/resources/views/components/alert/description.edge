@@ -1,0 +1,15 @@
+@let(descriptionFromSlot = await $slots.main())
+@let(classes = ['toast-message'])
+
+{{--
+  Flash messages arrive here, and several of them are built from something a
+  person typed — a file name, a list title. The `text` prop is therefore
+  escaped; only slot markup, which a template wrote, is printed as-is.
+--}}
+<section {{ $props.except(['text']).merge({ class: classes }).toAttrs() }}>
+  @if(descriptionFromSlot.trim())
+    {{{ descriptionFromSlot }}}
+  @else
+    {{ $props.get('text') ?? '' }}
+  @end
+</section>

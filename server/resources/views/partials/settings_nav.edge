@@ -1,0 +1,29 @@
+{{--
+  Sub-navigation inside Settings.
+
+  These are real routes rather than tabs (plan §13.3), so each one can be
+  linked, bookmarked and permission-gated on its own — /settings/organization
+  is owner-only from M2.
+--}}
+<nav class="pillset" aria-label="Settings">
+  <a
+    href="{{ urlFor('settings.profile') }}"
+    class="pill {{ request.url() === urlFor('settings.profile') ? 'active' : '' }}"
+  >
+    Profile
+  </a>
+  <a
+    href="{{ urlFor('settings.security') }}"
+    class="pill {{ request.url() === urlFor('settings.security') ? 'active' : '' }}"
+  >
+    Security
+  </a>
+  @if(hasRoute('settings.organization'))
+    <a
+      href="{{ urlFor('settings.organization') }}"
+      class="pill {{ request.url() === urlFor('settings.organization') ? 'active' : '' }}"
+    >
+      Workspace
+    </a>
+  @end
+</nav>

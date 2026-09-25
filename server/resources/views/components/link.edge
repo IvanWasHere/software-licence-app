@@ -1,0 +1,22 @@
+@let(linkTextFromSlot = await $slots.main())
+@let(linkHref = $props.has('href')
+  ? $props.get('href')
+  : $props.get('route')
+    ? urlFor($props.get('route'), $props.get('routeParams'), $props.get('routeOptions'))
+    : undefined)
+@let(activeClass = request.url() === linkHref ? 'current' : '')
+@let(classes = [activeClass])
+
+<a {{
+  $props
+    .except(['href', 'text', 'route', 'routeParams', 'routeOptions'])
+    .merge({ href: linkHref, class: classes })
+    .toAttrs()
+}}>
+  {{-- Slot markup is printed as-is; a `text` prop is escaped (see badge.edge). --}}
+  @if(linkTextFromSlot.trim())
+    {{{ linkTextFromSlot }}}
+  @else
+    {{ $props.get('text') ?? '' }}
+  @end
+</a>

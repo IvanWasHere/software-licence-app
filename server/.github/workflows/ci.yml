@@ -1,0 +1,111 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# A runner has no `.env`, and `.env.test` only carries the values that differ
+# in tests. Everything `start/env.ts` demands unconditionally therefore has to
+# be supplied here, or `node ace` refuses to boot at all.
+env:
+  APP_KEY: ci_only_key_do_not_use_in_production
+  NODE_ENV: test
+  PORT: 3333
+  HOST: localhost
+  LOG_LEVEL: warn
+  APP_URL: http://localhost:3333
+  # The suite writes and compares UTC throughout and fails in any other zone.
+  # Runners happen to be UTC already; pinning it means that staying true is not
+  # luck.
+  TZ: UTC
+
+jobs:
+  static:
+    name: Lint & typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+
+  test:
+    name: Test (${{ matrix.database }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        database: [sqlite, postgres]
+
+    # The portability rules in CONTRIBUTING.md are only enforced if the suite
+    # actually runs on both engines, so this matrix is not optional.
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+
+      # The browser suite drives a real Chromium (plan §15). `--with-deps`
+      # installs the shared libraries a headless browser needs on a runner
+      # that has none of them; without it the suite fails at launch rather
+      # than on an assertion.
+      - name: Install the browser the browser tests drive
+        run: npx playwright install --with-deps chromium
+
+      - name: Run migrations
+        run: node ace migration:run --force
+        env:
+          DB_CONNECTION: ${{ matrix.database }}
+          DB_SQLITE_PATH: ./tmp/db.sqlite3
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/app_test
+
+      - name: Run tests
+        run: npm test
+        env:
+          DB_CONNECTION: ${{ matrix.database }}
+          DB_SQLITE_PATH: ./tmp/db.sqlite3
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/app_test
+
+  image:
+    name: Build the image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # The Dockerfile is part of the deliverable (plan §16), and it breaks
+      # the same way any other build does — a dependency that needs a
+      # toolchain, a file that stopped being copied. Built here, never
+      # pushed: this job's product is the knowledge that it still builds.
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

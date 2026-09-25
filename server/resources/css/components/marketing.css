@@ -1,0 +1,144 @@
+/*
+| The public site shell — header, hero, footer. The mockup has no marketing
+| screens (it starts at the sign-in card), so this is new work built from the
+| same tokens. The landing, pricing and legal pages themselves are M8; this is
+| the layout they will use.
+*/
+
+.marketing-header {
+  height: var(--topbar-height);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 32px;
+  gap: 16px;
+}
+
+.marketing-nav {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+/*
+ * Plain nav links only. A bare `.marketing-nav a` outranks `.btn-primary`
+ * on specificity, so it repainted the "Get started" button's white label
+ * gray — a rule meant for text links must not reach into buttons that
+ * happen to be anchors.
+ */
+.marketing-nav a:not(.btn) {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text-soft);
+  text-decoration: none;
+}
+
+.marketing-nav a:not(.btn):hover {
+  color: var(--text-strong);
+}
+
+.marketing-main {
+  background: var(--surface);
+  min-height: calc(100vh - var(--topbar-height));
+}
+
+.marketing-section {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 64px 32px;
+}
+
+.hero {
+  text-align: center;
+  padding: 96px 28px 72px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.hero-title {
+  font-size: 46px;
+  line-height: 1.1;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--text-strong);
+  margin-bottom: 16px;
+}
+
+.hero-subtitle {
+  font-size: 17px;
+  line-height: 1.55;
+  color: var(--text-soft);
+  margin-bottom: 28px;
+}
+
+.hero-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/*
+| The one place a button is bigger than the dashboard's 34px: a landing page
+| has a single thing to ask for and room to ask for it.
+*/
+.hero-actions .btn {
+  width: auto;
+  height: 42px;
+  padding: 0 20px;
+  font-size: 14.5px;
+}
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.feature-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: 22px;
+}
+
+.feature-title {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--text-strong);
+  margin-bottom: 6px;
+}
+
+.feature-desc {
+  font-size: 13.5px;
+  color: var(--text-soft);
+  line-height: 1.55;
+}
+
+.marketing-footer {
+  border-top: 1px solid var(--border);
+  padding: 28px;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  background: var(--surface);
+}
+
+/*
+| Error and maintenance pages reuse the centred auth shell (plan §13.5).
+*/
+.status-page {
+  text-align: center;
+  max-width: 420px;
+}
+
+.status-code {
+  font-size: 42px;
+  font-weight: 700;
+  color: var(--accent-500);
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}

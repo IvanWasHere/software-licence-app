@@ -1,0 +1,160 @@
+{{--
+  The mockup's Products grid, re-cut as lists (plan §13.6.2): the same
+  `.product-card` shape, with the stock pill carrying a todo count instead.
+--}}
+@component('layouts/app', { title: 'Lists' })
+  @pageHeader({ description: 'Lists are shared with everyone in the workspace.' })
+    @slot('actions')
+      {{--
+        Disabled at the cap, with the reason in the tooltip: the ceiling has to
+        be visible *before* the click, not discovered by losing a filled-in form
+        to a redirect (plan §7.4).
+      --}}
+      @if(withinLimit('lists'))
+        @!button({
+          text: 'New list',
+          size: 'sm',
+          '@click': "document.getElementById('new-list').showModal()",
+        })
+      @else
+        @!button({
+          text: 'New list',
+          size: 'sm',
+          disabled: true,
+          title: `Your plan allows ${usage.quotas.lists.limit} lists. Delete one, or upgrade for more.`,
+        })
+      @end
+    @end
+  @end
+
+  {{--
+    The inline upsell (plan §7.4). Shown when the workspace is at its ceiling
+    — and *also* when a blocked create redirected here, where `planLimit`
+    carries the same numbers the API returns as a 402.
+  --}}
+  @if(usage.quotas.lists.isFull || flashMessages.has('planLimit'))
+    <div class="info-box info-box-warning">
+      <p>
+        <strong>
+          {{ flashMessages.get('planLimit')
+            ? flashMessages.get('planLimit').message
+            : `You are using all ${usage.quotas.lists.limit} lists on the ${usage.plan.name} plan.` }}
+        </strong>
+      </p>
+      <p>
+        Nothing is locked — every list here stays readable and editable. Deleting a list frees a
+        slot; archiving one does not.
+        @if(isOwner && hasRoute('billing.index'))
+          <a href="{{ urlFor('billing.index') }}">See plans</a>.
+        @else
+          Ask the workspace owner to upgrade for more.
+        @end
+      </p>
+    </div>
+  @end
+
+  @if(lists.length)
+    <div class="card-grid">
+      @each(list in lists)
+        <a href="{{ urlFor('lists.show', { id: list.publicId }) }}" class="entity-card">
+          <span class="card-stripe card-stripe-{{ list.color }}"></span>
+          <div class="entity-card-body">
+            <p class="entity-card-name">
+              {{ list.name }}
+              @if(list.isArchived)
+                @!badge({ text: 'Archived', tone: 'neutral' })
+              @end
+            </p>
+            <p class="field-hint" style="margin-bottom: 10px">
+              {{ list.description || 'No description' }}
+            </p>
+            <div class="entity-card-meta">
+              <span class="field-hint">
+                {{ list.createdBy ? list.createdBy.displayName : 'Someone' }}
+              </span>
+              {{--
+                The mockup's stock pill, re-cut as a todo count (plan §13.6.2):
+                amber from 80% of the per-list cap, red at it. An unlimited
+                plan has nothing to be near, so it stays green.
+              --}}
+              @let(cardRatio = todoLimit ? list.todosCount / todoLimit : 0)
+              <span class="count-pill {{ cardRatio >= 1 ? 'count-full' : cardRatio >= 0.8 ? 'count-near' : 'count-ok' }}">
+                {{ todoLimit ? `${list.todosCount} / ${todoLimit}` : list.todosCount }}
+                {{ list.todosCount === 1 && !todoLimit ? 'todo' : 'todos' }}
+              </span>
+            </div>
+          </div>
+        </a>
+      @end
+    </div>
+  @else
+    @panel.root()
+      @!emptyState({
+        icon: 'list',
+        title: includeArchived ? 'Nothing here' : 'No lists yet',
+        description: 'The first one you create shows up on this page for the whole team.',
+      })
+      @if(withinLimit('lists'))
+        <div class="btn-row" style="justify-content: center">
+          @!button({
+            text: 'Create the first list',
+            size: 'sm',
+            '@click': "document.getElementById('new-list').showModal()",
+          })
+        </div>
+      @end
+    @end
+  @end
+
+  <div class="btn-row">
+    @if(includeArchived)
+      <a class="btn btn-outline btn-sm" href="{{ urlFor('lists.index') }}">Hide archived</a>
+    @else
+      <a class="btn btn-outline btn-sm" href="{{ urlFor('lists.index') }}?archived=1">
+        Show archived
+      </a>
+    @end
+  </div>
+
+  @modal({
+    id: 'new-list',
+    title: 'New list',
+    description: 'Everyone in the workspace will be able to see and edit it.',
+  })
+    @form({ route: 'lists.store', method: 'POST', id: 'new-list-form' })
+      @field.root({ name: 'name' })
+        @!field.label({ text: 'Name' })
+        @!input.control({ placeholder: 'Launch checklist' })
+        @!field.error()
+      @end
+
+      @field.root({ name: 'description' })
+        @!field.label({ text: 'Description' })
+        @!input.control({ placeholder: 'What belongs in here' })
+        @!field.error()
+      @end
+
+      @field.root({ name: 'color' })
+        @!field.label({ text: 'Colour' })
+        @!select.control({
+          options: [
+            { value: 'blue', name: 'Blue' },
+            { value: 'green', name: 'Green' },
+            { value: 'orange', name: 'Orange' },
+            { value: 'purple', name: 'Purple' },
+            { value: 'red', name: 'Red' },
+            { value: 'gray', name: 'Grey' },
+          ],
+        })
+      @end
+    @end
+    @slot('footer')
+      @!button({
+        text: 'Cancel',
+        variant: 'outline',
+        '@click': 'close',
+      })
+      @!button({ text: 'Create list', type: 'submit', form: 'new-list-form' })
+    @end
+  @end
+@end

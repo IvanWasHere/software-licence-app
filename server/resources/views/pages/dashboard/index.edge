@@ -1,0 +1,57 @@
+{{--
+  The Overview screen (plan §13.5).
+
+  Names nothing it shows. The figures and the panels are widgets registered
+  in `start/dashboard.ts`, and the meters are whatever `start/quotas.ts`
+  registers — so a feature added or removed changes this page without
+  touching it (docs/modules.md).
+
+  Each widget's partial is rendered with this scope plus the `widget` loop
+  variable, and reads its own data as `widget.data`.
+--}}
+@component('layouts/app', { title: 'Overview' })
+  @if(widgets.stats.length)
+    <div class="stats-grid">
+      @each(widget in widgets.stats)
+        @include(widget.partial)
+      @end
+    </div>
+  @end
+
+  {{--
+    Plan usage (plan §7.4). Driven by the same PlanService numbers as
+    enforcement, which is the only reason a meter is worth showing: a gauge
+    that disagrees with the block is worse than no gauge.
+  --}}
+  @panel.root({ title: `Usage on the ${usage.plan.name} plan` })
+    @slot('actions')
+      @if(isOwner && hasRoute('billing.index'))
+        @!link({ route: 'billing.index', text: 'Billing', class: 'btn-ghost' })
+      @end
+    @end
+    {{-- Whatever `start/quotas.ts` registers, in that file's order. --}}
+    <div class="usage-grid">
+      @each(meter in usage.meters)
+        @!usageMeter({ label: meter.label, current: meter.current, limit: meter.limit })
+      @end
+    </div>
+  @end
+
+  @if(widgets.panels.length)
+    <div class="panel-grid">
+      @each(widget in widgets.panels)
+        @include(widget.partial)
+      @end
+    </div>
+  @else
+    {{--
+      An application with no dashboard widgets registered. The meters above
+      are still worth the screen, so this is a hint rather than a whole empty
+      state.
+    --}}
+    <p class="field-hint">
+      Nothing else to show yet. Register a widget in <code>start/dashboard.ts</code> to fill this
+      screen.
+    </p>
+  @end
+@end

@@ -1,0 +1,179 @@
+/*
+| Reset, page defaults and the shared keyframes. Everything here comes from
+| ui-example/index.html; only the literal colours were swapped for tokens.
+*/
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/*
+| 14px, not 16px.
+|
+| The reference is a dense product UI and sets its whole scale from a 14px
+| body; every size in components/ is a step off that. Change this and the
+| entire application shifts, which is the point of it being in one place.
+*/
+body {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  background: var(--page);
+  color: var(--text);
+  min-height: 100vh;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/*
+| Controls inherit the page's face. Left alone, a <button> or an <input>
+| renders in the browser's own UI font and the mixed typography is the first
+| thing the eye catches on a form.
+*/
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+/*
+| One focus ring for the whole application, from the reference. Components
+| that need a different shape (buttons, inputs) replace it with a box-shadow
+| ring in the same colour rather than inventing their own outline.
+*/
+:focus-visible {
+  outline: 2px solid var(--accent-500);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/*
+| Headings inherit the tight, dark treatment the reference gives them rather
+| than the browser's black-and-huge defaults; the reset above already removed
+| their margins.
+*/
+h1,
+h2,
+h3,
+h4 {
+  color: var(--text-strong);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+}
+
+/*
+| A bare link is the reference's `.link`: accent, unadorned, underlined only
+| under the pointer. Anything that needs a permanent underline (the account
+| banner's call to action) asks for one.
+*/
+a {
+  color: var(--accent-500);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/**
+ * Alpine sets x-cloak on elements that must not flash before it initialises.
+ */
+[x-cloak] {
+  display: none !important;
+}
+
+/**
+ * Visually hidden, still announced by screen readers.
+ */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/*
+| IBM Plex Mono runs large next to Instrument Sans, so the reference drops it
+| a step wherever the two sit on the same line — an ID beside a name, a key
+| beside its label.
+*/
+.mono {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+
+/*
+| Figures that are read as a column — amounts, counts, usage — line up only
+| if they are tabular. Cheaper to have one class than to remember it on
+| every value.
+*/
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Toasts rise from the bottom-left corner they are anchored to. */
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes toastOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes pageFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes menuIn {
+  from {
+    opacity: 0;
+    transform: translateY(5px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,0 +1,271 @@
+/*
+| Stat cards, panels and the activity feed.
+| Ported from ui-example/index.html (plan §13.4 "Data display").
+*/
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: 18px 20px;
+  transition: box-shadow var(--transition);
+}
+
+.stat-card:hover {
+  box-shadow: var(--shadow-hover);
+}
+
+.stat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+/*
+| The reference sets a stat's label in sentence case at reading size rather
+| than as a small uppercase eyebrow: at 12px, letter-spaced capitals are the
+| hardest thing on the card to read and the least important.
+*/
+.stat-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-soft);
+}
+
+.stat-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stat-icon svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.stat-icon-blue {
+  background: var(--info-50);
+  color: var(--info-500);
+}
+
+.stat-icon-green {
+  background: var(--green-50);
+  color: var(--green-600);
+}
+
+.stat-icon-orange {
+  background: var(--orange-50);
+  color: var(--orange-500);
+}
+
+.stat-icon-purple {
+  background: var(--purple-50);
+  color: var(--purple-500);
+}
+
+.stat-icon-accent {
+  background: var(--accent-100);
+  color: var(--accent-700);
+}
+
+.stat-icon-red {
+  background: var(--red-50);
+  color: var(--red-500);
+}
+
+.stat-value {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text-strong);
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+| The delta is text, not a chip. In the reference it sits under the number as
+| a coloured arrow and a word ("+12.4% vs last month") — a filled pill there
+| competes with the value it is annotating.
+*/
+.stat-change {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12.5px;
+  font-weight: 600;
+  margin-top: 7px;
+}
+
+.stat-change.up {
+  color: var(--green-600);
+}
+
+.stat-change.down {
+  color: var(--red-600);
+}
+
+.stat-change svg {
+  width: 13px;
+  height: 13px;
+}
+
+/*
+| A wide panel with a narrow rail beside it, as in the reference's overview.
+| The rail is a fixed 320px because what belongs there is a summary — a
+| balance, a short list, a note.
+*/
+.panel-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+/*
+| Two equal columns, for a pair of panels that both carry a table. A
+| four-column table does not fit in a 320px rail: it scrolls inside its own
+| box, and a table you have to scroll to read the last column of is a table
+| nobody reads.
+*/
+.panel-grid-even {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+/*
+| Panels that size to their own content rather than stretching to match the
+| tallest. For a chart beside a rail of two cards: stretched, the chart panel
+| grows a void under its summary.
+*/
+.panel-grid-top {
+  align-items: start;
+}
+
+/*
+| Two or more panels stacked in one column of a `.panel-grid` — the
+| reference's rail beside its chart.
+*/
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 15px 20px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.panel-title {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.panel-body {
+  padding: 18px 20px;
+}
+
+.panel-body-flush {
+  padding: 0;
+}
+
+.activity-item {
+  display: flex;
+  gap: 12px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.activity-item:last-child {
+  border-bottom: none;
+}
+
+.activity-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-top: 6px;
+  flex-shrink: 0;
+}
+
+.activity-dot-blue {
+  background: var(--info-500);
+}
+
+.activity-dot-green {
+  background: var(--green-500);
+}
+
+.activity-dot-orange {
+  background: var(--orange-500);
+}
+
+.activity-dot-red {
+  background: var(--red-500);
+}
+
+.activity-text {
+  font-size: 13.5px;
+  color: var(--text-soft);
+  line-height: 1.5;
+}
+
+.activity-text strong {
+  color: var(--text-strong);
+  font-weight: 600;
+}
+
+.activity-time {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/*
+| A raw JSON payload in the back-office — the webhook ledger's detail view.
+| Monospaced, scrollable in both directions, and never wrapped: a wrapped
+| payload is one somebody misreads.
+*/
+.payload-dump {
+  margin: 0;
+  padding: 14px 16px;
+  max-height: 480px;
+  overflow: auto;
+  background: var(--surface-inverse);
+  border-radius: var(--radius);
+  color: var(--slate-100);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre;
+}
