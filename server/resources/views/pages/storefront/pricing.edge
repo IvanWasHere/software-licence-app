@@ -1,0 +1,61 @@
+{{--
+  A product's public pricing page (licence plan §6, M5). Plans on sale only —
+  public, active and mapped to the payment provider.
+--}}
+@component('layouts/marketing', { title: `${product.name} pricing` })
+  <section class="hero">
+    <h1 class="hero-title">{{ product.name }}</h1>
+    @if(product.description)
+      <p class="hero-subtitle">{{ product.description }}</p>
+    @end
+  </section>
+
+  <section class="marketing-section">
+    @if(product.plans.length)
+      <div class="feature-grid">
+        @each(plan in product.plans)
+          <div class="feature-card">
+            <h2 class="feature-title">{{ plan.name }}</h2>
+            <p class="hero-title" style="font-size: 2rem; margin: 0.5rem 0">
+              {{ money(plan.priceCents, plan.currency) }}
+              <span class="field-hint">{{ plan.billing === 'one_time' ? 'once' : (plan.billing === 'monthly' ? '/ month' : '/ year') }}</span>
+            </p>
+            <ul class="feature-desc">
+              <li>{{ plan.maxActivations === null ? 'Unlimited sites' : plan.maxActivations + (plan.maxActivations === 1 ? ' site' : ' sites') }}</li>
+              <li>
+                @if(plan.licenseTerm === 'perpetual')
+                  Yours for ever{{ plan.updatesDays ? `, ${Math.round(plan.updatesDays / 365 * 10) / 10 === 1 ? 'a year' : plan.updatesDays + ' days'} of updates` : ', with updates' }}
+                @elseif(plan.licenseTerm === 'fixed_days')
+                  {{ plan.termDays }} days
+                @else
+                  Renews {{ plan.billing === 'monthly' ? 'monthly' : 'yearly' }}; cancel any time
+                @end
+              </li>
+              @each(entitlement in product.entitlements)
+                @let(value = plan.entitlements && plan.entitlements[entitlement.key] !== undefined ? plan.entitlements[entitlement.key] : entitlement.defaultValue)
+                @if(value === true)
+                  <li>{{ entitlement.name }}</li>
+                @elseif(value !== null && value !== undefined && value !== false && value !== '' && value !== 0)
+                  <li>{{ entitlement.name }}: {{ value }}</li>
+                @end
+              @end
+            </ul>
+
+            @form({ route: 'storefront.checkout', routeParams: { product: product.slug, plan: plan.slug }, method: 'POST' })
+              @if(!auth.user)
+                @field.root({ name: 'email', id: `email-${plan.slug}` })
+                  @!field.label({ text: 'Email for your key' })
+                  @!input.control({ type: 'email', placeholder: 'you@example.com', required: true })
+                  @!field.error()
+                @end
+              @end
+              @!button({ text: `Buy ${plan.name}`, type: 'submit', block: true })
+            @end
+          </div>
+        @end
+      </div>
+    @else
+      <p class="hero-subtitle">Nothing is on sale for {{ product.name }} right now.</p>
+    @end
+  </section>
+@end

@@ -191,39 +191,10 @@
   --}}
   @if(canOverride)
     <div class="settings-card">
-      <h2 class="section-title">Override the plan</h2>
-      <p class="section-desc">
-        Writes <code>plan_key</code> and nothing else. The subscription mirror keeps saying what the
-        provider actually thinks, so <code>billing:sync</code> will report the difference rather than
-        the two silently agreeing.
-      </p>
-
-      @form({ route: 'admin.organizations.plan', routeParams: { id: organization.publicId }, method: 'POST' })
-        <div class="field-row" style="grid-template-columns: 1fr 2fr">
-          @field.root({ name: 'plan_key' })
-            @!field.label({ text: 'Plan' })
-            @!select.control({
-              options: planKeys.map((key) => ({ value: key, name: key })),
-              value: organization.planKey,
-            })
-          @end
-          @field.root({ name: 'reason' })
-            @!field.label({ text: 'Reason' })
-            @!input.control({ placeholder: 'Ticket #, or why this is not a paid upgrade' })
-          @end
-        </div>
-        <div class="btn-row">
-          @!button({ text: 'Apply plan override', type: 'submit', size: 'sm', variant: 'outline' })
-        </div>
-      @end
-    </div>
-
-    <div class="settings-card">
       <h2 class="section-title">Override one limit</h2>
       <p class="section-desc">
-        The “just let this customer have five more lists while we sort out billing” lever. Empty
-        clears the override and returns them to their plan’s own limit; <code>unlimited</code> grants
-        no ceiling.
+        The “just let this agency have fifty seats” lever. Empty clears the override and returns
+        them to the account’s standard limit; <code>unlimited</code> grants no ceiling.
       </p>
 
       @form({ route: 'admin.organizations.limits', routeParams: { id: organization.publicId }, method: 'POST' })

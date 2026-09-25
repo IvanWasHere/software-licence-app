@@ -42,8 +42,6 @@ export const PUBLIC_ID_PREFIXES = {
   apiKey: 'key',
   notification: 'ntf',
   file: 'fil',
-  todoList: 'lst',
-  todo: 'tdo',
   supportTicket: 'tkt',
   supportMessage: 'msg',
   product: 'prd',

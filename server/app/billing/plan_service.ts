@@ -329,57 +329,6 @@ export class PlanService {
   }
 
   /**
-   * The plan key a provider product id belongs to.
-   *
-   * The reverse of `plan.creemProductId`, and the only way a webhook can say
-   * *which* plan was bought. An unrecognised product id returns null and the
-   * caller keeps whatever plan the organisation already had — guessing here
-   * would silently hand out the wrong entitlements.
-   */
-  planKeyForProductId(productId: string | null | undefined): PlanKey | null {
-    if (!productId) {
-      return null
-    }
-
-    for (const [key, plan] of Object.entries(plans)) {
-      if (plan.creemProductId && plan.creemProductId === productId) {
-        return key as PlanKey
-      }
-    }
-
-    return null
-  }
-
-  /**
-   * The paid plans, in price order — the plan grid on the billing screen.
-   */
-  purchasablePlans(): { key: PlanKey; plan: PlanDefinition }[] {
-    return (Object.entries(plans) as [PlanKey, PlanDefinition][])
-      .map(([key, plan]) => ({ key, plan }))
-      .sort((a, b) => a.plan.priceCents - b.plan.priceCents)
-  }
-
-  /**
-   * Move an organisation onto a plan.
-   *
-   * Only ever called from the webhook handler and from staff tooling: the
-   * provider decides what somebody is entitled to, and a checkout return URL
-   * a user can type by hand never does (plan §7.5).
-   *
-   * A downgrade writes the key and nothing else. No data job runs, nothing is
-   * archived, and the next create is what surfaces the new ceiling — that is
-   * the soft-lock (plan §7.4).
-   */
-  async applyPlan(organization: Organization, planKey: PlanKey): Promise<void> {
-    if (organization.planKey === planKey) {
-      return
-    }
-
-    organization.planKey = planKey
-    await organization.save()
-  }
-
-  /**
    * Shape a count the meters understand.
    *
    * Public because M6's API-key screen counts something this class does not

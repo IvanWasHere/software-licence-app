@@ -11,7 +11,7 @@ export interface PlanLimitDetails {
 }
 
 /**
- * A create blocked by a plan limit (plan §7.4).
+ * A create blocked by an account limit (plan §7.4, licence plan M5).
  *
  * **Soft-lock**: this is only ever thrown by a *create*. An organisation over
  * its limit keeps every row it has, readable and editable, so a failed card
@@ -52,10 +52,10 @@ export default class PlanLimitExceededException extends Exception {
     const noun = nounFor(limit)
 
     if (allowed === 0) {
-      return `${noun[0].toUpperCase()}${noun.slice(1)} are not included in your plan.`
+      return `${noun[0].toUpperCase()}${noun.slice(1)} are switched off for your account.`
     }
 
-    return `Your plan allows ${allowed} ${noun}, and you are using ${current}.`
+    return `Your account allows ${allowed} ${noun}, and you are using ${current}.`
   }
 
   get upgradeUrl(): string {

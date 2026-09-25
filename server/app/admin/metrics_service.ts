@@ -6,7 +6,9 @@ import Subscription from '#models/subscription'
 import Organization from '#models/organization'
 import WebhookEvent from '#models/webhook_event'
 import queue from '#queue/queue_service'
-import { planFor, plans as planCatalogue, DEFAULT_PLAN } from '#config/plans'
+import Plan from '#models/plan'
+import Order from '#models/order'
+import License from '#models/license'
 
 /**
  * One figure with the same figure a month earlier beside it. The direction is
@@ -214,7 +216,7 @@ function sparkline(values: number[]): string {
 export class MetricsService {
   async collect(): Promise<AdminMetrics> {
     const [subscriptions, organizations, payments, jobCounts, webhooks] = await Promise.all([
-      Subscription.all(),
+      Subscription.query().preload('plan'),
       Organization.query().whereNull('deleted_at'),
       Payment.query().where('status', 'succeeded'),
       queue.counts(),
@@ -226,12 +228,13 @@ export class MetricsService {
     const lastMonth = now.minus({ months: 1 }).toFormat('yyyy-MM')
 
     /**
-     * MRR is the sum of the list price of every *entitling* subscription.
+     * MRR is the list price of every *entitling* license subscription, a
+     * yearly one spread over twelve months (licence plan M5).
      *
-     * Deliberately simple, and deliberately labelled on the screen as such:
-     * it does not know about discounts, proration or annual plans, because
-     * this application does not sell any of those yet. A number that quietly
-     * pretended to account for them would be worse than one that says what
+     * Deliberately simple, and labelled on the screen as such: it does not
+     * know about discounts, proration or currencies other than the plan's
+     * own, and one-time purchases are not recurring revenue at all. A number
+     * that quietly pretended otherwise would be worse than one that says what
      * it is.
      *
      * `past_due` counts: the customer is still on the plan and we are still
@@ -240,10 +243,17 @@ export class MetricsService {
      */
     const entitling = subscriptions.filter((subscription) => subscription.isEntitling)
 
-    const mrrCents = entitling.reduce(
-      (total, subscription) => total + planFor(subscription.planKey).priceCents,
-      0
-    )
+    const mrrCents = entitling.reduce((total, subscription) => {
+      const plan = subscription.plan
+
+      if (!plan) {
+        return total
+      }
+
+      return (
+        total + (plan.billing === 'yearly' ? Math.round(plan.priceCents / 12) : plan.priceCents)
+      )
+    }, 0)
 
     /**
      * Dates are compared from the models rather than in SQL, for the reason
@@ -308,10 +318,9 @@ export class MetricsService {
   async revenue(range: RevenueRange = '30d'): Promise<RevenueMetrics> {
     const days = REVENUE_RANGES[range] ?? REVENUE_RANGES['30d']
 
-    const [payments, subscriptions, organizations] = await Promise.all([
+    const [payments, subscriptions] = await Promise.all([
       Payment.query().orderBy('occurred_at', 'asc'),
       Subscription.all(),
-      Organization.query(),
     ])
 
     const now = DateTime.utc()
@@ -416,36 +425,44 @@ export class MetricsService {
     }))
 
     /**
-     * What a payment bought: the plan its subscription was on, falling back to
-     * the workspace's plan for a charge that has no subscription behind it.
+     * What a payment bought, by product (licence plan M5): the plan its
+     * subscription keeps alive, or the plan on the order it paid for.
      */
+    const catalogPlans = await Plan.query().preload('product')
+    const productOfPlan = new Map(catalogPlans.map((plan) => [plan.id, plan.product]))
     const planOfSubscription = new Map(
-      subscriptions.map((subscription) => [subscription.id, subscription.planKey])
+      subscriptions.map((subscription) => [subscription.id, subscription.planId])
     )
-    const planOfOrganization = new Map(
-      organizations.map((organization) => [organization.id, organization.planKey])
+    const orders = await Order.query().whereNotNull('provider_order_id').preload('items')
+    const planOfOrder = new Map(
+      orders.map((order) => [order.providerOrderId, order.items[0]?.planId ?? null])
     )
 
-    const netByPlan = new Map<string, number>()
+    const netByProduct = new Map<string, { name: string; cents: number }>()
     for (const payment of window) {
-      const key =
-        (payment.subscriptionId ? planOfSubscription.get(payment.subscriptionId) : undefined) ??
-        planOfOrganization.get(payment.organizationId) ??
-        DEFAULT_PLAN
+      const planId =
+        (payment.subscriptionId ? planOfSubscription.get(payment.subscriptionId) : null) ??
+        planOfOrder.get(payment.providerOrderId) ??
+        null
+      const product = planId ? productOfPlan.get(planId) : undefined
+      const key = product?.slug ?? 'other'
+      const entry = netByProduct.get(key) ?? { name: product?.name ?? 'Other', cents: 0 }
 
-      netByPlan.set(key, (netByPlan.get(key) ?? 0) + payment.netAmountCents)
+      entry.cents += payment.netAmountCents
+      netByProduct.set(key, entry)
     }
 
     const netInWindow = sum(window, (payment) => payment.netAmountCents)
 
-    const byPlan: RevenuePlanShare[] = Object.keys(planCatalogue)
-      .map((key) => ({
+    const byPlan: RevenuePlanShare[] = [...netByProduct.entries()]
+      .map(([key, entry]) => ({
         key,
-        name: planFor(key).name,
-        cents: netByPlan.get(key) ?? 0,
-        percent: netInWindow === 0 ? 0 : ((netByPlan.get(key) ?? 0) / netInWindow) * 100,
+        name: entry.name,
+        cents: entry.cents,
+        percent: netInWindow === 0 ? 0 : (entry.cents / netInWindow) * 100,
       }))
-      .filter((plan) => plan.cents > 0)
+      .filter((share) => share.cents > 0)
+      .sort((a, b) => b.cents - a.cents)
 
     const allTime = ofCurrency(payments)
 
@@ -580,26 +597,29 @@ export class MetricsService {
     const registeredInWindow = window.reduce((total, month) => total + month.registered, 0)
 
     /**
-     * Plan mix is counted from `organizations.planKey` — what a workspace is
-     * entitled to right now — rather than from subscription rows, because an
-     * override or a cancelled-but-still-running plan is the entitlement the
-     * customer actually has.
+     * Licenses in force, by product (licence plan M5) — the "plan mix" of a
+     * licensing business. "Paying" is an account that has bought at least one
+     * license, rather than one on a paid tier, because there are no tiers.
      */
-    const planMix: PlanShare[] = Object.keys(planCatalogue).map((key) => {
-      const count = organizations.filter((organization) => organization.planKey === key).length
+    const licenses = await License.query().where('status', 'active').preload('product')
+    const byProduct = new Map<string, { name: string; count: number }>()
 
-      return {
-        key,
-        name: planFor(key).name,
-        count,
-        percent: organizations.length === 0 ? 0 : (count / organizations.length) * 100,
-        isPaid: planFor(key).priceCents > 0,
-      }
-    })
+    for (const license of licenses) {
+      const entry = byProduct.get(license.product.slug) ?? { name: license.product.name, count: 0 }
+      entry.count++
+      byProduct.set(license.product.slug, entry)
+    }
 
-    const payingWorkspaces = planMix
-      .filter((plan) => plan.isPaid)
-      .reduce((total, plan) => total + plan.count, 0)
+    const planMix: PlanShare[] = [...byProduct.entries()].map(([key, entry]) => ({
+      key,
+      name: entry.name,
+      count: entry.count,
+      percent: licenses.length === 0 ? 0 : (entry.count / licenses.length) * 100,
+      isPaid: true,
+    }))
+
+    const buyers = await License.query().where('source', 'order').distinct('organization_id')
+    const payingWorkspaces = buyers.length
 
     return {
       registered: figure(registeredByMonth),

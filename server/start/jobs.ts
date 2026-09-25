@@ -33,10 +33,6 @@ import rollupApiUsageJob from '#queue/jobs/rollup_api_usage_job'
 import pruneAuditLogsJob from '#queue/jobs/prune_audit_logs_job'
 import pruneNotificationsJob from '#queue/jobs/prune_notifications_job'
 
-import overdueDigestJob from '#modules/lists/jobs/overdue_digest_job'
-import reconcileCountersJob from '#modules/lists/jobs/reconcile_counters_job'
-import normalizePositionsJob from '#modules/lists/jobs/normalize_positions_job'
-
 /**
  * Dispatched by application code, not by cron.
  */
@@ -62,6 +58,3 @@ jobs.register(pruneNotificationsJob, {
  * `normalize_positions` is also dispatched directly, with a `listId`, after a
  * reorder that ran the gaps down; the daily sweep is the catch-all.
  */
-jobs.register(overdueDigestJob, { interval: 'daily', label: 'overdue digests' })
-jobs.register(reconcileCountersJob, { interval: 'daily', label: 'reconcile todo counters' })
-jobs.register(normalizePositionsJob, { interval: 'daily', label: 'normalize list positions' })

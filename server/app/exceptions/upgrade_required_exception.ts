@@ -5,7 +5,7 @@ import type { HttpContext } from '@adonisjs/core/http'
 import type { FeatureKey } from '#config/plans'
 
 /**
- * A feature the organisation's plan does not include (plan §7.3).
+ * A feature the account does not include (plan §7.3).
  *
  * Distinct from a count limit: there is no usage to report and no "you are at
  * 25 of 3" to render — the answer is that this plan does not have the feature
@@ -16,7 +16,7 @@ export default class UpgradeRequiredException extends Exception {
   static code = 'E_UPGRADE_REQUIRED'
 
   constructor(readonly feature: FeatureKey | string) {
-    super(`Your plan does not include ${feature}.`, {
+    super(`Your account does not include ${feature}.`, {
       status: UpgradeRequiredException.status,
       code: UpgradeRequiredException.code,
     })

@@ -218,7 +218,7 @@ export class NotificationService {
       appliesTo(notification, {
         id: user.id,
         role: user.role,
-        planKey: user.organization?.planKey ?? 'free',
+        planKey: user.organization?.planKey ?? 'standard',
       })
     ).length
   }

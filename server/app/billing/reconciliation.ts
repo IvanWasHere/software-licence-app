@@ -1,8 +1,7 @@
 import logger from '@adonisjs/core/services/logger'
 
-import plans from '#billing/plan_service'
+import licenseBilling from '#commerce/license_billing'
 import Subscription from '#models/subscription'
-import Organization from '#models/organization'
 import { paymentProvider } from '#billing/provider'
 import { PaymentProviderError } from '#billing/contracts'
 
@@ -129,14 +128,14 @@ export class ReconciliationService {
         corrections.push({ subscription, status: theirs.status })
       }
 
-      const theirPlan = plans.planKeyForProductId(theirs.productId)
+      const theirPlan = await licenseBilling.planForProduct(theirs.productId)
 
-      if (theirPlan && theirPlan !== subscription.planKey) {
+      if (theirPlan && theirPlan.id !== subscription.planId) {
         report.drifted.push({
           ...base,
-          field: 'planKey',
-          ours: subscription.planKey,
-          theirs: theirPlan,
+          field: 'plan',
+          ours: subscription.planId === null ? null : String(subscription.planId),
+          theirs: String(theirPlan.id),
         })
       }
 
@@ -164,12 +163,13 @@ export class ReconciliationService {
   }
 
   /**
-   * Bring the status — and the entitlement that follows from it — back in
-   * line with the provider.
+   * Bring the status back in line with the provider, and the licenses it
+   * keeps alive with it (licence plan §5.3).
    *
-   * Only the status. Period dates and plan keys are reported and left alone,
-   * because correcting those silently would paper over the missing webhook
-   * that caused them.
+   * Only the status is corrected. Period dates and plans are reported and left
+   * alone, because correcting those silently would paper over the missing
+   * webhook that caused them — the license expiry is re-derived from the
+   * period we already have, which a missed renewal will not have moved.
    */
   private async correctStatus(
     subscription: Subscription,
@@ -178,21 +178,7 @@ export class ReconciliationService {
     subscription.status = status
     await subscription.save()
 
-    const organization = await Organization.find(subscription.organizationId)
-
-    if (!organization) {
-      return
-    }
-
-    if (subscription.isEntitling) {
-      await plans.applyPlan(organization, plans.planKeyFor(subscription))
-      organization.status = status === 'past_due' ? 'past_due' : 'active'
-    } else {
-      await plans.applyPlan(organization, 'free')
-      organization.status = 'active'
-    }
-
-    await organization.save()
+    await licenseBilling.syncExpiry(subscription)
   }
 }
 

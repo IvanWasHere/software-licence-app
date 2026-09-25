@@ -8,21 +8,20 @@ import type Organization from '#models/organization'
  * A demo dataset: enough of everything that every screen shows what it is
  * for, rather than an empty state.
  *
- *   Acme               free, at its list cap, with a staff limit override
- *   Pro Widgets        pro, a team, lists and todos, API keys, files
- *   Business Widgets   business, the top tier
- *   Northwind Traders  pro but past due — the dunning banner and the
- *                      back-office's "needs attention" list
- *   Contoso Design     cancelled last month, so churn is not always zero
+ *   Acme               a small customer, with a staff limit override
+ *   Pro Widgets        an agency: a team, API keys, files — and, from the
+ *                      licensing seeder, licenses installed on several sites
+ *   Business Widgets   a second customer, so no list is a list of one
  *
- * plus published announcements, a stuck webhook and a failed job, because the
- * operations screens are only legible with something on them (plan §7.6, §12).
+ * plus the catalog and licenses (`#seeding/licensing_seeder`), published
+ * announcements, a stuck webhook and a failed job, because the operations
+ * screens are only legible with something on them (plan §12).
  *
  * Development only.
  */
 export default class DevSeed extends BaseCommand {
   static commandName = 'dev:seed'
-  static description = 'Create demo workspaces, one per plan tier (development only)'
+  static description = 'Create demo accounts, a catalog and licenses (development only)'
 
   static options: CommandOptions = {
     startApp: true,
@@ -50,8 +49,7 @@ export default class DevSeed extends BaseCommand {
     await user.save()
 
     /**
-     * Free allows two seats, and the demo wants a member *and* a pending
-     * invitation to look at, so the workspace gets a staff-style override.
+     * A staff-style override, so the back-office shows what one looks like.
      */
     organization.limitOverrides = { seats: 5 }
     await organization.save()
@@ -81,20 +79,16 @@ export default class DevSeed extends BaseCommand {
     const env = await import('#start/env')
 
     /**
-     * One workspace per paid tier, each with a live subscription and a few
-     * charges behind it, so the billing screen, the usage meters and the
-     * at-cap states can all be looked at without a payment provider
-     * (plan §7.6).
+     * Two more customers. What they bought comes from the licensing seeder,
+     * which also gives the agency a subscription with charges behind it.
      */
-    const pro = await this.seedPaidWorkspace(
-      'pro',
+    const pro = await this.seedCustomerWorkspace(
       'Pro Widgets',
       'owner-pro@example.com',
       4,
       'Marguerite Hayes'
     )
-    await this.seedPaidWorkspace(
-      'business',
+    await this.seedCustomerWorkspace(
       'Business Widgets',
       'owner-business@example.com',
       2,
@@ -102,18 +96,10 @@ export default class DevSeed extends BaseCommand {
     )
 
     /**
-     * The working week of the workspace the demo is toured in: a team, five
-     * lists, todos at every state a todo has, two API keys with traffic
+     * The workspace the demo is toured in: a team, two API keys with traffic
      * behind them, and a few files.
      */
     const proMembers = await this.seedProWorkspace(pro.organization, pro.user)
-
-    /**
-     * The two states nobody sets up by hand and every support screen is
-     * built for.
-     */
-    await this.seedPastDueWorkspace()
-    await this.seedChurnedWorkspace()
 
     /**
      * Whatever the features registered in `start/seeders.ts` want to put in
@@ -156,18 +142,17 @@ export default class DevSeed extends BaseCommand {
     await this.seedSupportTickets()
     await this.seedOperations()
 
-    this.logger.success('Seeded Acme (free)')
+    this.logger.success('Seeded Acme')
     this.logger.log('  owner:   jane@example.com / correct-horse-battery')
     this.logger.log('  member:  sam@example.com / correct-horse-battery')
     this.logger.log('  invited: alex@example.com (pending)')
     this.logger.log('')
-    this.logger.success('Seeded paid tiers')
-    this.logger.log('  pro:      owner-pro@example.com / correct-horse-battery')
-    this.logger.log('  business: owner-business@example.com / correct-horse-battery')
-    this.logger.log('')
-    this.logger.success('Seeded the states support screens exist for')
-    this.logger.log('  past due:  owner-northwind@example.com (dunning banner, needs attention)')
-    this.logger.log('  cancelled: owner-contoso@example.com (churn)')
+    this.logger.success('Seeded customers')
+    this.logger.log(
+      '  agency:   owner-pro@example.com / correct-horse-battery (licenses, installs)'
+    )
+    this.logger.log('  another:  owner-business@example.com / correct-horse-battery')
+    this.logger.log('  pricing:  /pricing/invoice-pro')
     this.logger.log('  plus 3 announcements, 3 support tickets, a stuck webhook and a failed job')
     this.logger.log('')
     /**
@@ -197,15 +182,10 @@ export default class DevSeed extends BaseCommand {
   }
 
   /**
-   * A workspace on a paid plan, with the rows a real subscription would have
-   * left behind.
-   *
-   * The provider ids are obviously fake (`sub_seed_…`), which is deliberate:
-   * pointing `billing:sync` at this data should report every one of them as
-   * missing rather than look convincingly real.
+   * A customer account with a verified owner, backdated so the back-office's
+   * growth chart has a shape.
    */
-  private async seedPaidWorkspace(
-    planKey: 'pro' | 'business',
+  private async seedCustomerWorkspace(
     name: string,
     email: string,
     monthsAgo: number,
@@ -213,9 +193,6 @@ export default class DevSeed extends BaseCommand {
   ): Promise<{ organization: Organization; user: User }> {
     const { DateTime } = await import('luxon')
     const { default: registration } = await import('#auth/registration_service')
-    const { default: Payment } = await import('#models/payment')
-    const { default: Subscription } = await import('#models/subscription')
-    const { planFor } = await import('#config/plans')
 
     const { user, organization } = await registration.register({
       /* A person owns the workspace; the workspace is not a person. */
@@ -228,73 +205,14 @@ export default class DevSeed extends BaseCommand {
     user.emailVerifiedAt = DateTime.utc()
     await user.save()
 
-    organization.planKey = planKey
-    await organization.save()
-
     await this.backdate(organization, user, monthsAgo)
-
-    const periodStart = DateTime.utc().startOf('month')
-
-    const subscription = await Subscription.create({
-      organizationId: organization.id,
-      provider: 'creem',
-      /*
-       * Unique per workspace: two demo workspaces can be on the same plan,
-       * and the provider's ids are unique in the real world too.
-       */
-      providerSubscriptionId: `sub_seed_${organization.slug}`,
-      providerCustomerId: `cus_seed_${organization.slug}`,
-      planKey,
-      status: 'active',
-      currentPeriodStart: periodStart,
-      currentPeriodEnd: periodStart.plus({ months: 1 }),
-      cancelAtPeriodEnd: false,
-    })
-
-    const plan = planFor(planKey)
-
-    for (let month = 0; month < Math.max(1, monthsAgo); month++) {
-      const occurredAt = periodStart.minus({ months: month })
-
-      await Payment.create({
-        organizationId: organization.id,
-        subscriptionId: subscription.id,
-        provider: 'creem',
-        providerOrderId: `ord_seed_${organization.slug}_${month}`,
-        amountCents: plan.priceCents,
-        currency: 'USD',
-        status: 'succeeded',
-        refundedAmountCents: 0,
-        description: `${plan.name} plan — monthly`,
-        occurredAt,
-      })
-    }
-
-    /**
-     * One charge that was partly given back. A refund never negates a row —
-     * `refundedAmountCents` grows and the status moves — so this is also what
-     * proves the billing history and the back-office's gross/net split are
-     * reading it that way.
-     */
-    if (planKey === 'pro' && monthsAgo > 1) {
-      const goodwill = await Payment.query()
-        .where('organization_id', organization.id)
-        .orderBy('occurred_at', 'asc')
-        .firstOrFail()
-
-      goodwill.refundedAmountCents = Math.round(plan.priceCents / 2)
-      goodwill.status = 'partially_refunded'
-      goodwill.description = `${plan.name} plan — monthly (partly refunded)`
-      await goodwill.save()
-    }
 
     return { organization, user }
   }
 
   /**
-   * The workspace the demo is toured in. Five lists, todos in every state a
-   * todo has — overdue, due soon, assigned, done — a second and third pair of
-   * hands, two API keys with traffic behind them, and some files.
+   * The workspace the demo is toured in: a second and third pair of hands,
+   * two API keys with traffic behind them, and some files.
    */
   private async seedProWorkspace(organization: Organization, owner: User) {
     const { DateTime } = await import('luxon')
@@ -380,13 +298,13 @@ export default class DevSeed extends BaseCommand {
 
     const nightly = await apiKeys.create(organization, owner, {
       name: 'Nightly sync',
-      scopes: ['lists:read', 'lists:write', 'todos:read', 'todos:write'],
+      scopes: ['licenses:read', 'members:read'],
       environment: 'live',
     })
 
     await apiKeys.create(organization, owner, {
       name: 'Staging import',
-      scopes: ['lists:read', 'todos:read'],
+      scopes: ['licenses:read'],
       environment: 'test',
     })
 
@@ -414,7 +332,7 @@ export default class DevSeed extends BaseCommand {
         apiKeyId: nightly.apiKey.id,
         requestId: `req_seed_${index.toString().padStart(3, '0')}`,
         method: index % 6 === 0 ? 'POST' : 'GET',
-        path: index % 6 === 0 ? '/api/v1/lists' : '/api/v1/lists/lst_seed/todos',
+        path: index % 6 === 0 ? '/api/v1/members' : '/api/v1/licenses',
         status: index === 11 ? 404 : 200,
         durationMs: 25 + ((index * 13) % 90),
         ip: '203.0.113.7',
@@ -478,74 +396,6 @@ export default class DevSeed extends BaseCommand {
   }
 
   /**
-   * A workspace whose last charge failed. Everything still works — that is
-   * the point of the banner it now carries (plan §7.5) — and it is the first
-   * row in the back-office's "needs attention".
-   */
-  private async seedPastDueWorkspace() {
-    const { DateTime } = await import('luxon')
-    const { default: Payment } = await import('#models/payment')
-    const { default: Subscription } = await import('#models/subscription')
-    const { planFor } = await import('#config/plans')
-
-    const { organization, user } = await this.seedPaidWorkspace(
-      'pro',
-      'Northwind Traders',
-      'owner-northwind@example.com',
-      3,
-      'Hannah Bergstrom'
-    )
-
-    organization.status = 'past_due'
-    await organization.save()
-
-    const subscription = await Subscription.findByOrFail('organization_id', organization.id)
-    subscription.status = 'past_due'
-    await subscription.save()
-
-    await Payment.create({
-      organizationId: organization.id,
-      subscriptionId: subscription.id,
-      provider: 'creem',
-      providerOrderId: 'ord_seed_northwind_failed',
-      amountCents: planFor('pro').priceCents,
-      currency: 'USD',
-      status: 'disputed',
-      refundedAmountCents: 0,
-      description: 'Pro plan — monthly (card declined)',
-      occurredAt: DateTime.utc().minus({ days: 4 }),
-    })
-
-    void user
-  }
-
-  /**
-   * A workspace that left last month: the subscription is cancelled and the
-   * plan is back to Free. Without one of these, churn is always zero and the
-   * number on the dashboard cannot be trusted to move.
-   */
-  private async seedChurnedWorkspace() {
-    const { DateTime } = await import('luxon')
-    const { default: Subscription } = await import('#models/subscription')
-
-    const { organization } = await this.seedPaidWorkspace(
-      'pro',
-      'Contoso Design',
-      'owner-contoso@example.com',
-      6,
-      'Lucia Moretti'
-    )
-
-    const subscription = await Subscription.findByOrFail('organization_id', organization.id)
-    subscription.status = 'canceled'
-    subscription.canceledAt = DateTime.utc().minus({ days: 12 })
-    await subscription.save()
-
-    organization.planKey = 'free'
-    await organization.save()
-  }
-
-  /**
    * Three announcements, because the feed's job is to be read in order and
    * one entry does not show that (plan §20).
    */
@@ -578,13 +428,12 @@ export default class DevSeed extends BaseCommand {
     await middle.save()
 
     await notifications.create(staff, {
-      title: 'Bigger limits on Pro',
-      body: 'Pro now includes 25 lists and 10 seats, at the same price. Nothing to do — your workspace already has them.',
+      title: 'Invoice Pro 2.5 is out',
+      body: 'Recurring invoices can now be paused and resumed. Update from your WordPress dashboard.',
       level: 'info',
-      audienceType: 'plan',
-      audience: { planKeys: ['pro'] },
-      actionLabel: 'See plans',
-      actionUrl: 'https://example.com/pricing',
+      audienceType: 'all',
+      actionLabel: 'See pricing',
+      actionUrl: '/pricing/invoice-pro',
     })
   }
 

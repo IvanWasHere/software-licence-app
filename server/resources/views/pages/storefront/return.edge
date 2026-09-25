@@ -1,0 +1,53 @@
+{{--
+  After checkout (licence plan §6, M5). **This page grants nothing** — anyone
+  can type its URL. It waits for the payment provider's webhook, which is what
+  actually issues the license and emails the key.
+--}}
+@component('layouts/marketing', { title: 'Thank you' })
+  <section class="hero">
+    @if(!order)
+      <h1 class="hero-title">We could not find that order</h1>
+      <p class="hero-subtitle">If you were charged, your key is on its way by email.</p>
+    @else
+      <div
+        x-data="{
+          done: {{ order.fulfilledAt ? 'true' : 'false' }},
+          poll() {
+            fetch('{{ urlFor('storefront.status', { order: order.publicId }) }}', { headers: { accept: 'application/json' } })
+              .then((response) => response.json())
+              .then((status) => { this.done = status.fulfilled })
+              .catch(() => {})
+          },
+        }"
+        x-init="
+          if (!done) {
+            const timer = setInterval(() => poll(), 2000);
+            $watch('done', (value) => value && clearInterval(timer));
+            setTimeout(() => clearInterval(timer), 120000)
+          }
+        "
+      >
+        <template x-if="done">
+          <div>
+            <h1 class="hero-title">Thank you — your key is on its way</h1>
+            <p class="hero-subtitle">
+              We have emailed it to {{ order.email }}. It is also in your account under Licenses.
+            </p>
+            <div class="hero-actions">
+              @!link({ route: 'licenses.index', text: 'Open your licenses', class: 'btn btn-primary' })
+            </div>
+          </div>
+        </template>
+        <template x-if="!done">
+          <div>
+            <h1 class="hero-title">Confirming your payment…</h1>
+            <p class="hero-subtitle">
+              This usually takes a few seconds. You can close this page — the key will be emailed to
+              {{ order.email }} as soon as the payment is confirmed.
+            </p>
+          </div>
+        </template>
+      </div>
+    @end
+  </section>
+@end

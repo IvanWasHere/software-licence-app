@@ -5,7 +5,6 @@ import testUtils from '@adonisjs/core/services/test_utils'
 
 import AuditLog from '#models/audit_log'
 import StaffUser from '#models/staff_user'
-import TodoList from '#modules/lists/models/todo_list'
 import { IMPERSONATION_SESSION_KEY } from '#middleware/impersonation'
 import { addMember, createStaff, createWorkspace, queuedMailsTo } from '#tests/helpers'
 
@@ -437,16 +436,17 @@ test.group('Impersonation', (group) => {
     const started = await start(client, staff, user.publicId)
 
     const write = await client
-      .post('/lists')
+      .post('/settings/profile')
       .withSession(started.session())
-      .form({ name: 'Support should not create this' })
+      .form({ fullName: 'Renamed by support' })
       .withCsrfToken()
       .redirects(0)
 
     write.assertStatus(302)
 
-    const lists = await TodoList.query().where('organization_id', organization.id)
-    assert.isEmpty(lists, 'nothing was created')
+    await user.refresh()
+    assert.notEqual(user.fullName, 'Renamed by support', 'nothing was written')
+    void organization
   })
 
   test('an admin may write, and the entry names both actors', async ({ client, assert }) => {
@@ -456,17 +456,17 @@ test.group('Impersonation', (group) => {
     const started = await start(client, staff, user.publicId)
 
     const write = await client
-      .post('/lists')
+      .post('/settings/profile')
       .withSession(started.session())
-      .form({ name: 'Fixed for the customer' })
+      .form({ fullName: 'Fixed for the customer' })
       .withCsrfToken()
       .redirects(0)
 
     write.assertStatus(302)
 
-    const lists = await TodoList.query().where('organization_id', organization.id)
-    assert.lengthOf(lists, 1)
-    assert.equal(lists[0].createdByUserId, user.id, 'created as the customer')
+    await user.refresh()
+    assert.equal(user.fullName, 'Fixed for the customer', 'written as the customer')
+    void organization
   })
 
   /**

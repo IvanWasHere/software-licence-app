@@ -18,7 +18,7 @@ test.group('Public ids', () => {
   })
 
   test('never repeats an id', ({ assert }) => {
-    const ids = new Set(Array.from({ length: 5_000 }, () => generatePublicId('todo')))
+    const ids = new Set(Array.from({ length: 5_000 }, () => generatePublicId('license')))
     assert.equal(ids.size, 5_000)
   })
 
@@ -32,16 +32,16 @@ test.group('Public ids', () => {
   })
 
   test('accepts an id belonging to the expected resource', ({ assert }) => {
-    const id = generatePublicId('todoList')
-    assert.equal(parsePublicId('todoList', id), id)
+    const id = generatePublicId('license')
+    assert.equal(parsePublicId('license', id), id)
   })
 
   /**
-   * The whole point of the prefix: a list id must not be usable where a user
+   * The whole point of the prefix: a license id must not be usable where a user
    * id is expected, so it cannot be smuggled through a route parameter.
    */
   test('rejects an id belonging to another resource', ({ assert }) => {
-    assert.isNull(parsePublicId('user', generatePublicId('todoList')))
+    assert.isNull(parsePublicId('user', generatePublicId('license')))
     assert.isNull(parsePublicId('organization', generatePublicId('staffUser')))
   })
 

@@ -39,7 +39,7 @@ export class RegistrationService {
       const slug = await generateOrganizationSlug(organizationName, trx)
 
       const organization = await Organization.create(
-        { name: organizationName, slug, planKey: 'free', status: 'active' },
+        { name: organizationName, slug, planKey: 'standard', status: 'active' },
         { client: trx }
       )
 

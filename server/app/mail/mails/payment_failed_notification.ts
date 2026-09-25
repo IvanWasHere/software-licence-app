@@ -7,17 +7,20 @@ import type Organization from '#models/organization'
 import type Subscription from '#models/subscription'
 
 /**
- * Dunning (plan §7.5).
+ * A renewal was declined (licence plan §5.3). Sent once, on the transition to
+ * `past_due`, never on a redelivery.
  *
- * The tone matters: nothing has been taken away. `past_due` keeps the
- * workspace fully usable, and the email says so — a customer who thinks their
- * team has been locked out mid-sprint churns over a card that simply expired.
+ * Says when the license stops working — the end of the paid period plus the
+ * renewal grace, which is exactly what the license's own expiry already is —
+ * because "nothing has been switched off yet, and here is the date it will be"
+ * is the sentence that gets a card updated.
  */
 export default class PaymentFailedNotification extends BaseMail {
   constructor(
     private user: User,
     private organization: Organization,
-    private subscription: Subscription
+    private subscription: Subscription,
+    private details: { productName: string; licenseExpiresAt: import('luxon').DateTime | null }
   ) {
     super()
   }
@@ -29,17 +32,14 @@ export default class PaymentFailedNotification extends BaseMail {
       user: this.user,
       organization: this.organization,
       subscription: this.subscription,
-      /**
-       * The end of the period they have already paid for — the honest answer
-       * to "how long do I have?".
-       */
-      graceEndsAt: this.subscription.currentPeriodEnd?.setZone(this.organization.timezone),
+      productName: this.details.productName,
+      graceEndsAt: this.details.licenseExpiresAt?.setZone(this.organization.timezone) ?? null,
       url,
     }
 
     this.message
       .to(this.user.email)
-      .subject(`We could not take payment for ${this.organization.name}`)
+      .subject(`We could not renew your ${this.details.productName} license`)
       .htmlView('emails/payment_failed', data)
       .textView('emails/payment_failed_text', data)
   }

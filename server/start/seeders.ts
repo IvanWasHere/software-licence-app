@@ -20,9 +20,13 @@
 */
 
 import seeders from '#seeding/demo_seeders'
-import { listsDemoSeeder } from '#modules/lists/seeder'
+import { licensingDemoSeeder } from '#seeding/licensing_seeder'
 
 /**
  * The demo domain (D8) — delete with it.
  */
-seeders.register(listsDemoSeeder)
+/**
+ * The licensing demo — products, plans, licenses and activations for the
+ * workspaces core builds (licence plan M5).
+ */
+seeders.register(licensingDemoSeeder)

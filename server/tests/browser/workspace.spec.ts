@@ -2,7 +2,7 @@ import { test } from '@japa/runner'
 import mail from '@adonisjs/mail/services/main'
 
 import File from '#models/file'
-import TodoList from '#modules/lists/models/todo_list'
+import ApiKey from '#models/api_key'
 import {
   clearStorage,
   createWorkspace,
@@ -168,7 +168,7 @@ test.group('Uploading a file', (group) => {
 })
 
 /*
-| Creating a list happens inside a modal, and the two controls that open and
+| Creating an API key happens inside a modal, and the two controls that open and
 | close it are the only part of the flow a functional test never touches: it
 | POSTs to `lists.store` directly and passes whether or not anything on the
 | page can reach that form.
@@ -178,8 +178,8 @@ test.group('Uploading a file', (group) => {
 | button called `$el.close()` where `$el` was the button rather than the
 | <dialog>.
 */
-test.group('Creating a list', () => {
-  test('opens the modal, creates the list, and closes on Cancel', async ({ visit, assert }) => {
+test.group('Creating an API key', () => {
+  test('opens the modal, creates the key, and closes on Cancel', async ({ visit, assert }) => {
     const { organization } = await createWorkspace({ email: 'jane@example.com' })
 
     const page = await visit('/login')
@@ -188,29 +188,30 @@ test.group('Creating a list', () => {
     await page.click('button[type="submit"]')
     await page.waitForURL('**/dashboard')
 
-    await page.goto('/lists')
+    await page.goto('/settings/api-keys')
 
     /**
      * The dialog is in the DOM from the start and inert until something calls
      * `showModal()` on it, so "is it open" is the assertion that matters.
      */
-    await page.click('button:has-text("New list")')
-    await page.waitForSelector('#new-list[open]')
+    await page.click('button:has-text("New key")')
+    await page.waitForSelector('#new-api-key[open]')
 
-    await page.fill('#new-list input[name="name"]', 'Launch checklist')
-    await page.click('#new-list button:has-text("Create list")')
+    await page.fill('#new-api-key input[name="name"]', 'Nightly sync')
+    await page.click('#new-api-key-form input[value="licenses:read"]')
+    await page.click('button:has-text("Create key")')
 
-    await page.assertTextContains('body', 'Launch checklist')
+    await page.assertTextContains('body', 'Nightly sync')
 
-    const list = await TodoList.query().where('organization_id', organization.id).firstOrFail()
-    assert.equal(list.name, 'Launch checklist')
+    const key = await ApiKey.query().where('organization_id', organization.id).firstOrFail()
+    assert.equal(key.name, 'Nightly sync')
 
-    await page.goto('/lists')
-    await page.click('button:has-text("New list")')
-    await page.waitForSelector('#new-list[open]')
-    await page.click('#new-list button:has-text("Cancel")')
+    await page.goto('/settings/api-keys')
+    await page.click('button:has-text("New key")')
+    await page.waitForSelector('#new-api-key[open]')
+    await page.click('#new-api-key button:has-text("Cancel")')
 
     /* A <dialog> that is not open is not rendered, so "hidden" is "closed". */
-    await page.waitForSelector('#new-list', { state: 'hidden' })
+    await page.waitForSelector('#new-api-key', { state: 'hidden' })
   })
 })

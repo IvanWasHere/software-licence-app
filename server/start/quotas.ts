@@ -26,7 +26,6 @@
 
 import quotas from '#billing/quotas'
 import plans from '#billing/plan_service'
-import lists from '#modules/lists/services/list_service'
 import { seatUsage } from '#organizations/seats'
 
 /**
@@ -37,17 +36,6 @@ import { seatUsage } from '#organizations/seats'
  * so there is no one number to meter, but registering it is what lets a `402`
  * name it and the API report it.
  */
-quotas.register({
-  key: 'lists',
-  label: 'Lists',
-  count: (organization, trx) => lists.count(organization, trx),
-})
-
-quotas.register({
-  key: 'todosPerList',
-  label: 'Todos per list',
-})
-
 /**
  * Core quotas. Seats are members plus outstanding invitations (plan §5.5) —
  * counting only members would let ten invitations to a two-seat plan all

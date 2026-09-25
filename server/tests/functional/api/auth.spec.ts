@@ -19,7 +19,7 @@ test.group('API authentication', (group) => {
   test('a valid key authenticates its own organisation', async ({ client, assert }) => {
     const { organization, headers } = await createApiWorkspace()
 
-    const response = await client.get('/api/v1/lists').headers(headers)
+    const response = await client.get('/api/v1/licenses').headers(headers)
 
     response.assertStatus(200)
     assert.equal(response.body().data.length, 0)
@@ -32,7 +32,7 @@ test.group('API authentication', (group) => {
   })
 
   test('refuses a request with no key', async ({ client }) => {
-    const response = await client.get('/api/v1/lists')
+    const response = await client.get('/api/v1/licenses')
 
     response.assertStatus(401)
     response.assertBodyContains({ error: { code: 'unauthorized' } })
@@ -40,7 +40,7 @@ test.group('API authentication', (group) => {
 
   test('refuses a key we have never issued', async ({ client }) => {
     const response = await client
-      .get('/api/v1/lists')
+      .get('/api/v1/licenses')
       .header('authorization', `Bearer ${generateApiKey().secret}`)
 
     response.assertStatus(401)
@@ -48,7 +48,7 @@ test.group('API authentication', (group) => {
 
   test('refuses a malformed authorization header', async ({ client }) => {
     for (const header of ['nonsense', 'Basic abc', 'Bearer', 'Bearer sk_live_short']) {
-      const response = await client.get('/api/v1/lists').header('authorization', header)
+      const response = await client.get('/api/v1/licenses').header('authorization', header)
       response.assertStatus(401)
     }
   })
@@ -61,9 +61,9 @@ test.group('API authentication', (group) => {
     const { apiKey, headers } = await createApiWorkspace()
     await apiKeys.revoke(apiKey)
 
-    const revoked = await client.get('/api/v1/lists').headers(headers)
+    const revoked = await client.get('/api/v1/licenses').headers(headers)
     const unknown = await client
-      .get('/api/v1/lists')
+      .get('/api/v1/licenses')
       .header('authorization', `Bearer ${generateApiKey().secret}`)
 
     revoked.assertStatus(401)
@@ -76,7 +76,7 @@ test.group('API authentication', (group) => {
     apiKey.expiresAt = DateTime.utc().minus({ days: 1 })
     await apiKey.save()
 
-    const response = await client.get('/api/v1/lists').headers(headers)
+    const response = await client.get('/api/v1/licenses').headers(headers)
 
     response.assertStatus(401)
   })
@@ -101,7 +101,7 @@ test.group('API authentication', (group) => {
     organization.planKey = 'free'
     await organization.save()
 
-    const response = await client.get('/api/v1/lists').headers(headers)
+    const response = await client.get('/api/v1/licenses').headers(headers)
 
     response.assertStatus(402)
     response.assertBodyContains({
@@ -115,7 +115,7 @@ test.group('API authentication', (group) => {
     organization.status = 'suspended'
     await organization.save()
 
-    const response = await client.get('/api/v1/lists').headers(headers)
+    const response = await client.get('/api/v1/licenses').headers(headers)
 
     response.assertStatus(401)
   })
@@ -127,13 +127,13 @@ test.group('API authentication', (group) => {
   test('last_used_at is stamped, then throttled to once a minute', async ({ client, assert }) => {
     const { apiKey, headers } = await createApiWorkspace()
 
-    await client.get('/api/v1/lists').headers(headers)
+    await client.get('/api/v1/licenses').headers(headers)
     await apiKey.refresh()
 
     const first = apiKey.lastUsedAt
     assert.isNotNull(first)
 
-    await client.get('/api/v1/lists').headers(headers)
+    await client.get('/api/v1/licenses').headers(headers)
     await apiKey.refresh()
 
     assert.equal(
@@ -151,87 +151,31 @@ test.group('API authentication', (group) => {
 test.group('API scopes', (group) => {
   group.each.setup(() => testUtils.db().truncate())
 
-  test('a read-only key can read', async ({ client }) => {
-    const { headers } = await createApiWorkspace({ scopes: ['lists:read'] })
+  test('a key with the scope can read', async ({ client }) => {
+    const { headers } = await createApiWorkspace({ scopes: ['licenses:read'] })
 
-    const response = await client.get('/api/v1/lists').headers(headers)
+    const response = await client.get('/api/v1/licenses').headers(headers)
 
     response.assertStatus(200)
   })
 
-  test('a read-only key cannot create', async ({ client, assert }) => {
-    const { headers, organization } = await createApiWorkspace({ scopes: ['lists:read'] })
+  test('a key without it cannot, and the error names what is missing', async ({ client }) => {
+    const { headers } = await createApiWorkspace({ scopes: ['members:read'] })
 
-    const response = await client.post('/api/v1/lists').headers(headers).json({ name: 'Nope' })
+    const response = await client.get('/api/v1/licenses').headers(headers)
 
     response.assertStatus(403)
     response.assertBodyContains({
-      error: { code: 'insufficient_scope', details: { required_scope: 'lists:write' } },
+      error: { code: 'insufficient_scope', details: { required_scope: 'licenses:read' } },
     })
-
-    const { default: lists } = await import('#modules/lists/services/list_service')
-    assert.equal(await lists.count(organization), 0)
-  })
-
-  /**
-   * Deleting a list takes every todo inside it. The web app makes that
-   * owner-only; the API refuses it on a read-only key (plan §11).
-   */
-  test('a read-only key cannot delete a list', async ({ client, assert }) => {
-    const { user, organization, headers } = await createApiWorkspace({ scopes: ['lists:read'] })
-
-    const { createList } = await import('#tests/helpers')
-    const list = await createList(organization, user, 'Shared work')
-
-    const response = await client.delete(`/api/v1/lists/${list.publicId}`).headers(headers)
-
-    response.assertStatus(403)
-
-    await list.refresh()
-    assert.isNull(list.deletedAt)
-  })
-
-  test('the error names the scope that is missing, so the fix is obvious', async ({ client }) => {
-    const { headers } = await createApiWorkspace({ scopes: ['lists:read'] })
-
-    const response = await client
-      .post('/api/v1/lists')
-      .headers(headers)
-      .json({ name: 'Needs a write scope' })
-
-    response.assertTextIncludes('lists:write')
   })
 
   test('a key without members:read cannot read the directory', async ({ client }) => {
-    const { headers } = await createApiWorkspace({ scopes: ['lists:read'] })
+    const { headers } = await createApiWorkspace({ scopes: ['licenses:read'] })
 
     const response = await client.get('/api/v1/members').headers(headers)
 
     response.assertStatus(403)
-  })
-
-  test('todos and lists scopes are independent', async ({ client, assert }) => {
-    const { user, organization, headers } = await createApiWorkspace({
-      scopes: ['lists:read', 'todos:write'],
-    })
-
-    const { createList } = await import('#tests/helpers')
-    const list = await createList(organization, user, 'Work')
-
-    const created = await client
-      .post(`/api/v1/lists/${list.publicId}/todos`)
-      .headers(headers)
-      .json({ title: 'Write it' })
-
-    created.assertStatus(201)
-
-    /**
-     * `todos:write` does not imply `todos:read`.
-     */
-    const read = await client.get(`/api/v1/lists/${list.publicId}/todos`).headers(headers)
-    read.assertStatus(403)
-
-    assert.isTrue(true)
   })
 })
 
@@ -250,7 +194,7 @@ test.group('API key management', (group) => {
     const response = await client
       .post('/settings/api-keys')
       .loginAs(user)
-      .form({ 'name': 'Nightly sync', 'scopes[]': 'lists:read' })
+      .form({ 'name': 'Nightly sync', 'scopes[]': 'licenses:read' })
       .withCsrfToken()
       .redirects(0)
 
@@ -258,7 +202,7 @@ test.group('API key management', (group) => {
 
     const stored = await ApiKey.query().firstOrFail()
     assert.equal(stored.name, 'Nightly sync')
-    assert.deepEqual(stored.scopes, ['lists:read'])
+    assert.deepEqual(stored.scopes, ['licenses:read'])
     assert.equal(stored.createdByUserId, user.id)
     assert.match(stored.publicId, /^key_/)
   })
@@ -288,7 +232,7 @@ test.group('API key management', (group) => {
     const response = await client
       .post('/settings/api-keys')
       .loginAs(user)
-      .form({ 'name': 'Nope', 'scopes[]': 'lists:read' })
+      .form({ 'name': 'Nope', 'scopes[]': 'licenses:read' })
       .withCsrfToken()
       .redirects(0)
 
@@ -374,7 +318,7 @@ test.group('API request logging', (group) => {
   test('echoes a request id and records the call', async ({ client, assert }) => {
     const { organization, apiKey, headers } = await createApiWorkspace()
 
-    const response = await client.get('/api/v1/lists').headers(headers)
+    const response = await client.get('/api/v1/licenses').headers(headers)
 
     const requestId = response.header('x-request-id')
     assert.isString(requestId)
@@ -400,7 +344,7 @@ test.group('API request logging', (group) => {
     const { headers } = await createApiWorkspace()
 
     const response = await client
-      .get('/api/v1/lists')
+      .get('/api/v1/licenses')
       .headers({ ...headers, 'x-request-id': 'their-trace-id' })
 
     assert.equal(response.header('x-request-id'), 'their-trace-id')
@@ -416,7 +360,7 @@ test.group('API request logging', (group) => {
     organization.planKey = 'free'
     await organization.save()
 
-    const response = await client.get('/api/v1/lists').headers(headers)
+    const response = await client.get('/api/v1/licenses').headers(headers)
     response.assertStatus(402)
 
     await new Promise((resolve) => setTimeout(resolve, 50))
@@ -430,7 +374,7 @@ test.group('API request logging', (group) => {
    * anonymous call would be a free write endpoint for anybody with the URL.
    */
   test('does not record an unauthenticated call', async ({ client, assert }) => {
-    await client.get('/api/v1/lists')
+    await client.get('/api/v1/licenses')
 
     await new Promise((resolve) => setTimeout(resolve, 50))
 

@@ -11,6 +11,7 @@
 import app from '@adonisjs/core/services/app'
 import router from '@adonisjs/core/services/router'
 import { controllers } from '#generated/controllers'
+import { checkoutThrottle } from '#start/limiter'
 
 import '#start/routes/auth'
 import '#start/routes/web'
@@ -20,6 +21,21 @@ import '#start/routes/api'
 import '#start/routes/admin'
 
 router.on('/').render('pages/home').as('home')
+
+/**
+ * The public pricing page and checkout (licence plan §6, M5). Signed-in or
+ * not: a signed-in buyer's order goes to their account, anybody else gives
+ * an email.
+ */
+router.get('/pricing/:product', [controllers.storefront.Pricing, 'show']).as('storefront.pricing')
+router
+  .post('/pricing/:product/:plan', [controllers.storefront.Pricing, 'checkout'])
+  .as('storefront.checkout')
+  .use(checkoutThrottle)
+router.get('/checkout/return', [controllers.storefront.Pricing, 'return']).as('storefront.return')
+router
+  .get('/checkout/status/:order', [controllers.storefront.Pricing, 'status'])
+  .as('storefront.status')
 
 /**
  * Liveness and readiness (plan §16). Unauthenticated by necessity — the

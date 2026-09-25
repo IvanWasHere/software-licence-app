@@ -7,7 +7,6 @@ import Subscription from '#models/subscription'
 import Organization from '#models/organization'
 import type WebhookEvent from '#models/webhook_event'
 import Plan from '#models/plan'
-import plans from '#billing/plan_service'
 import orders from '#commerce/order_service'
 import licenseBilling from '#commerce/license_billing'
 import mailer from '#mail/mailer_service'
@@ -15,8 +14,6 @@ import { paymentProvider } from '#billing/provider'
 import type { NormalizedEvent, ProviderSubscription } from '#billing/contracts'
 import PaymentReceiptNotification from '#mail/mails/payment_receipt_notification'
 import PaymentFailedNotification from '#mail/mails/payment_failed_notification'
-import SubscriptionCanceledNotification from '#mail/mails/subscription_canceled_notification'
-import SubscriptionActivatedNotification from '#mail/mails/subscription_activated_notification'
 
 /**
  * Applies a normalized event to the domain (plan §7.5, step 4).
@@ -151,7 +148,31 @@ export class WebhookHandler {
       return
     }
 
-    const order = await orders.find(event.orderPublicId)
+    const claimed = await orders.find(event.orderPublicId)
+
+    /**
+     * An order named in the metadata is only believed when it agrees with
+     * the subscription we already know: same account, and not already paid
+     * for by a different provider subscription. Otherwise a replayed event
+     * with an edited order id could issue somebody else's license on this
+     * subscription.
+     */
+    const order =
+      claimed &&
+      (!existing ||
+        !claimed.organizationId ||
+        claimed.organizationId === existing.organizationId) &&
+      (!claimed.providerSubscriptionId || claimed.providerSubscriptionId === incoming.id)
+        ? claimed
+        : null
+
+    if (claimed && !order) {
+      logger.warn(
+        { event: event.providerEventId, order: claimed.publicId, subscription: incoming.id },
+        'ignored an order id that does not belong to this subscription'
+      )
+    }
+
     const organization = existing
       ? await Organization.find(existing.organizationId)
       : order
@@ -175,6 +196,7 @@ export class WebhookHandler {
       incoming = (await this.refetch(incoming.id)) ?? incoming
     }
 
+    const previousStatus = existing?.status ?? null
     const subscription = await this.upsertSubscription(organization, incoming, 'license', plan.id)
 
     /**
@@ -188,6 +210,40 @@ export class WebhookHandler {
     }
 
     await licenseBilling.syncExpiry(subscription)
+    await this.notifyRenewalFailed(organization, subscription, plan, previousStatus)
+  }
+
+  /**
+   * The dunning email (licence plan §5.3), on the *transition* to past due
+   * only: Creem re-sends the same state, and a customer must not get five
+   * "payment failed" emails because a webhook was retried.
+   */
+  private async notifyRenewalFailed(
+    organization: Organization,
+    subscription: Subscription,
+    plan: Plan,
+    previousStatus: string | null
+  ): Promise<void> {
+    if (subscription.status !== 'past_due' || previousStatus === 'past_due') {
+      return
+    }
+
+    const owner = await this.ownerOf(organization)
+
+    if (!owner) {
+      return
+    }
+
+    const { default: License } = await import('#models/license')
+    const license = await License.query().where('subscription_id', subscription.id).first()
+    await plan.load('product')
+
+    await mailer.send(
+      new PaymentFailedNotification(owner, organization, subscription, {
+        productName: plan.product.name,
+        licenseExpiresAt: license?.expiresAt ?? null,
+      })
+    )
   }
 
   private async planOf(orderId: number): Promise<Plan | null> {
@@ -198,12 +254,10 @@ export class WebhookHandler {
   }
 
   /**
-   * Write the subscription mirror, then derive the entitlement from it.
-   *
-   * `organizations.plan_key` is what the rest of the application gates on, so
-   * it is set here and nowhere else in the request path — a customer's
-   * entitlements change because the provider said money moved, never because
-   * a browser hit a return URL (plan §7.5).
+   * A subscription event (licence plan §5.3). Every subscription keeps a
+   * license alive; one for a product that is no catalog plan is parked for a
+   * human. Licenses change because the provider said money moved, never
+   * because a browser hit a return URL (plan §7.5).
    */
   private async applySubscription(event: NormalizedEvent): Promise<void> {
     let incoming = event.subscription
@@ -225,56 +279,15 @@ export class WebhookHandler {
       return this.applyLicensingSubscription(event, incoming)
     }
 
-    const organization = await this.resolveOrganization(event, incoming)
-
-    if (!organization) {
-      /**
-       * Unattributable. Thrown rather than swallowed so the job retries and
-       * then surfaces in the admin panel — a subscription nobody can be
-       * billed for is a billing incident, not a log line.
-       */
-      throw new Error(`Webhook ${event.providerEventId} could not be attributed to an organisation`)
-    }
-
-    const existing = await Subscription.query()
-      .where('provider', 'creem')
-      .where('provider_subscription_id', incoming.id)
-      .first()
-
     /**
-     * The out-of-order guard. An event that happened before what the row
-     * already knows is dropped; an event with no timestamp is applied, since
-     * "unknown" is not "older".
+     * A subscription for a provider product that is no catalog plan, with no
+     * order of ours behind it. Since the starter's SaaS tiers went (licence
+     * plan M5) nothing else can be paid for, so this is somebody selling
+     * outside the catalog — parked for a human rather than guessed at.
      */
-    if (existing && event.occurredAt < existing.watermark.minus({ seconds: 1 })) {
-      logger.info(
-        {
-          event: event.providerEventId,
-          subscription: incoming.id,
-          occurredAt: event.occurredAt.toISO(),
-          watermark: existing.watermark.toISO(),
-        },
-        'ignored a webhook older than the subscription it describes'
-      )
-      return
-    }
-
-    /**
-     * The payload's status is trusted for everything except a cancellation
-     * that arrived with no period information — there, a re-fetch is what
-     * tells us whether the customer keeps access until the period ends.
-     */
-    if (event.type === 'subscription.canceled' && !incoming.currentPeriodEnd) {
-      incoming = (await this.refetch(incoming.id)) ?? incoming
-    }
-
-    const planKey = plans.planKeyForProductId(incoming.productId) ?? existing?.planKey ?? 'free'
-    const previousStatus = existing?.status ?? null
-
-    const subscription = await this.upsertSubscription(organization, incoming, planKey)
-
-    await this.syncEntitlement(organization, subscription)
-    await this.notify(organization, subscription, previousStatus)
+    throw new Error(
+      `Subscription ${incoming.id} (product ${incoming.productId ?? 'unknown'}) maps to no catalog plan`
+    )
   }
 
   private async upsertSubscription(
@@ -316,73 +329,6 @@ export class WebhookHandler {
 
       return subscription
     })
-  }
-
-  /**
-   * Turn the subscription's state into the organisation's entitlements.
-   *
-   * A cancelled or expired subscription drops the organisation to Free and
-   * changes nothing else — no archiving, no deletion, no data job. The next
-   * create is what surfaces the new ceiling (plan §7.4, soft-lock).
-   */
-  private async syncEntitlement(
-    organization: Organization,
-    subscription: Subscription
-  ): Promise<void> {
-    if (subscription.isEntitling) {
-      await plans.applyPlan(organization, plans.planKeyFor(subscription))
-      organization.status = subscription.status === 'past_due' ? 'past_due' : 'active'
-      organization.trialEndsAt = subscription.trialEndsAt
-      await organization.save()
-      return
-    }
-
-    await plans.applyPlan(organization, 'free')
-
-    /**
-     * `paused` and `canceled` both stop entitlement, but only a cancellation
-     * ends the relationship — an organisation whose subscription is paused is
-     * still an active workspace on the free plan.
-     */
-    organization.status = 'active'
-    await organization.save()
-  }
-
-  /**
-   * The dunning and receipt emails (plan §7.5).
-   *
-   * Sent on a *transition* rather than on every delivery: Creem re-sends the
-   * same state, and a customer must not get five "payment failed" emails
-   * because a webhook was retried.
-   */
-  private async notify(
-    organization: Organization,
-    subscription: Subscription,
-    previousStatus: string | null
-  ): Promise<void> {
-    if (subscription.status === previousStatus) {
-      return
-    }
-
-    const owner = await this.ownerOf(organization)
-
-    if (!owner) {
-      return
-    }
-
-    if (subscription.status === 'active' && previousStatus !== 'past_due') {
-      await mailer.send(new SubscriptionActivatedNotification(owner, organization, subscription))
-      return
-    }
-
-    if (subscription.status === 'past_due') {
-      await mailer.send(new PaymentFailedNotification(owner, organization, subscription))
-      return
-    }
-
-    if (subscription.isCanceled) {
-      await mailer.send(new SubscriptionCanceledNotification(owner, organization, subscription))
-    }
   }
 
   /**
@@ -526,30 +472,6 @@ export class WebhookHandler {
       { event: event.providerEventId, orderId },
       'a payment was disputed — review it in the admin panel'
     )
-  }
-
-  /**
-   * Find the tenant an event belongs to.
-   *
-   * Two threads, in order of trust: the subscription we already recorded, and
-   * the `organizationPublicId` we put into the checkout metadata ourselves.
-   * Nothing else is accepted — an organisation is never resolved from a
-   * customer email, because an email is something the payer controls.
-   */
-  private async resolveOrganization(
-    event: NormalizedEvent,
-    incoming: ProviderSubscription
-  ): Promise<Organization | null> {
-    const existing = await Subscription.query()
-      .where('provider', 'creem')
-      .where('provider_subscription_id', incoming.id)
-      .first()
-
-    if (existing) {
-      return Organization.find(existing.organizationId)
-    }
-
-    return this.organizationFromEvent(event)
   }
 
   private async organizationFromEvent(event: NormalizedEvent): Promise<Organization | null> {

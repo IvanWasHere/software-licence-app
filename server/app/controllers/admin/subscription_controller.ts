@@ -2,7 +2,7 @@ import type { HttpContext } from '@adonisjs/core/http'
 
 import Subscription from '#models/subscription'
 import Organization from '#models/organization'
-import plans from '#billing/plan_service'
+import licenseBilling from '#commerce/license_billing'
 import reconciliation from '#billing/reconciliation'
 import audit, { AUDIT_ACTIONS } from '#audit/audit_service'
 import { paymentProvider } from '#billing/provider'
@@ -86,28 +86,14 @@ export default class AdminSubscriptionController {
     subscription.cancelAtPeriodEnd = theirs.cancelAtPeriodEnd
     subscription.canceledAt = theirs.canceledAt
 
-    const theirPlan = plans.planKeyForProductId(theirs.productId)
-
-    if (theirPlan) {
-      subscription.planKey = theirPlan
-    }
-
     await subscription.save()
 
     /**
-     * The entitlement follows the status, the same way the webhook handler
-     * derives it — so a sync fixes what the customer can actually do, not
-     * just what the admin screen shows.
+     * The licenses follow the period, the same way the webhook handler
+     * derives them — so a sync fixes what the customer's software is told,
+     * not just what the admin screen shows.
      */
-    if (subscription.isEntitling) {
-      await plans.applyPlan(organization, plans.planKeyFor(subscription))
-      organization.status = subscription.status === 'past_due' ? 'past_due' : 'active'
-    } else {
-      await plans.applyPlan(organization, 'free')
-      organization.status = 'active'
-    }
-
-    await organization.save()
+    await licenseBilling.syncExpiry(subscription)
 
     await audit.recordStaffAction(ctx, {
       action: AUDIT_ACTIONS.subscriptionSynced,

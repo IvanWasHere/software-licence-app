@@ -20,7 +20,7 @@
 import router from '@adonisjs/core/services/router'
 import { middleware } from '#start/kernel'
 import { controllers } from '#generated/controllers'
-import { registerListApiRoutes } from '#modules/lists/routes'
+import { publicIdMatcher } from '#models/public_id'
 
 router
   .group(() => {
@@ -30,9 +30,15 @@ router
     router.get('/members', [controllers.api.v1.Organization, 'members']).as('api.members.index')
 
     /**
-     * The demo domain's endpoints (D8) — two lines to remove with it.
+     * A customer's own licenses (licence plan M5). The id matcher keeps
+     * `/licenses/validate` and friends — the keyless license API — from ever
+     * being read as an id here.
      */
-    registerListApiRoutes()
+    router.get('/licenses', [controllers.api.v1.AccountLicense, 'index']).as('api.licenses.index')
+    router
+      .get('/licenses/:id', [controllers.api.v1.AccountLicense, 'show'])
+      .as('api.licenses.show')
+      .where('id', publicIdMatcher('license'))
 
     /**
      * The integration API (licence plan §6, M4) — our own website's backend

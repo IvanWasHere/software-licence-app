@@ -1,0 +1,5 @@
+@let(stats = widget.data)
+
+@!statCard({ label: 'Active licenses', value: stats.active, icon: 'key', tone: 'blue' })
+@!statCard({ label: 'Installations', value: stats.installs, icon: 'package', tone: 'green' })
+@!statCard({ label: 'Expiring in 30 days', value: stats.expiringSoon, icon: 'clock', tone: stats.expiringSoon ? 'orange' : 'purple' })

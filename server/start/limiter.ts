@@ -260,3 +260,13 @@ export const licenseApiKeyThrottle = limiter.define('license_api_key', (ctx) => 
     .every('1 minute')
     .usingKey(`license:${accountKey(ctx.request.input('license_key'))}`)
 })
+
+/**
+ * Starting a checkout from the public pricing page (licence plan §6, M5), by
+ * address. Each one writes an order and calls the payment provider, so a
+ * script must not be able to do it thousands of times; a person comparing
+ * plans does it a handful.
+ */
+export const checkoutThrottle = limiter.define('checkout', (ctx) => {
+  return limiter.allowRequests(10).every('1 hour').usingKey(addressKey(ctx))
+})

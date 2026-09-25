@@ -23,12 +23,7 @@ export default class extends BaseSchema {
         .onDelete('CASCADE')
         .index()
 
-      table
-        .integer('plan_id')
-        .notNullable()
-        .references('id')
-        .inTable('plans')
-        .onDelete('RESTRICT')
+      table.integer('plan_id').notNullable().references('id').inTable('plans').onDelete('RESTRICT')
 
       table.integer('quantity').notNullable().defaultTo(1)
       table.integer('unit_price_cents').notNullable()

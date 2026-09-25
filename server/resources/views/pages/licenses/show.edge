@@ -1,0 +1,104 @@
+{{--
+  One license (licence plan §6, M5): the key, what it includes, and every
+  installation using it — each with the button that frees its slot.
+--}}
+@component('layouts/app', { title: license.product.name })
+  @pageHeader({ description: `${license.plan.name} · ${license.publicId}` })
+    @slot('heading')
+      {{ license.product.name }}
+      @include('pages/licenses/_status')
+    @end
+    @slot('actions')
+      <a class="btn btn-ghost btn-sm" href="{{ urlFor('licenses.index') }}">All licenses</a>
+    @end
+  @end
+
+  <div class="settings-card">
+    @if(revealedKey)
+      @!copyField({ value: revealedKey, label: 'License key' })
+    @else
+      <span class="field-label">License key</span>
+      <div class="copy-field">
+        <code class="copy-value">{{ license.product.keyPrefix }}-{{ license.maskedKey }}</code>
+        @form({ route: 'licenses.reveal', routeParams: { id: license.publicId }, method: 'POST' })
+          @!button({ text: 'Show key', variant: 'outline', size: 'sm', type: 'submit' })
+        @end
+      </div>
+    @end
+    <p class="field-hint">Enter this in the software's license settings to activate it.</p>
+  </div>
+
+  @if(license.statusReason && (license.isRevoked || license.isSuspended))
+    <div class="info-box info-box-warning">
+      <p><strong>{{ license.isRevoked ? 'This license was revoked.' : 'This license is suspended.' }}</strong></p>
+      <p>{{ license.statusReason }}. Contact support if this looks wrong.</p>
+    </div>
+  @end
+
+  <div class="settings-card">
+    <div class="table-scroll">
+      <table class="tx-table">
+        <tbody>
+          <tr><th>Plan</th><td>{{ license.plan.name }}</td></tr>
+          <tr>
+            <th>{{ license.subscription ? 'Renews / expires' : 'Expires' }}</th>
+            <td>{{ license.expiresAt ? license.expiresAt.toFormat('d LLLL yyyy') : 'Never' }}</td>
+          </tr>
+          @if(license.updatesUntil)
+            <tr><th>Updates until</th><td>{{ license.updatesUntil.toFormat('d LLLL yyyy') }}</td></tr>
+          @end
+          <tr><th>Sites in use</th><td>{{ usage.used }} of {{ usage.max === null ? 'unlimited' : usage.max }}</td></tr>
+          @if(entitlements.length)
+            <tr>
+              <th>Includes</th>
+              <td>
+                @each(entry in entitlements)
+                  @if(entry[1] === true)
+                    @!badge({ text: entry[0].replace(/_/g, ' '), tone: 'success' })
+                  @elseif(entry[1] !== false && entry[1] !== '' && entry[1] !== 0)
+                    @!badge({ text: `${entry[0].replace(/_/g, ' ')}: ${entry[1]}`, tone: 'info' })
+                  @end
+                @end
+              </td>
+            </tr>
+          @end
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  @panel.root({ title: 'Where it is installed', flush: true })
+    @if(activations.length)
+      <div class="table-scroll">
+        <table class="tx-table">
+          <thead><tr><th>Site / install</th><th>Version</th><th>Last seen</th><th></th></tr></thead>
+          <tbody>
+            @each(activation in activations)
+              <tr>
+                <td>
+                  {{ activation.displayName }}
+                  @if(activation.isDev)
+                    @!badge({ text: 'development — free', tone: 'info' })
+                  @end
+                </td>
+                <td>{{ activation.clientVersion ?? '—' }}</td>
+                <td style="white-space: nowrap">{{ activation.lastSeenAt ? activation.lastSeenAt.toFormat('d LLL yyyy') : '—' }}</td>
+                <td>
+                  @form({ route: 'licenses.deactivate', routeParams: { id: license.publicId, activationId: activation.publicId }, method: 'POST' })
+                    @!button({ text: 'Deactivate', variant: 'outline', size: 'xs', type: 'submit' })
+                  @end
+                </td>
+              </tr>
+            @end
+          </tbody>
+        </table>
+      </div>
+    @else
+      @!emptyState({
+        icon: 'package',
+        title: 'Not installed anywhere yet',
+        description: 'Enter the key in the software and the installation appears here.',
+      })
+    @end
+  @end
+@end

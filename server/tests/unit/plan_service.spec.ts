@@ -2,103 +2,36 @@ import { test } from '@japa/runner'
 import testUtils from '@adonisjs/core/services/test_utils'
 
 import plans from '#billing/plan_service'
-import {
-  hasUnlimitedLimit,
-  LIMIT_KEYS,
-  LIMIT_NOUNS,
-  planCardLines,
-  plans as catalogue,
-  type LimitKey,
-  type PlanKey,
-} from '#config/plans'
+import { LIMIT_KEYS, LIMIT_NOUNS, plans as catalogue, type LimitKey } from '#config/plans'
 import PlanLimitExceededException from '#exceptions/plan_limit_exceeded_exception'
 import UpgradeRequiredException from '#exceptions/upgrade_required_exception'
-import { createList, createWorkspace } from '#tests/helpers'
+import { addMember, createWorkspace } from '#tests/helpers'
 
 /**
- * Entitlement logic, exhaustively (plan §15).
- *
- * These are the rules customers pay for, so the suite walks every limit on
- * every plan rather than spot-checking one — a limit silently missing from a
- * plan is how somebody gets unlimited seats for $0.
+ * Account limits (licence plan M5): one tier, every limit, and the staff
+ * overrides that move them. What a customer *bought* lives on their licenses;
+ * these are the limits that keep one account from costing us
+ * disproportionately — and a limit silently missing is how somebody gets
+ * unlimited seats for nothing.
  */
-test.group('PlanService — entitlements', () => {
-  const organizationOn = (
-    planKey: string,
-    limitOverrides: Record<string, number | null> | null = null
-  ) => ({ planKey, limitOverrides }) as any
+test.group('PlanService — account limits', () => {
+  const account = (limitOverrides: Record<string, number | null> | null = null) =>
+    ({ planKey: 'standard', limitOverrides }) as any
 
-  test('every plan defines every limit', ({ assert }) => {
-    const keys = Object.keys(catalogue.free.limits) as LimitKey[]
-
-    for (const [name, plan] of Object.entries(catalogue)) {
-      for (const key of keys) {
-        assert.property(plan.limits, key, `${name} defines ${key}`)
-      }
-    }
-  })
-
-  test('every limit on every plan reads back', ({ assert }) => {
-    const keys = Object.keys(catalogue.free.limits) as LimitKey[]
-
-    for (const [planKey, plan] of Object.entries(catalogue)) {
-      for (const key of keys) {
-        assert.equal(
-          plans.limit(organizationOn(planKey), key),
-          plan.limits[key],
-          `${planKey}.${key}`
-        )
-      }
+  test('the tier defines every limit, and each reads back', ({ assert }) => {
+    for (const key of LIMIT_KEYS) {
+      assert.property(catalogue.standard.limits, key)
+      assert.strictEqual(
+        plans.limit(account(), key as LimitKey),
+        catalogue.standard.limits[key as LimitKey],
+        key
+      )
     }
   })
 
   /**
-   * The pricing grid is built from `PLAN_CARD_LIMITS` rather than written out
-   * in the template, so these are the exact lines a customer reads. Pinned
-   * because the wording is the product's public promise — "0.1 GB storage"
-   * on Free is odd but it is what the page has always said, and a refactor
-   * quietly turning it into "100 MB of storage" is a change somebody should
-   * have to make on purpose.
-   */
-  test('the plan grid advertises each tier in its own words', ({ assert }) => {
-    assert.deepEqual(planCardLines(catalogue.free.limits), [
-      '2 seats',
-      '3 lists',
-      '50 todos per list',
-      '0.1 GB storage',
-    ])
-
-    assert.deepEqual(planCardLines(catalogue.pro.limits), [
-      '10 seats',
-      '25 lists',
-      '500 todos per list',
-      '5 GB storage',
-    ])
-
-    assert.deepEqual(planCardLines(catalogue.business.limits), [
-      '50 seats',
-      'Unlimited lists',
-      'Unlimited todos per list',
-      '100 GB storage',
-    ])
-  })
-
-  /**
-   * Which tier gets the "stopped counting" copy. Asked as "is anything
-   * unlimited" rather than by naming a limit, so the top plan's description
-   * does not depend on the demo domain existing.
-   */
-  test('only a tier with an unlimited limit reads as uncapped', ({ assert }) => {
-    assert.isFalse(hasUnlimitedLimit(catalogue.free.limits))
-    assert.isFalse(hasUnlimitedLimit(catalogue.pro.limits))
-    assert.isTrue(hasUnlimitedLimit(catalogue.business.limits))
-  })
-
-  /**
-   * Every limit needs a word a customer can read, whether or not anything
-   * counts it. `apiKeys` and `apiCallsPerMonth` are enforced without being
-   * registered quotas, and reading their noun off the quota registry instead
-   * of the catalogue is what produced "you have used all 5 apiKeys".
+   * The noun belongs to the limit, not the quota registry — reading it off
+   * the registry instead is what produced "you have used all 5 apiKeys".
    */
   test('every limit has a noun, and a blocked create uses it', ({ assert }) => {
     for (const key of LIMIT_KEYS) {
@@ -107,231 +40,160 @@ test.group('PlanService — entitlements', () => {
 
     assert.equal(
       PlanLimitExceededException.messageFor({ limit: 'apiKeys', allowed: 5, current: 5 }),
-      'Your plan allows 5 API keys, and you are using 5.'
-    )
-
-    assert.equal(
-      PlanLimitExceededException.messageFor({ limit: 'lists', allowed: 3, current: 3 }),
-      'Your plan allows 3 lists, and you are using 3.'
+      'Your account allows 5 API keys, and you are using 5.'
     )
 
     /**
-     * `0` is "not on this plan at all", which is a different sentence.
+     * `0` is "switched off", which is a different sentence.
      */
     assert.equal(
       PlanLimitExceededException.messageFor({ limit: 'apiKeys', allowed: 0, current: 0 }),
-      'API keys are not included in your plan.'
+      'API keys are switched off for your account.'
     )
   })
 
   /**
-   * `null` is unlimited; `0` means the plan does not have the feature at all,
-   * so its screen is hidden rather than shown empty. Collapsing the two is the
-   * bug this test exists to catch.
+   * `null` is unlimited; `0` is off, so the screen is hidden rather than shown
+   * empty. Collapsing the two is the bug this test exists to catch.
    */
   test('unlimited is not the same as unavailable', ({ assert }) => {
-    assert.isNull(plans.limit(organizationOn('business'), 'lists'), 'business lists are unlimited')
-    assert.equal(plans.limit(organizationOn('free'), 'apiKeys'), 0, 'free has no API keys')
+    assert.isNull(plans.limit(account({ seats: null }), 'seats'))
+    assert.equal(plans.limit(account({ apiKeys: 0 }), 'apiKeys'), 0)
 
-    assert.isTrue(plans.isWithinLimit(organizationOn('business'), 'lists', 10_000))
-    assert.isFalse(plans.isWithinLimit(organizationOn('free'), 'apiKeys', 1))
+    assert.isTrue(plans.isWithinLimit(account({ seats: null }), 'seats', 10_000))
+    assert.isFalse(plans.isWithinLimit(account({ apiKeys: 0 }), 'apiKeys', 1))
   })
 
   test('a limit is the count after the create, so the cap itself still fits', ({ assert }) => {
-    const free = organizationOn('free')
+    const capped = account({ seats: 3 })
 
-    assert.isTrue(plans.isWithinLimit(free, 'lists', 3), 'the third list fits')
-    assert.isFalse(plans.isWithinLimit(free, 'lists', 4), 'the fourth does not')
+    assert.isTrue(plans.isWithinLimit(capped, 'seats', 3), 'the third seat fits')
+    assert.isFalse(plans.isWithinLimit(capped, 'seats', 4), 'the fourth does not')
   })
 
-  test('a staff override wins over the plan', ({ assert }) => {
-    assert.equal(plans.limit(organizationOn('free', { lists: 25 }), 'lists'), 25)
-    assert.isNull(
-      plans.limit(organizationOn('free', { lists: null }), 'lists'),
-      'null grants unlimited'
-    )
-    assert.equal(
-      plans.limit(organizationOn('free', { lists: 25 }), 'seats'),
-      2,
-      'other limits are untouched'
-    )
+  test('a staff override moves one limit and leaves the others alone', ({ assert }) => {
+    assert.equal(plans.limit(account({ seats: 50 }), 'seats'), 50)
+    assert.equal(plans.limit(account({ seats: 50 }), 'apiKeys'), catalogue.standard.limits.apiKeys)
   })
 
-  test('a plan that no longer exists falls back to free rather than locking anyone out', ({
-    assert,
-  }) => {
-    assert.equal(plans.planFor(organizationOn('enterprise-that-never-shipped')).name, 'Free')
-    assert.equal(plans.planKeyFor(organizationOn('enterprise-that-never-shipped')), 'free')
+  /**
+   * Accounts created before M5 carry `free`, `pro` or `business`. Every key
+   * resolves to the one tier, so none of them is locked out.
+   */
+  test('a starter tier key still resolves to the account tier', ({ assert }) => {
+    for (const key of ['free', 'pro', 'business', 'never-existed']) {
+      assert.equal(plans.planFor({ planKey: key }).name, 'Standard', key)
+      assert.equal(plans.planKeyFor({ planKey: key }), 'standard', key)
+    }
   })
 
-  test('features gate per plan', ({ assert }) => {
-    assert.isFalse(plans.can(organizationOn('free'), 'api'))
-    assert.isTrue(plans.can(organizationOn('pro'), 'api'))
-    assert.isFalse(plans.can(organizationOn('pro'), 'sso'))
-    assert.isTrue(plans.can(organizationOn('business'), 'sso'))
-  })
-
-  test('assertCan throws a 402 for a feature the plan does not include', ({ assert }) => {
-    assert.throws(
-      () => plans.assertCan(organizationOn('free'), 'api'),
-      'Your plan does not include api.'
-    )
+  test('features gate, and a missing one is a 402', ({ assert }) => {
+    assert.isTrue(plans.can(account(), 'api'))
+    assert.isFalse(plans.can(account(), 'sso'))
 
     try {
-      plans.assertCan(organizationOn('free'), 'api')
+      plans.assertCan(account(), 'sso')
+      assert.fail('should have thrown')
     } catch (error) {
       assert.instanceOf(error, UpgradeRequiredException)
       assert.equal((error as UpgradeRequiredException).status, 402)
     }
   })
 
-  test('assertWithinLimit carries the numbers the upsell renders', ({ assert }) => {
+  test('assertWithinLimit carries the numbers the screen renders', ({ assert }) => {
     try {
-      plans.assertWithinLimit(organizationOn('free'), 'lists', 4)
+      plans.assertWithinLimit(account({ seats: 3 }), 'seats', 4)
       assert.fail('should have thrown')
     } catch (error) {
       assert.instanceOf(error, PlanLimitExceededException)
 
       const details = (error as PlanLimitExceededException).details
-      assert.equal(details.limit, 'lists')
+      assert.equal(details.limit, 'seats')
       assert.equal(details.allowed, 3)
       assert.equal(details.current, 3)
       assert.equal((error as PlanLimitExceededException).status, 402)
     }
-  })
-
-  /**
-   * The reverse map a webhook depends on: without it, a `checkout.completed`
-   * cannot say *which* plan was bought.
-   */
-  test('a provider product id maps back to a plan key', ({ assert }) => {
-    assert.equal(plans.planKeyForProductId('prod_test_pro'), 'pro')
-    assert.equal(plans.planKeyForProductId('prod_test_business'), 'business')
-  })
-
-  test('an unrecognised product id maps to nothing rather than guessing', ({ assert }) => {
-    assert.isNull(plans.planKeyForProductId('prod_someone_elses'))
-    assert.isNull(plans.planKeyForProductId(null))
-    assert.isNull(plans.planKeyForProductId(''))
-  })
-
-  test('the plan grid is ordered by price', ({ assert }) => {
-    const ordered = plans.purchasablePlans().map((entry) => entry.key)
-    assert.deepEqual(ordered, ['free', 'pro', 'business'] as PlanKey[])
   })
 })
 
 test.group('PlanService — usage', (group) => {
   group.each.setup(() => testUtils.db().truncate())
 
-  test('counts lists and seats from the same source enforcement uses', async ({ assert }) => {
+  test('counts seats from the same source enforcement uses', async ({ assert }) => {
     const { user, organization } = await createWorkspace()
-    await createList(organization, user, 'One')
-    await createList(organization, user, 'Two')
+    await addMember(organization, user, 'sam@example.com')
 
     const usage = await plans.usage(organization)
 
-    assert.equal(usage.quotas.lists!.current, 2)
-    assert.equal(usage.quotas.lists!.limit, 3)
-    assert.equal(usage.quotas.lists!.remaining, 1)
-    assert.isFalse(usage.quotas.lists!.isFull)
-
-    assert.equal(usage.quotas.seats!.current, 1, 'the owner')
-    assert.equal(usage.quotas.seats!.limit, 2)
-  })
-
-  /**
-   * Archiving hides a list; it does not free a slot (plan §5.6). If it did,
-   * the `lists` cap would be trivially escapable.
-   */
-  test('archived lists still count', async ({ assert }) => {
-    const { user, organization } = await createWorkspace()
-    const list = await createList(organization, user, 'One')
-
-    const { default: lists } = await import('#modules/lists/services/list_service')
-    await lists.archive(list)
-
-    const usage = await plans.usage(organization)
-    assert.equal(usage.quotas.lists!.current, 1)
-  })
-
-  test('deleting a list frees a slot', async ({ assert }) => {
-    const { user, organization } = await createWorkspace()
-    const list = await createList(organization, user, 'One')
-
-    const { default: lists } = await import('#modules/lists/services/list_service')
-    await lists.delete(list)
-
-    const usage = await plans.usage(organization)
-    assert.equal(usage.quotas.lists!.current, 0)
+    assert.equal(usage.quotas.seats!.current, 2)
+    assert.equal(usage.quotas.seats!.limit, catalogue.standard.limits.seats)
+    assert.deepEqual(
+      usage.meters.map((meter) => meter.key),
+      ['seats', 'storageMb']
+    )
   })
 
   test('a meter turns amber at 80% and full at the cap', async ({ assert }) => {
     const { user, organization } = await createWorkspace()
 
     /**
-     * Five so that 80% is a whole number of lists — the boundary is what is
+     * Five so that 80% is a whole number of seats — the boundary is what is
      * under test, not the rounding.
      */
-    organization.limitOverrides = { lists: 5 }
+    organization.limitOverrides = { seats: 5 }
     await organization.save()
 
-    for (const name of ['One', 'Two', 'Three']) {
-      await createList(organization, user, name)
+    for (const email of ['a@example.com', 'b@example.com']) {
+      await addMember(organization, user, email)
     }
 
     let usage = await plans.usage(organization)
-    assert.isFalse(usage.quotas.lists!.isNearLimit, '3 of 5 is 60%')
+    assert.isFalse(usage.quotas.seats!.isNearLimit, '3 of 5 is 60%')
 
-    await createList(organization, user, 'Four')
-
-    usage = await plans.usage(organization)
-    assert.isTrue(usage.quotas.lists!.isNearLimit, '4 of 5 is exactly 80%')
-    assert.isFalse(usage.quotas.lists!.isFull)
-
-    await createList(organization, user, 'Five')
+    await addMember(organization, user, 'c@example.com')
 
     usage = await plans.usage(organization)
-    assert.isTrue(usage.quotas.lists!.isFull)
-    assert.equal(usage.quotas.lists!.remaining, 0)
+    assert.isTrue(usage.quotas.seats!.isNearLimit, '4 of 5 is exactly 80%')
+    assert.isFalse(usage.quotas.seats!.isFull)
+
+    await addMember(organization, user, 'd@example.com')
+
+    usage = await plans.usage(organization)
+    assert.isTrue(usage.quotas.seats!.isFull)
+    assert.equal(usage.quotas.seats!.remaining, 0)
   })
 
   /**
-   * A downgrade can leave usage *above* the ceiling. That must read as full
-   * rather than as negative headroom (plan §7.4, soft-lock).
+   * Lowering a limit can leave usage *above* the ceiling. That must read as
+   * full rather than as negative headroom (plan §7.4, soft-lock).
    */
   test('usage above the ceiling reads as full, not as negative headroom', async ({ assert }) => {
     const { user, organization } = await createWorkspace()
 
-    organization.planKey = 'pro'
-    await organization.save()
-
-    for (const name of ['One', 'Two', 'Three', 'Four', 'Five']) {
-      await createList(organization, user, name)
+    for (const email of ['a@example.com', 'b@example.com', 'c@example.com']) {
+      await addMember(organization, user, email)
     }
 
-    organization.planKey = 'free'
+    organization.limitOverrides = { seats: 2 }
     await organization.save()
 
     const usage = await plans.usage(organization)
-    assert.equal(usage.quotas.lists!.current, 5)
-    assert.equal(usage.quotas.lists!.limit, 3)
-    assert.equal(usage.quotas.lists!.remaining, 0, 'clamped, never negative')
-    assert.isTrue(usage.quotas.lists!.isFull)
+    assert.equal(usage.quotas.seats!.current, 4)
+    assert.equal(usage.quotas.seats!.limit, 2)
+    assert.equal(usage.quotas.seats!.remaining, 0, 'clamped, never negative')
+    assert.isTrue(usage.quotas.seats!.isFull)
   })
 
-  test('an unlimited plan never reads as full or near', async ({ assert }) => {
-    const { user, organization } = await createWorkspace()
+  test('an unlimited limit never reads as full or near', async ({ assert }) => {
+    const { organization } = await createWorkspace()
 
-    organization.planKey = 'business'
+    organization.limitOverrides = { seats: null }
     await organization.save()
 
-    await createList(organization, user, 'One')
-
     const usage = await plans.usage(organization)
-    assert.isNull(usage.quotas.lists!.limit)
-    assert.isNull(usage.quotas.lists!.remaining)
-    assert.isFalse(usage.quotas.lists!.isFull)
-    assert.isFalse(usage.quotas.lists!.isNearLimit)
+    assert.isNull(usage.quotas.seats!.limit)
+    assert.isNull(usage.quotas.seats!.remaining)
+    assert.isFalse(usage.quotas.seats!.isFull)
+    assert.isFalse(usage.quotas.seats!.isNearLimit)
   })
 })

@@ -23,11 +23,12 @@
 
   @if(keyUsage.limit === 0)
     <div class="info-box info-box-warning">
-      <p><strong>The API is not included in your plan.</strong></p>
+      <p><strong>API access is switched off for this account.</strong></p>
       <p>
-        Upgrade to create keys and call the API.
-        @if(hasRoute('billing.index'))
-          <a href="{{ urlFor('billing.index') }}">See plans</a>.
+        @if(hasRoute('support.create'))
+          <a href="{{ urlFor('support.create') }}">Contact support</a> if you need it.
+        @else
+          Contact support if you need it.
         @end
       </p>
     </div>
@@ -45,14 +46,14 @@
   @panel.root({ title: 'Keys', flush: true })
     @slot('actions')
       @if(keyUsage.limit === 0)
-        {{-- Free has `apiKeys: 0`, which means "not on this plan", not "none yet" --}}
-        @!button({ text: 'New key', size: 'sm', disabled: true, title: 'The API is not included in your plan.' })
+        {{-- `apiKeys: 0` means "switched off for this account", not "none yet" --}}
+        @!button({ text: 'New key', size: 'sm', disabled: true, title: 'API access is switched off for this account.' })
       @elseif(keyUsage.isFull)
         @!button({
           text: 'New key',
           size: 'sm',
           disabled: true,
-          title: `Your plan allows ${keyUsage.limit} keys. Revoke one to free a slot.`,
+          title: `This account allows ${keyUsage.limit} keys. Revoke one to free a slot.`,
         })
       @else
         @!button({

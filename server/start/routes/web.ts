@@ -12,8 +12,8 @@
 import router from '@adonisjs/core/services/router'
 import { middleware } from '#start/kernel'
 import { controllers } from '#generated/controllers'
-import { registerListWebRoutes } from '#modules/lists/routes'
 import { supportMessageThrottle, supportTicketThrottle } from '#start/limiter'
+import { publicIdMatcher } from '#models/public_id'
 
 router
   .group(() => {
@@ -57,7 +57,27 @@ router
      * *inside* this group so it inherits the same middleware stack as every
      * other screen.
      */
-    registerListWebRoutes()
+    /**
+     * Licenses (licence plan §6, M5) — every member, not only the owner:
+     * whoever installs the software needs the key.
+     */
+    router.get('/licenses', [controllers.licenses.License, 'index']).as('licenses.index')
+    router
+      .get('/licenses/:id', [controllers.licenses.License, 'show'])
+      .as('licenses.show')
+      .where('id', publicIdMatcher('license'))
+    router
+      .post('/licenses/:id/reveal', [controllers.licenses.License, 'reveal'])
+      .as('licenses.reveal')
+      .where('id', publicIdMatcher('license'))
+    router
+      .post('/licenses/:id/activations/:activationId/deactivate', [
+        controllers.licenses.License,
+        'deactivate',
+      ])
+      .as('licenses.deactivate')
+      .where('id', publicIdMatcher('license'))
+      .where('activationId', publicIdMatcher('licenseActivation'))
 
     /**
      * Files (plan §10). Uploading is open to every member; deleting is the

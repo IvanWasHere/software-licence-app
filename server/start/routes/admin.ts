@@ -85,9 +85,6 @@ router
       .post('/organizations/:id/suspend', [controllers.admin.Organization, 'suspend'])
       .as('admin.organizations.suspend')
     router
-      .post('/organizations/:id/plan', [controllers.admin.Organization, 'overridePlan'])
-      .as('admin.organizations.plan')
-    router
       .post('/organizations/:id/limits', [controllers.admin.Organization, 'overrideLimits'])
       .as('admin.organizations.limits')
 

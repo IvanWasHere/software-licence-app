@@ -28,10 +28,10 @@ export class IntegrationKeys {
     }
 
     /**
-     * The API is gated on a plan that includes it, and metered per month. The
-     * system account is neither a customer nor on a plan, so both are lifted.
+     * The API is metered per account per month, and keys are capped. The
+     * system account is not a customer, so both are lifted.
      */
-    organization.planKey = 'business'
+    organization.planKey = 'standard'
     organization.limitOverrides = {
       ...(organization.limitOverrides ?? {}),
       apiKeys: null,

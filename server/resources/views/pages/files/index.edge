@@ -15,17 +15,13 @@
     <div class="info-box info-box-warning">
       <p>
         <strong>
-          This workspace is using all {{ storage.limit }} MB of storage your plan includes.
+          This account is using all {{ storage.limit }} MB of storage it includes.
         </strong>
       </p>
       <p>
         Nothing is locked — every file here still downloads. Deleting one frees its space
         immediately,
-        @if(isOwner && hasRoute('billing.index'))
-          or <a href="{{ urlFor('billing.index') }}">upgrade for more</a>.
-        @else
-          or ask the workspace owner to upgrade.
-        @end
+        or contact support for more.
       </p>
     </div>
   @else

@@ -7,9 +7,9 @@ import Payment from '#models/payment'
 import Subscription from '#models/subscription'
 import type Organization from '#models/organization'
 import billing, { BillingError } from '#billing/billing_service'
-import { PaymentProviderError } from '#billing/contracts'
 import {
   addMember,
+  createCatalogPlan,
   createWorkspace,
   restorePaymentProvider,
   useFakePaymentProvider,
@@ -17,22 +17,25 @@ import {
 } from '#tests/helpers'
 
 /**
- * A live subscription for an organisation, written the way a webhook would
- * have written it.
+ * A live license subscription for an account, written the way a webhook
+ * would have written it.
  */
-async function subscribe(organization: Organization, planKey: 'pro' | 'business' = 'pro') {
-  organization.planKey = planKey
-  await organization.save()
+async function subscribe(organization: Organization) {
+  const { plan } = await createCatalogPlan({
+    product: { name: 'Invoice Pro' },
+    plan: { name: 'Yearly', billing: 'yearly', licenseTerm: 'subscription', priceCents: 14_900 },
+  })
 
   return Subscription.create({
     organizationId: organization.id,
     provider: 'creem',
     providerSubscriptionId: 'sub_live_1',
     providerCustomerId: 'cus_live_1',
-    planKey,
+    planKey: 'license',
+    planId: plan.id,
     status: 'active',
     currentPeriodStart: DateTime.utc().startOf('month'),
-    currentPeriodEnd: DateTime.utc().startOf('month').plus({ months: 1 }),
+    currentPeriodEnd: DateTime.utc().startOf('month').plus({ years: 1 }),
     cancelAtPeriodEnd: false,
   })
 }
@@ -63,20 +66,24 @@ test.group('Billing screen', (group) => {
     response.assertFlashMessage('error', 'Only the workspace owner can do that.')
   })
 
-  test('the owner sees the plan grid and their usage', async ({ client }) => {
+  test('the owner sees an empty record before buying anything', async ({ client, assert }) => {
     const { user } = await createWorkspace()
 
     const response = await client.get('/billing').loginAs(user)
 
     response.assertStatus(200)
-    response.assertTextIncludes('Current plan: Free')
-    response.assertTextIncludes('Pro')
-    response.assertTextIncludes('Business')
-    response.assertTextIncludes('Usage on this plan')
+    response.assertTextIncludes('No subscriptions')
+    response.assertTextIncludes('No orders yet')
     response.assertTextIncludes('No transactions yet')
+
+    /**
+     * Nothing is sold here any more — no tier grid, no checkout buttons.
+     */
+    assert.notInclude(response.text(), 'Switch to')
+    assert.notInclude(response.text(), 'Manage payment')
   })
 
-  test('transaction history renders what the provider confirmed', async ({ client }) => {
+  test('shows the subscription and the charges behind it', async ({ client }) => {
     const { user, organization } = await createWorkspace()
     const subscription = await subscribe(organization)
 
@@ -85,178 +92,23 @@ test.group('Billing screen', (group) => {
       subscriptionId: subscription.id,
       provider: 'creem',
       providerOrderId: 'ord_1',
-      amountCents: 2900,
-      currency: 'USD',
+      amountCents: 14_900,
+      currency: 'EUR',
       status: 'succeeded',
       refundedAmountCents: 0,
-      description: 'Pro plan — monthly',
+      description: 'Invoice Pro · Yearly',
       occurredAt: DateTime.utc(),
     })
 
     const response = await client.get('/billing').loginAs(user)
 
     response.assertStatus(200)
-    response.assertTextIncludes('Current plan: Pro')
-    response.assertTextIncludes('Pro plan — monthly')
-    response.assertTextIncludes('$29.00')
+    response.assertTextIncludes('Invoice Pro · Yearly')
+    response.assertTextIncludes('Active')
     response.assertTextIncludes('Paid')
 
-    /* The portal button lives on the card that names the subscription. */
+    /* The portal button appears once there is a subscription to manage. */
     response.assertTextIncludes('Manage payment')
-  })
-})
-
-test.group('Billing — checkout', (group) => {
-  let provider: FakePaymentProvider
-
-  group.each.setup(() => {
-    mail.fake()
-    provider = useFakePaymentProvider()
-
-    return () => {
-      mail.restore()
-      restorePaymentProvider()
-    }
-  })
-  group.each.setup(() => testUtils.db().truncate())
-
-  /**
-   * The thread that ties the eventual webhook to this tenant (plan §7.5).
-   * Everything else about a checkout can be reconstructed; this cannot.
-   */
-  test('sends the organisation to the provider with its public id in the metadata', async ({
-    client,
-    assert,
-  }) => {
-    const { user, organization } = await createWorkspace()
-
-    const response = await client
-      .post('/billing/checkout')
-      .loginAs(user)
-      .form({ plan: 'pro' })
-      .withCsrfToken()
-      .redirects(0)
-
-    response.assertStatus(302)
-    response.assertHeader('location', 'https://checkout.test/prod_test_pro')
-
-    assert.lengthOf(provider.checkouts, 1)
-    assert.equal(provider.checkouts[0].productId, 'prod_test_pro')
-    assert.equal(provider.checkouts[0].customerEmail, user.email)
-    assert.equal(provider.checkouts[0].metadata.organizationPublicId, organization.publicId)
-    assert.equal(provider.checkouts[0].metadata.planKey, 'pro')
-  })
-
-  /**
-   * Nothing about entitlements moves until the webhook lands. A checkout
-   * *started* is not a subscription.
-   */
-  test('starting a checkout changes no entitlement', async ({ client, assert }) => {
-    const { user, organization } = await createWorkspace()
-
-    await client
-      .post('/billing/checkout')
-      .loginAs(user)
-      .form({ plan: 'pro' })
-      .withCsrfToken()
-      .redirects(0)
-
-    await organization.refresh()
-    assert.equal(organization.planKey, 'free')
-    assert.lengthOf(await Subscription.all(), 0)
-  })
-
-  test('refuses a plan that does not exist', async ({ client, assert }) => {
-    const { user } = await createWorkspace()
-
-    const response = await client
-      .post('/billing/checkout')
-      .loginAs(user)
-      .form({ plan: 'enterprise' })
-      .withCsrfToken()
-      .redirects(0)
-
-    response.assertFlashMessage('error', 'That plan does not exist.')
-    assert.lengthOf(provider.checkouts, 0)
-  })
-
-  /**
-   * Free is not something you buy — leaving a paid plan is a cancellation
-   * through the provider's portal, so it decides when the paid period ends.
-   */
-  test('refuses to check out the free plan', async ({ assert }) => {
-    const { user, organization } = await createWorkspace()
-
-    await assert.rejects(
-      () => billing.startCheckout(organization, user, 'free'),
-      'The Free plan is not something you check out.'
-    )
-  })
-
-  /**
-   * A provider outage must read as "nothing was charged", not as a stack
-   * trace to somebody holding their card.
-   */
-  test('a provider outage is a message, not a 500', async ({ client, assert }) => {
-    const { user } = await createWorkspace()
-
-    provider.failWith = new PaymentProviderError('Creem is down', 503)
-
-    const response = await client
-      .post('/billing/checkout')
-      .loginAs(user)
-      .form({ plan: 'pro' })
-      .withCsrfToken()
-      .redirects(0)
-
-    response.assertStatus(302)
-    response.assertFlashMessage(
-      'error',
-      'We could not reach our payment provider just now. Nothing was charged — please try again.'
-    )
-
-    assert.lengthOf(await Subscription.all(), 0)
-  })
-})
-
-test.group('Billing — the return screen', (group) => {
-  group.each.setup(() => {
-    mail.fake()
-    useFakePaymentProvider()
-
-    return () => {
-      mail.restore()
-      restorePaymentProvider()
-    }
-  })
-  group.each.setup(() => testUtils.db().truncate())
-
-  /**
-   * The return URL grants nothing — a user can type it by hand — so with no
-   * webhook yet it must say "waiting", not "you are subscribed" (plan §7.5).
-   */
-  test('waits for the webhook rather than trusting the redirect', async ({ client, assert }) => {
-    const { user, organization } = await createWorkspace()
-
-    const response = await client.get('/billing/return').loginAs(user)
-
-    response.assertStatus(200)
-    response.assertTextIncludes('Activating your subscription')
-
-    await organization.refresh()
-    assert.equal(organization.planKey, 'free', 'reaching the return URL entitles nobody')
-  })
-
-  test('the poll endpoint reports what the webhook has actually applied', async ({ client }) => {
-    const { user, organization } = await createWorkspace()
-
-    let response = await client.get('/billing/status').loginAs(user).accept('json')
-    response.assertBodyContains({ active: false, planKey: 'free' })
-
-    await subscribe(organization)
-
-    response = await client.get('/billing/status').loginAs(user).accept('json')
-    response.assertBodyContains({ active: true, status: 'active', planKey: 'pro' })
   })
 })
 
@@ -294,7 +146,7 @@ test.group('Billing — the provider portal', (group) => {
 
     await assert.rejects(
       () => billing.startPortal(organization),
-      'This workspace has no subscription to manage.'
+      'There is no subscription to manage. One-time purchases have nothing to cancel.'
     )
   })
 
@@ -312,7 +164,7 @@ test.group('Billing — the provider portal', (group) => {
     provider.subscriptions.set('sub_live_1', {
       id: 'sub_live_1',
       customerId: 'cus_recovered',
-      productId: 'prod_test_pro',
+      productId: 'prod_x',
       status: 'active',
       currentPeriodStart: null,
       currentPeriodEnd: null,
@@ -362,7 +214,7 @@ test.group('Billing — the past_due banner', (group) => {
   })
   group.each.setup(() => testUtils.db().truncate())
 
-  test('shows on every screen and says nothing was taken away', async ({ client }) => {
+  test('shows on every screen and says nothing was switched off', async ({ client }) => {
     const { user, organization } = await createWorkspace()
 
     organization.status = 'past_due'
@@ -372,25 +224,17 @@ test.group('Billing — the past_due banner', (group) => {
 
     response.assertStatus(200)
     response.assertTextIncludes('We could not take payment')
-    response.assertTextIncludes('Nothing has been taken away')
+    response.assertTextIncludes('Nothing has been switched off yet')
   })
 
-  test('a past_due workspace can still do its work', async ({ client, assert }) => {
+  test('a past_due account can still see its licenses', async ({ client }) => {
     const { user, organization } = await createWorkspace()
 
     organization.status = 'past_due'
     await organization.save()
 
-    const response = await client
-      .post('/lists')
-      .loginAs(user)
-      .form({ name: 'Still working' })
-      .withCsrfToken()
-      .redirects(0)
+    const response = await client.get('/licenses').loginAs(user)
 
-    response.assertStatus(302)
-
-    const { default: lists } = await import('#modules/lists/services/list_service')
-    assert.equal(await lists.count(organization), 1)
+    response.assertStatus(200)
   })
 })

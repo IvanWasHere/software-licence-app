@@ -60,38 +60,6 @@ export async function queuedMailsTo(email: string): Promise<QueuedMail[]> {
 }
 
 /**
- * A list with some todos, through the real services so the counter and the
- * positions are built the way the application builds them.
- *
- * **This is the demo domain's factory, and the seam every other suite sits
- * on.** Quotas, tenant isolation, the API's pagination and the dashboard all
- * need *a* tenant-owned resource to act on, and this is the one they use.
- * Replacing the demo domain (docs/modules.md) means rewriting this function's
- * body to create your own resource — deliberately kept here, in the file
- * every suite already imports, so that it is one function to rewrite and not
- * an import to change in nine places.
- */
-export async function createList(
-  organization: Organization,
-  owner: User,
-  name = 'Launch checklist',
-  titles: string[] = []
-) {
-  const { default: lists } = await import('#modules/lists/services/list_service')
-  const { default: todos } = await import('#modules/lists/services/todo_service')
-
-  const list = await lists.create(organization, owner, { name })
-
-  for (const title of titles) {
-    await todos.create(organization, list, owner, { title })
-  }
-
-  await list.refresh()
-
-  return list
-}
-
-/**
  * Drain the queue the way `queue:work` does — same reservation, same
  * registry, same failure handling — so a test can assert on what a handler
  * actually did rather than on the row that asked for it.

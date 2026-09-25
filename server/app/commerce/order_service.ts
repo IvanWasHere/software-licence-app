@@ -28,7 +28,18 @@ export class OrderError extends Error {
 export interface CheckoutRequest {
   plan: Plan
   email: string
-  successUrl: string
+
+  /**
+   * Where the provider sends the buyer afterwards. A function when the URL
+   * has to name the order, which does not exist until this call makes it.
+   */
+  successUrl: string | ((order: Order) => string)
+
+  /**
+   * The buyer's account, when they are signed in. Otherwise the account is
+   * found or created from `email` when the payment is confirmed.
+   */
+  organization?: Organization | null
 }
 
 export interface Fulfilment {
@@ -71,6 +82,7 @@ export class OrderService {
       const created = await Order.create(
         {
           email: request.email.trim().toLowerCase(),
+          organizationId: request.organization?.id ?? null,
           status: 'pending',
           totalCents: plan.priceCents,
           currency: plan.currency,
@@ -90,7 +102,8 @@ export class OrderService {
     const { url, sessionId } = await paymentProvider().createCheckoutSession({
       productId: plan.providerProductId,
       customerEmail: order.email,
-      successUrl: request.successUrl,
+      successUrl:
+        typeof request.successUrl === 'function' ? request.successUrl(order) : request.successUrl,
       metadata: { orderPublicId: order.publicId },
     })
 

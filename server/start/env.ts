@@ -88,8 +88,6 @@ export default await Env.create(new URL('../', import.meta.url), {
   CREEM_API_KEY: Env.schema.secret.optional(),
   CREEM_API_URL: Env.schema.string.optional({ format: 'url' }),
   CREEM_WEBHOOK_SECRET: Env.schema.secret.optional(),
-  CREEM_PRODUCT_PRO: Env.schema.string.optional(),
-  CREEM_PRODUCT_BUSINESS: Env.schema.string.optional(),
 
   /*
   |--------------------------------------------------------------------------

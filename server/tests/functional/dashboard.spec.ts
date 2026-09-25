@@ -2,7 +2,7 @@ import { test } from '@japa/runner'
 import testUtils from '@adonisjs/core/services/test_utils'
 
 import dashboard from '#dashboard/widgets'
-import { createList, createWorkspace } from '#tests/helpers'
+import { createLicense, createWorkspace } from '#tests/helpers'
 
 /**
  * The Overview screen as a shell (plan §13.5).
@@ -22,40 +22,31 @@ test.group('Dashboard', (group) => {
 
   test('renders every registered widget', async ({ client, assert }) => {
     const { user, organization } = await createWorkspace()
-
-    const list = await createList(organization, user, 'Launch checklist', ['Ship the thing'])
-
-    const { default: todos } = await import('#modules/lists/services/todo_service')
-    const [open] = await todos.forList(list)
-    await todos.complete(open, user)
-
-    await createList(organization, user, 'Backlog', ['Still open'])
+    await createLicense({ organization })
 
     const response = await client.get('/dashboard').loginAs(user).withCsrfToken()
 
     response.assertStatus(200)
 
     /**
-     * The `stats` region — the demo domain's four figures.
+     * The `stats` region — the licensing figures.
      */
-    response.assertTextIncludes('Open todos')
-    response.assertTextIncludes('Completed this week')
+    response.assertTextIncludes('Active licenses')
+    response.assertTextIncludes('Installations')
 
     /**
-     * The `panels` region, and the rows inside it. A panel title proves the
+     * The `panels` region, and a row inside it. A panel title proves the
      * partial rendered; a row proves its data was loaded and passed through
      * as `widget.data`.
      */
-    response.assertTextIncludes('Recent todos')
-    response.assertTextIncludes('Still open')
-    response.assertTextIncludes('Recently finished')
-    response.assertTextIncludes('Ship the thing')
+    response.assertTextIncludes('Your licenses')
+    response.assertTextIncludes('Invoice Pro')
 
     /**
      * And the meters, which are not widgets — they come from the quota
      * registry and are part of the page's own shell.
      */
-    response.assertTextIncludes('Lists')
+    response.assertTextIncludes('Seats')
     response.assertTextIncludes('Storage (MB)')
 
     assert.notInclude(
@@ -72,7 +63,7 @@ test.group('Dashboard', (group) => {
    */
   test('renders without a single widget registered', async ({ client, assert }) => {
     const { user, organization } = await createWorkspace()
-    await createList(organization, user, 'Launch checklist', ['Ship the thing'])
+    await createLicense({ organization })
 
     const registered = dashboard.all()
 
@@ -89,8 +80,8 @@ test.group('Dashboard', (group) => {
        */
       response.assertTextIncludes('Storage (MB)')
 
-      assert.notInclude(response.text(), 'Recent todos')
-      assert.notInclude(response.text(), 'Ship the thing')
+      assert.notInclude(response.text(), 'Your licenses')
+      assert.notInclude(response.text(), 'Active licenses')
     } finally {
       dashboard.reset()
       registered.forEach((widget) => dashboard.register(widget))

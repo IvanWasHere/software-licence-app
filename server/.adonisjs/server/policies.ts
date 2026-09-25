@@ -1,6 +1,4 @@
 export const policies = {
-  ModulesListsTodoListPolicy: () => import('#app/modules/lists/policies/todo_list_policy'),
-  ModulesListsTodoPolicy: () => import('#app/modules/lists/policies/todo_policy'),
   ApiKeyPolicy: () => import('#app/policies/api_key_policy'),
   FilePolicy: () => import('#app/policies/file_policy'),
   InvitationPolicy: () => import('#app/policies/invitation_policy'),

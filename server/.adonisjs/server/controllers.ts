@@ -28,6 +28,7 @@ export const controllers = {
   },
   api: {
     v1: {
+      AccountLicense: () => import('#app/controllers/api/v1/account_license_controller'),
       Integration: () => import('#app/controllers/api/v1/integration_controller'),
       License: () => import('#app/controllers/api/v1/license_controller'),
       Organization: () => import('#app/controllers/api/v1/organization_controller'),
@@ -55,6 +56,9 @@ export const controllers = {
     File: () => import('#app/controllers/files/file_controller'),
   },
   Health: () => import('#app/controllers/health_controller'),
+  licenses: {
+    License: () => import('#app/controllers/licenses/license_controller'),
+  },
   notifications: {
     Notification: () => import('#app/controllers/notifications/notification_controller'),
   },
@@ -68,15 +72,10 @@ export const controllers = {
     Profile: () => import('#app/controllers/settings/profile_controller'),
     Security: () => import('#app/controllers/settings/security_controller'),
   },
+  storefront: {
+    Pricing: () => import('#app/controllers/storefront/pricing_controller'),
+  },
   support: {
     Support: () => import('#app/controllers/support/support_controller'),
-  },
-  lists: {
-    api: {
-      List: () => import('#app/modules/lists/controllers/api/list_controller'),
-      Todo: () => import('#app/modules/lists/controllers/api/todo_controller'),
-    },
-    List: () => import('#app/modules/lists/controllers/list_controller'),
-    Todo: () => import('#app/modules/lists/controllers/todo_controller'),
   },
 }

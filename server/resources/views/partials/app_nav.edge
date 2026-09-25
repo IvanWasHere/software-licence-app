@@ -16,12 +16,15 @@
 @let(navQuotas = state.usage && state.usage.quotas ? state.usage.quotas : {})
 @let(navIsOwner = state.isOwner ?? false)
 
-@if(hasRoute('dashboard.index') || hasRoute('lists.index') || hasRoute('files.index'))
+@if(hasRoute('dashboard.index') || hasRoute('licenses.index') || hasRoute('lists.index') || hasRoute('files.index'))
   <div class="nav-section-title">Main</div>
 @end
 
 @if(hasRoute('dashboard.index'))
   @!navItem({ route: 'dashboard.index', icon: 'barChart', label: 'Overview' })
+@end
+@if(hasRoute('licenses.index'))
+  @!navItem({ route: 'licenses.index', icon: 'key', label: 'Licenses' })
 @end
 @if(hasRoute('lists.index'))
   @!navItem({

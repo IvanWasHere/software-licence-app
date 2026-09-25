@@ -1,0 +1,31 @@
+@let(recentLicenses = widget.data)
+
+@panel.root({ title: 'Your licenses', flush: true })
+  @slot('actions')
+    @!link({ route: 'licenses.index', text: 'All licenses', class: 'btn-ghost' })
+  @end
+  @if(recentLicenses.length)
+    <div class="table-scroll">
+      <table class="tx-table">
+        <tbody>
+          @each(license in recentLicenses)
+            <tr>
+              <td>
+                <a href="{{ urlFor('licenses.show', { id: license.publicId }) }}">{{ license.product.name }}</a>
+                <div class="field-hint">{{ license.plan.name }}</div>
+              </td>
+              <td><code>{{ license.product.keyPrefix }}-…{{ license.keySuffix }}</code></td>
+              <td style="white-space: nowrap">{{ license.expiresAt ? license.expiresAt.toFormat('d LLL yyyy') : 'Never expires' }}</td>
+            </tr>
+          @end
+        </tbody>
+      </table>
+    </div>
+  @else
+    @!emptyState({
+      icon: 'key',
+      title: 'No licenses yet',
+      description: 'Licenses you buy appear here with their keys.',
+    })
+  @end
+@end

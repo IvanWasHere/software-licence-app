@@ -7,50 +7,36 @@ import { seatUsage } from '#organizations/seats'
 import { limitFor, planFor, plans } from '#config/plans'
 import { addMember, createWorkspace } from '#tests/helpers'
 
-test.group('Plan limits', () => {
-  test('reads the limit from the plan', ({ assert }) => {
-    const organization = { planKey: 'free', limitOverrides: null }
-    assert.equal(limitFor(organization, 'seats'), 2)
-    assert.equal(limitFor({ ...organization, planKey: 'pro' }, 'seats'), 10)
+test.group('Account limits', () => {
+  test('reads the limit from the account tier', ({ assert }) => {
+    assert.equal(limitFor({ planKey: 'standard', limitOverrides: null }, 'seats'), 10)
   })
 
   /**
-   * `null` means unlimited; `0` means the feature is not on this plan at all.
-   * Collapsing the two would either hide a screen that should be shown or
-   * show one that has nothing behind it.
+   * `null` means unlimited; `0` means switched off. Collapsing the two would
+   * either hide a screen that should be shown or show one with nothing
+   * behind it.
    */
   test('tells unlimited apart from unavailable', ({ assert }) => {
-    assert.isNull(limitFor({ planKey: 'business', limitOverrides: null }, 'lists'))
-    assert.equal(limitFor({ planKey: 'free', limitOverrides: null }, 'apiKeys'), 0)
+    assert.isNull(limitFor({ planKey: 'standard', limitOverrides: { seats: null } }, 'seats'))
+    assert.equal(limitFor({ planKey: 'standard', limitOverrides: { apiKeys: 0 } }, 'apiKeys'), 0)
   })
 
-  test('a staff override wins over the plan', ({ assert }) => {
-    assert.equal(limitFor({ planKey: 'free', limitOverrides: { seats: 25 } }, 'seats'), 25)
-  })
-
-  test('an override can grant unlimited', ({ assert }) => {
-    assert.isNull(limitFor({ planKey: 'free', limitOverrides: { seats: null } }, 'seats'))
+  test('a staff override wins over the tier', ({ assert }) => {
+    assert.equal(limitFor({ planKey: 'standard', limitOverrides: { seats: 25 } }, 'seats'), 25)
   })
 
   test('an override for one limit leaves the others alone', ({ assert }) => {
-    const organization = { planKey: 'free', limitOverrides: { seats: 25 } }
-    assert.equal(limitFor(organization, 'lists'), 3)
+    const organization = { planKey: 'standard', limitOverrides: { seats: 25 } }
+    assert.equal(limitFor(organization, 'apiKeys'), plans.standard.limits.apiKeys)
   })
 
   /**
-   * A plan key removed from config must not lock a customer out of data they
+   * A tier key removed from config must not lock a customer out of what they
    * already have.
    */
-  test('an unknown plan falls back to free', ({ assert }) => {
-    assert.equal(planFor('enterprise-that-never-shipped').name, 'Free')
-  })
-
-  test('every plan defines every limit', ({ assert }) => {
-    const keys = Object.keys(plans.free.limits)
-
-    for (const [name, plan] of Object.entries(plans)) {
-      assert.deepEqual(Object.keys(plan.limits), keys, `${name} defines every limit`)
-    }
+  test('an unknown tier falls back to the account tier', ({ assert }) => {
+    assert.equal(planFor('enterprise-that-never-shipped').name, 'Standard')
   })
 })
 

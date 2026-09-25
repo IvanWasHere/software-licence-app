@@ -1,3 +1,6 @@
+        {{ growth.payingWorkspaces }} of {{ metrics.organizations }} accounts
+        {{ growth.payingWorkspaces === 1 ? 'has' : 'have' }} bought a license
+        ({{ growth.payingPercent.toFixed(0) }}%).
 {{--
   The back-office dashboard (plan §12).
 
@@ -185,7 +188,7 @@
         </div>
       @end
 
-      @panel.root({ title: 'Volume by plan' })
+      @panel.root({ title: 'Volume by product' })
         @if(revenue.byPlan.length)
           <div class="share-bar">
             @each((plan, planIndex) in revenue.byPlan)
@@ -274,7 +277,7 @@
       </div>
     @end
 
-    @panel.root({ title: 'Workspaces by plan' })
+    @panel.root({ title: 'Active licenses by product' })
       <div class="share-bar">
         @each((plan, planIndex) in growth.planMix)
           @if(plan.percent > 0)

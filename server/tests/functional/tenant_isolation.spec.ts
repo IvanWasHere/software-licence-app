@@ -5,12 +5,12 @@ import User from '#models/user'
 import Invitation from '#models/invitation'
 import Organization from '#models/organization'
 import invitations from '#organizations/invitation_service'
-import Todo from '#modules/lists/models/todo'
-import TodoList from '#modules/lists/models/todo_list'
-import todoService from '#modules/lists/services/todo_service'
+import LicenseEvent from '#models/license_event'
+import activations from '#licensing/activation_service'
+import { SYSTEM_ACTOR } from '#licensing/license_service'
 import SupportMessage from '#models/support_message'
 import support from '#support/support_service'
-import { addMember, createList, createWorkspace } from '#tests/helpers'
+import { addMember, createLicense, createWorkspace } from '#tests/helpers'
 
 /**
  * Tenant isolation (plan §15).
@@ -242,193 +242,113 @@ test.group('Tenant isolation', (group) => {
 
   /*
    |--------------------------------------------------------------------------
-   | Lists and todos (M3.5) — the demo domain
+   | Licenses (licence plan M5) — the domain
    |--------------------------------------------------------------------------
    |
-   | Everything from here to the "Seats" banner below is the demo domain's
-   | half of this suite. Replacing that domain (docs/modules.md) means
-   | **porting** this block to your own resource rather than deleting it:
-   | these are not generic cases dressed up in list clothing, they are the
-   | specific ways a tenant-owned resource leaks — a foreign id in a path, a
-   | rename that reaches across, a child row claiming a parent in another
-   | workspace, an assignment to a stranger. A new domain with no equivalent
-   | is the easiest way to undo the value of this starter.
-   |
-   | They are not abstracted behind a table on purpose. A generic harness fed
-   | an endpoint list would flatten cases that are each making a different
-   | argument, and the coverage it cost would be exactly the coverage worth
-   | having.
+   | Ported from the starter's lists-and-todos block, and for the same reason
+   | it existed: these are the specific ways a tenant-owned resource leaks —
+   | a foreign id in a path, an action that reaches across, a child row (an
+   | activation) addressed through the wrong parent. Every portal route that
+   | takes an identifier has a case here.
    |
    */
 
-  test('the lists screen shows only your own', async ({ client, assert }) => {
+  test('the licenses screen shows only your own', async ({ client, assert }) => {
     const { a, b } = await twoWorkspaces()
-    await createList(a.organization, a.user, 'Belongs to A')
-    await createList(b.organization, b.user, 'Belongs to B')
+    const mine = await createLicense({ organization: a.organization })
+    const theirs = await createLicense({ organization: b.organization })
 
-    const response = await client.get('/lists').loginAs(a.user)
+    const response = await client.get('/licenses').loginAs(a.member)
 
-    response.assertTextIncludes('Belongs to A')
-    assert.notInclude(response.text(), 'Belongs to B')
+    response.assertStatus(200)
+    assert.include(response.text(), mine.license.publicId)
+    assert.notInclude(response.text(), theirs.license.publicId)
   })
 
-  test('opening another workspace list is a miss, not a peek', async ({ client, assert }) => {
+  test('opening another workspace license is a miss, not a peek', async ({ client, assert }) => {
     const { a, b } = await twoWorkspaces()
-    const theirs = await createList(b.organization, b.user, 'Belongs to B', ['Secret todo'])
+    const theirs = await createLicense({ organization: b.organization })
 
-    const response = await client.get(`/lists/${theirs.publicId}`).loginAs(a.user).redirects(0)
-
-    response.assertHeader('location', '/lists')
-    assert.notInclude(response.text(), 'Secret todo')
-  })
-
-  test('renaming another workspace list does nothing', async ({ client, assert }) => {
-    const { a, b } = await twoWorkspaces()
-    const theirs = await createList(b.organization, b.user, 'Belongs to B')
-
-    await client
-      .post(`/lists/${theirs.publicId}`)
+    const foreign = await client
+      .get(`/licenses/${theirs.license.publicId}`)
       .loginAs(a.user)
-      .form({ name: 'Renamed by A' })
-      .withCsrfToken()
       .redirects(0)
+    const missing = await client.get('/licenses/lic_zzzzzzzzzzzz').loginAs(a.user).redirects(0)
 
-    await theirs.refresh()
-    assert.equal(theirs.name, 'Belongs to B')
-  })
-
-  test('deleting another workspace list does nothing', async ({ client, assert }) => {
-    const { a, b } = await twoWorkspaces()
-    const theirs = await createList(b.organization, b.user, 'Belongs to B')
-
-    await client
-      .post(`/lists/${theirs.publicId}/delete`)
-      .loginAs(a.user)
-      .withCsrfToken()
-      .redirects(0)
-
-    await theirs.refresh()
-    assert.isFalse(theirs.isDeleted)
-  })
-
-  test('archiving another workspace list does nothing', async ({ client, assert }) => {
-    const { a, b } = await twoWorkspaces()
-    const theirs = await createList(b.organization, b.user, 'Belongs to B')
-
-    await client
-      .post(`/lists/${theirs.publicId}/archive`)
-      .loginAs(a.user)
-      .withCsrfToken()
-      .redirects(0)
-
-    await theirs.refresh()
-    assert.isFalse(theirs.isArchived)
-  })
-
-  test('adding a todo to another workspace list does nothing', async ({ client, assert }) => {
-    const { a, b } = await twoWorkspaces()
-    const theirs = await createList(b.organization, b.user, 'Belongs to B')
-
-    await client
-      .post(`/lists/${theirs.publicId}/todos`)
-      .loginAs(a.user)
-      .form({ title: 'Planted by A' })
-      .withCsrfToken()
-      .redirects(0)
-
-    assert.isNull(await Todo.findBy('title', 'Planted by A'))
-  })
-
-  test('completing another workspace todo does nothing', async ({ client, assert }) => {
-    const { a, b } = await twoWorkspaces()
-    await createList(b.organization, b.user, 'Belongs to B', ['Theirs'])
-    const theirs = await Todo.findByOrFail('title', 'Theirs')
-
-    await client
-      .post(`/todos/${theirs.publicId}/complete`)
-      .loginAs(a.user)
-      .withCsrfToken()
-      .redirects(0)
-
-    await theirs.refresh()
-    assert.isFalse(theirs.isComplete)
-  })
-
-  test('deleting another workspace todo does nothing', async ({ client, assert }) => {
-    const { a, b } = await twoWorkspaces()
-    await createList(b.organization, b.user, 'Belongs to B', ['Theirs'])
-    const theirs = await Todo.findByOrFail('title', 'Theirs')
-
-    await client
-      .post(`/todos/${theirs.publicId}/delete`)
-      .loginAs(a.user)
-      .withCsrfToken()
-      .redirects(0)
-
-    await theirs.refresh()
-    assert.isFalse(theirs.isDeleted)
+    foreign.assertStatus(302)
+    foreign.assertHeader('location', '/licenses')
+    assert.equal(foreign.header('location'), missing.header('location'))
   })
 
   /**
-   * Assigning across workspaces is the injection point plan §5.6 calls out:
-   * `assigned_to` arrives in a request body.
+   * The one action here that hands out a secret.
    */
-  test('a todo cannot be assigned to someone in another workspace', async ({ client, assert }) => {
+  test('revealing another workspace key reveals nothing', async ({ client, assert }) => {
     const { a, b } = await twoWorkspaces()
-    const ours = await createList(a.organization, a.user, 'Belongs to A')
+    const theirs = await createLicense({ organization: b.organization })
 
-    await client
-      .post(`/lists/${ours.publicId}/todos`)
+    const response = await client
+      .post(`/licenses/${theirs.license.publicId}/reveal`)
       .loginAs(a.user)
-      .form({ title: 'Cross-tenant assignment', assignedTo: b.member.publicId })
       .withCsrfToken()
       .redirects(0)
 
-    assert.isNull(await Todo.findBy('title', 'Cross-tenant assignment'))
+    assert.notEqual(response.flashMessages()?.revealedKey, theirs.key)
+    assert.lengthOf(await LicenseEvent.query().where('type', 'key_revealed'), 0)
+  })
+
+  test('deactivating another workspace installation does nothing', async ({ client, assert }) => {
+    const { a, b } = await twoWorkspaces()
+    const theirs = await createLicense({ organization: b.organization })
+    const result = await activations.activate(theirs.license, { instanceId: 'b-1' }, SYSTEM_ACTOR)
+    const activationId = result.ok ? result.activation.publicId : ''
+
+    await client
+      .post(`/licenses/${theirs.license.publicId}/activations/${activationId}/deactivate`)
+      .loginAs(a.user)
+      .withCsrfToken()
+      .redirects(0)
+
+    assert.lengthOf(await activations.live(theirs.license), 1)
   })
 
   /**
-   * The denormalised `todos.organization_id` is what lets every todo query
-   * skip the join to its list. The composite foreign key is what stops the two
-   * from ever disagreeing — without it the denormalisation would be a way to
-   * hide a row from its own tenant filter.
+   * The child addressed through the wrong parent: A's own license id in the
+   * path, B's activation id after it. Looking the activation up *within* the
+   * license is what stops it.
    */
-  test('a todo cannot claim an organisation its list does not belong to', async ({
-    assert,
+  test('an installation cannot be reached through a license it does not belong to', async ({
     client,
+    assert,
   }) => {
     const { a, b } = await twoWorkspaces()
-    const theirs = await createList(b.organization, b.user, 'Belongs to B')
+    const mine = await createLicense({ organization: a.organization })
+    const theirs = await createLicense({ organization: b.organization })
+    const result = await activations.activate(theirs.license, { instanceId: 'b-1' }, SYSTEM_ACTOR)
+    const activationId = result.ok ? result.activation.publicId : ''
 
-    await assert.rejects(() =>
-      Todo.create({
-        organizationId: a.organization.id,
-        todoListId: theirs.id,
-        title: 'Smuggled',
-        priority: 'normal',
-        position: 100,
-      })
-    )
+    await client
+      .post(`/licenses/${mine.license.publicId}/activations/${activationId}/deactivate`)
+      .loginAs(a.user)
+      .withCsrfToken()
+      .redirects(0)
 
-    void client
+    assert.lengthOf(await activations.live(theirs.license), 1)
   })
 
   test('dashboard numbers count only your own workspace', async ({ client, assert }) => {
     const { a, b } = await twoWorkspaces()
-    await createList(a.organization, a.user, 'Belongs to A', ['One'])
-    await createList(b.organization, b.user, 'Belongs to B', ['One', 'Two', 'Three'])
+    await createLicense({ organization: a.organization })
+    await createLicense({ organization: b.organization })
+    await createLicense({ organization: b.organization })
 
-    const { default: dashboard } = await import('#modules/lists/services/dashboard_service')
+    const { default: dashboard } = await import('#licensing/dashboard_service')
     const stats = await dashboard.statsFor(a.organization)
 
-    assert.equal(stats.lists, 1)
-    assert.equal(stats.openTodos, 1)
+    assert.equal(stats.total, 1)
 
     const response = await client.get('/dashboard').loginAs(a.user)
-    assert.notInclude(response.text(), 'Belongs to B')
-
-    void TodoList
-    void todoService
+    response.assertStatus(200)
   })
 
   /*
@@ -436,8 +356,8 @@ test.group('Tenant isolation', (group) => {
    | Seats, billing, files and the API — core
    |--------------------------------------------------------------------------
    |
-   | These stay whatever the domain is, though the API cases below reach for
-   | `createList` as the resource they act on.
+   | These stay whatever the domain is. The API cases below act on licenses,
+   | through the organisation API's `GET /licenses`.
    |
    */
 
@@ -470,12 +390,17 @@ test.group('Tenant isolation', (group) => {
     const { default: Payment } = await import('#models/payment')
     const { default: Subscription } = await import('#models/subscription')
 
+    const { createCatalogPlan } = await import('#tests/helpers')
+    const { plan } = await createCatalogPlan({
+      plan: { billing: 'yearly', licenseTerm: 'subscription' },
+    })
     const subscription = await Subscription.create({
       organizationId: b.organization.id,
       provider: 'creem',
       providerSubscriptionId: 'sub_b',
       providerCustomerId: 'cus_b',
-      planKey: 'pro',
+      planKey: 'license',
+      planId: plan.id,
       status: 'active',
       currentPeriodStart: DateTime.utc(),
       currentPeriodEnd: DateTime.utc().plus({ months: 1 }),
@@ -498,42 +423,47 @@ test.group('Tenant isolation', (group) => {
     const response = await client.get('/billing').loginAs(a.user)
 
     response.assertStatus(200)
-    response.assertTextIncludes('Current plan: Free')
+    response.assertTextIncludes('No subscriptions')
     assert.notInclude(response.text(), "B's private invoice")
     assert.notInclude(response.text(), 'pay_')
 
     const { default: billing } = await import('#billing/billing_service')
-    assert.isNull(await billing.activeSubscription(a.organization))
-    assert.isEmpty(await billing.payments(a.organization))
+    const overview = await billing.overview(a.organization)
+    assert.isEmpty(overview.subscriptions)
+    assert.isEmpty(overview.payments)
   })
 
   /**
-   * The obvious cross-tenant injection point in billing: a webhook whose
-   * metadata names another workspace's public id must move *that* workspace,
-   * and only from a signed delivery. Here the attribution is checked
-   * directly — A's id in the metadata must never touch B.
+   * The obvious cross-tenant injection point in billing: a payment must land
+   * in the account whose order it pays for, and only through the order id we
+   * wrote into the checkout ourselves.
    */
-  test('a webhook applies to the workspace named in its own metadata and no other', async ({
-    assert,
-  }) => {
+  test('a paid order issues its license to its own account and no other', async ({ assert }) => {
     const { a, b } = await twoWorkspaces()
     const { default: webhooks } = await import('#billing/webhook_handler')
     const { paymentProvider } = await import('#billing/provider')
-    const { subscriptionWebhook } = await import('#tests/helpers')
+    const { default: orders } = await import('#commerce/order_service')
+    const { createSellablePlan, creemLicensing } = await import('#tests/helpers')
 
-    const body = subscriptionWebhook({ organizationPublicId: a.organization.publicId })
+    const { plan } = await createSellablePlan()
+    const { order } = await orders.startCheckout({
+      plan,
+      email: a.user.email,
+      organization: a.organization,
+      successUrl: 'https://example.com',
+    })
+
+    const body = creemLicensing.oneTimeCheckout({ orderPublicId: order.publicId })
     await webhooks.apply(paymentProvider().parseWebhook(Buffer.from(JSON.stringify(body))))
 
-    await a.organization.refresh()
-    await b.organization.refresh()
-
-    assert.equal(a.organization.planKey, 'pro')
-    assert.equal(b.organization.planKey, 'free', "B was not upgraded by A's webhook")
+    const { default: License } = await import('#models/license')
+    assert.lengthOf(await License.query().where('organization_id', a.organization.id), 1)
+    assert.lengthOf(await License.query().where('organization_id', b.organization.id), 0)
   })
 
   /**
    * A second event for the same provider subscription must follow the row it
-   * already created, not whatever public id the payload now claims — the
+   * already created, not whatever order id the payload now claims — the
    * subscription's own history is more trustworthy than metadata that can be
    * replayed with an edit.
    */
@@ -542,21 +472,36 @@ test.group('Tenant isolation', (group) => {
     const { default: Subscription } = await import('#models/subscription')
     const { default: webhooks } = await import('#billing/webhook_handler')
     const { paymentProvider } = await import('#billing/provider')
-    const { subscriptionWebhook } = await import('#tests/helpers')
+    const { default: orders } = await import('#commerce/order_service')
+    const { createSellablePlan, creemLicensing } = await import('#tests/helpers')
 
     const parse = (body: Record<string, any>) =>
       paymentProvider().parseWebhook(Buffer.from(JSON.stringify(body)))
 
+    const { plan } = await createSellablePlan({ billing: 'yearly', licenseTerm: 'subscription' })
+    const checkout = (organization: typeof a.organization, email: string) =>
+      orders.startCheckout({ plan, email, organization, successUrl: 'https://example.com' })
+
+    const { order: ordersA } = await checkout(a.organization, a.user.email)
+    const { order: ordersB } = await checkout(b.organization, b.user.email)
+
     await webhooks.apply(
-      parse(subscriptionWebhook({ organizationPublicId: a.organization.publicId }))
+      parse(
+        creemLicensing.subscription({
+          orderPublicId: ordersA.publicId,
+          productId: plan.providerProductId!,
+          subscriptionId: 'sub_shared',
+        })
+      )
     )
 
     await webhooks.apply(
       parse(
-        subscriptionWebhook({
-          eventId: 'evt_hijack',
+        creemLicensing.subscription({
           eventType: 'subscription.update',
-          organizationPublicId: b.organization.publicId,
+          orderPublicId: ordersB.publicId,
+          productId: plan.providerProductId!,
+          subscriptionId: 'sub_shared',
         })
       )
     )
@@ -565,26 +510,12 @@ test.group('Tenant isolation', (group) => {
     assert.lengthOf(subscriptions, 1)
     assert.equal(subscriptions[0].organizationId, a.organization.id)
 
-    await b.organization.refresh()
-    assert.equal(b.organization.planKey, 'free')
-  })
-
-  /**
-   * Quotas are counted per workspace. A shared counter would let one tenant's
-   * usage block another's create.
-   */
-  test('plan usage is counted per workspace', async ({ assert }) => {
-    const { a, b } = await twoWorkspaces()
-    const { default: plans } = await import('#billing/plan_service')
-
-    await createList(b.organization, b.user, 'B one')
-    await createList(b.organization, b.user, 'B two')
-
-    const usageA = await plans.usage(a.organization)
-    assert.equal(usageA.quotas.lists!.current, 0, "B's lists do not count against A")
-
-    const usageB = await plans.usage(b.organization)
-    assert.equal(usageB.quotas.lists!.current, 2)
+    /**
+     * And B's order was not fulfilled through A's subscription.
+     */
+    const { default: License } = await import('#models/license')
+    assert.lengthOf(await License.query().where('organization_id', b.organization.id), 0)
+    assert.lengthOf(await License.query().where('order_id', ordersB.id), 0)
   })
 
   /**
@@ -686,13 +617,14 @@ test.group('Tenant isolation', (group) => {
    * question here is whether a key can be talked into touching anything
    * outside its own workspace — by id, by filter, or by assignment.
    */
-  test('a key cannot read another workspace’s list by id', async ({ assert, client }) => {
+  test('a key cannot read another workspace’s license by id', async ({ assert, client }) => {
     const { keyed, other } = await twoKeyedWorkspaces()
+    const theirs = await createLicense({ organization: other.organization })
 
-    const theirs = await createList(other.organization, other.user, 'Theirs')
-
-    const foreign = await client.get(`/api/v1/lists/${theirs.publicId}`).headers(keyed.headers)
-    const missing = await client.get('/api/v1/lists/lst_zzzzzzzzzzzz').headers(keyed.headers)
+    const foreign = await client
+      .get(`/api/v1/licenses/${theirs.license.publicId}`)
+      .headers(keyed.headers)
+    const missing = await client.get('/api/v1/licenses/lic_zzzzzzzzzzzz').headers(keyed.headers)
 
     foreign.assertStatus(404)
     assert.deepEqual(
@@ -702,71 +634,16 @@ test.group('Tenant isolation', (group) => {
     )
   })
 
-  test('a key cannot mutate or delete another workspace’s list', async ({ assert, client }) => {
+  test('listing licenses shows only the key’s workspace', async ({ assert, client }) => {
     const { keyed, other } = await twoKeyedWorkspaces()
+    const mine = await createLicense({ organization: keyed.organization })
+    const theirs = await createLicense({ organization: other.organization })
 
-    const theirs = await createList(other.organization, other.user, 'Theirs')
+    const response = await client.get('/api/v1/licenses').headers(keyed.headers)
 
-    const patched = await client
-      .patch(`/api/v1/lists/${theirs.publicId}`)
-      .headers(keyed.headers)
-      .json({ name: 'Mine now' })
-    const deleted = await client.delete(`/api/v1/lists/${theirs.publicId}`).headers(keyed.headers)
-
-    patched.assertStatus(404)
-    deleted.assertStatus(404)
-
-    await theirs.refresh()
-    assert.equal(theirs.name, 'Theirs')
-    assert.isNull(theirs.deletedAt)
-  })
-
-  test('a key cannot read or write another workspace’s todos', async ({ assert, client }) => {
-    const { keyed, other } = await twoKeyedWorkspaces()
-
-    const theirList = await createList(other.organization, other.user, 'Theirs', ['Secret task'])
-    const [theirTodo] = await theirList.related('todos').query()
-
-    const listed = await client
-      .get(`/api/v1/lists/${theirList.publicId}/todos`)
-      .headers(keyed.headers)
-    const fetched = await client.get(`/api/v1/todos/${theirTodo.publicId}`).headers(keyed.headers)
-    const created = await client
-      .post(`/api/v1/lists/${theirList.publicId}/todos`)
-      .headers(keyed.headers)
-      .json({ title: 'Injected' })
-    const completed = await client
-      .post(`/api/v1/todos/${theirTodo.publicId}/complete`)
-      .headers(keyed.headers)
-
-    listed.assertStatus(404)
-    fetched.assertStatus(404)
-    created.assertStatus(404)
-    completed.assertStatus(404)
-
-    await theirTodo.refresh()
-    assert.isNull(theirTodo.completedAt)
-    assert.equal(theirList.todosCount, 1, 'nothing was added')
-  })
-
-  /**
-   * The injection point the todo domain warns about (plan §5.6): an
-   * `assigned_to` from another organisation, arriving in a request body.
-   */
-  test('a key cannot assign a todo to another workspace’s member', async ({ assert, client }) => {
-    const { keyed, other } = await twoKeyedWorkspaces()
-
-    const mine = await createList(keyed.organization, keyed.user, 'Mine')
-
-    const response = await client
-      .post(`/api/v1/lists/${mine.publicId}/todos`)
-      .headers(keyed.headers)
-      .json({ title: 'Not theirs to do', assigned_to: other.user.publicId })
-
-    response.assertStatus(422)
-    response.assertTextIncludes('assigned_to')
-
-    assert.isEmpty(await todoService.forList(mine))
+    const ids = response.body().data.map((row: { id: string }) => row.id)
+    assert.include(ids, mine.license.publicId)
+    assert.notInclude(ids, theirs.license.publicId)
   })
 
   test('the member directory is scoped to the key’s workspace', async ({ assert, client }) => {
@@ -807,23 +684,26 @@ test.group('Tenant isolation', (group) => {
   }) => {
     const { keyed, other } = await twoKeyedWorkspaces()
 
-    for (const name of ['Theirs one', 'Theirs two', 'Theirs three']) {
-      await createList(other.organization, other.user, name)
+    const theirs: string[] = []
+
+    for (let i = 0; i < 3; i++) {
+      const created = await createLicense({ organization: other.organization })
+      theirs.push(created.license.publicId)
     }
 
-    await createList(keyed.organization, keyed.user, 'Mine')
+    await createLicense({ organization: keyed.organization })
 
-    const theirPage = await client.get('/api/v1/lists?limit=1').headers(other.headers)
+    const theirPage = await client.get('/api/v1/licenses?limit=1').headers(other.headers)
 
     const stolen = await client
-      .get(`/api/v1/lists?cursor=${theirPage.body().meta.next_cursor}`)
+      .get(`/api/v1/licenses?cursor=${theirPage.body().meta.next_cursor}`)
       .headers(keyed.headers)
 
     stolen.assertStatus(200)
 
-    const names = stolen.body().data.map((row: { name: string }) => row.name)
+    const ids = stolen.body().data.map((row: { id: string }) => row.id)
     assert.isEmpty(
-      names.filter((name: string) => name.startsWith('Theirs')),
+      ids.filter((id: string) => theirs.includes(id)),
       'not one row from the other workspace'
     )
   })
@@ -835,7 +715,7 @@ test.group('Tenant isolation', (group) => {
     const { keyed, other } = await twoKeyedWorkspaces()
     const { default: ApiRequest } = await import('#models/api_request')
 
-    await client.get('/api/v1/lists').headers(keyed.headers)
+    await client.get('/api/v1/licenses').headers(keyed.headers)
     await new Promise((resolve) => setTimeout(resolve, 50))
 
     const rows = await ApiRequest.all()

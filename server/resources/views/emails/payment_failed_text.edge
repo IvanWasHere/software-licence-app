@@ -1,9 +1,9 @@
-We could not take payment
+We could not renew your license
 
-The last charge for {{ organization.name }} was declined. Nothing has been taken away — your team, your lists and your todos are exactly where they were, and everyone can keep working.
+The renewal charge for {{ productName }} was declined. Nothing has been switched off — every site using the license keeps working while the payment is retried.
 
 @if(graceEndsAt)
-Updating your card before {{ graceEndsAt.toFormat('d LLLL') }} keeps everything as it is. After that the workspace moves to the Free plan — still nothing deleted, but new lists and new team members will be capped.
+Updating your card before {{ graceEndsAt.toFormat('d LLLL') }} keeps everything as it is. After that the license stops validating until the subscription is paid.
 @else
 Updating your card keeps everything as it is.
 @end

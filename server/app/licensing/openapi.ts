@@ -1,4 +1,12 @@
-import { errorSchema, json, type OpenApiContribution } from '#api/openapi'
+import {
+  commonResponses,
+  cursorParams,
+  errorSchema,
+  item,
+  json,
+  page,
+  type OpenApiContribution,
+} from '#api/openapi'
 import { LICENSE_REASONS } from '#licensing/reasons'
 
 /**
@@ -245,6 +253,53 @@ export const licenseApiOpenApi: OpenApiContribution = {
               },
             }),
           },
+        },
+      },
+    },
+  },
+}
+
+/**
+ * A customer's own licenses on the organisation API (licence plan M5) —
+ * API-key authenticated, unlike everything above.
+ */
+const accountLicense = {
+  type: 'object',
+  properties: {
+    id: { type: 'string', example: 'lic_7fj2k9pqrstu' },
+    product: { type: 'string' },
+    plan: { type: 'string' },
+    key_suffix: { type: 'string', description: 'The key itself is only shown in the account.' },
+    status: { type: 'string', enum: ['active', 'suspended', 'revoked'] },
+    expires_at: { type: ['string', 'null'], format: 'date-time' },
+    updates_until: { type: ['string', 'null'], format: 'date-time' },
+    max_activations: { type: ['integer', 'null'] },
+    created_at: { type: 'string', format: 'date-time' },
+  },
+}
+
+export const accountLicensesOpenApi: OpenApiContribution = {
+  schemas: { License: accountLicense },
+  paths: {
+    '/licenses': {
+      get: {
+        summary: 'List your licenses',
+        description: 'Requires `licenses:read`. Oldest first, cursor-paginated.',
+        parameters: [...cursorParams],
+        responses: {
+          200: { description: 'A page of licenses.', ...json(page(accountLicense)) },
+          ...commonResponses,
+        },
+      },
+    },
+    '/licenses/{id}': {
+      get: {
+        summary: 'One of your licenses',
+        description: 'Requires `licenses:read`.',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: {
+          200: { description: 'The license.', ...json(item(accountLicense)) },
+          ...commonResponses,
         },
       },
     },

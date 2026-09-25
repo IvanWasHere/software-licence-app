@@ -1,0 +1,44 @@
+{{--
+  The customer's licenses (licence plan §6, M5). Every member sees these —
+  the people installing the software need the keys.
+--}}
+@component('layouts/app', { title: 'Licenses' })
+  @pageHeader({
+    title: 'Licenses',
+    description: 'Your license keys, and where each one is in use.',
+  })
+  @end
+
+  @panel.root({ flush: true })
+    @if(licenses.length)
+      <div class="table-scroll">
+        <table class="tx-table">
+          <thead>
+            <tr><th>Product</th><th>Key</th><th>Sites</th><th>Renews / expires</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            @each(license in licenses)
+              @let(slots = usage.get(license.id))
+              <tr>
+                <td>
+                  <a href="{{ urlFor('licenses.show', { id: license.publicId }) }}">{{ license.product.name }}</a>
+                  <div class="field-hint">{{ license.plan.name }}</div>
+                </td>
+                <td><code>{{ license.product.keyPrefix }}-…{{ license.keySuffix }}</code></td>
+                <td>{{ slots.used }} / {{ slots.max === null ? '∞' : slots.max }}</td>
+                <td style="white-space: nowrap">{{ license.expiresAt ? license.expiresAt.toFormat('d LLL yyyy') : 'Never' }}</td>
+                <td>@include('pages/licenses/_status')</td>
+              </tr>
+            @end
+          </tbody>
+        </table>
+      </div>
+    @else
+      @!emptyState({
+        icon: 'key',
+        title: 'No licenses yet',
+        description: 'Licenses you buy appear here with their keys.',
+      })
+    @end
+  @end
+@end

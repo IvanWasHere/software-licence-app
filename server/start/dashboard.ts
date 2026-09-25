@@ -14,39 +14,25 @@
 | (`start/quotas.ts`) and are part of the shell of the page rather than
 | something a feature contributes.
 |
-| **Removing a feature means deleting its widgets here** — see
-| `docs/modules.md`. The page renders whatever is left, and an empty
-| registry renders an empty state rather than a broken screen.
-|
 */
 
 import dashboard from '#dashboard/widgets'
-import todos from '#modules/lists/services/dashboard_service'
+import licensing from '#licensing/dashboard_service'
 
 /**
- * The demo domain (D8) — delete with it.
- *
- * Three widgets rather than one, so that a replacement can keep the shape of
- * the screen while swapping what fills it: a row of figures, a table of what
- * is open, and a feed of what was finished.
+ * Licenses (licence plan M5): the figures a customer checks first, and the
+ * licenses they most recently got.
  */
 dashboard.register({
-  key: 'todo_stats',
+  key: 'license_stats',
   region: 'stats',
-  partial: 'pages/lists/widgets/stats',
-  load: (organization) => todos.statsFor(organization),
+  partial: 'pages/licenses/widgets/stats',
+  load: (organization) => licensing.statsFor(organization),
 })
 
 dashboard.register({
-  key: 'recent_todos',
+  key: 'recent_licenses',
   region: 'panels',
-  partial: 'pages/lists/widgets/recent',
-  load: (organization) => todos.recentTodos(organization),
-})
-
-dashboard.register({
-  key: 'recent_activity',
-  region: 'panels',
-  partial: 'pages/lists/widgets/activity',
-  load: (organization) => todos.recentActivity(organization),
+  partial: 'pages/licenses/widgets/recent',
+  load: (organization) => licensing.recent(organization),
 })

@@ -24,33 +24,26 @@
 
 import scopes from '#api/scopes'
 import { openApi } from '#api/openapi'
-import { listApiScopes } from '#modules/lists/api_scopes'
-import { listOpenApi } from '#modules/lists/openapi'
-import { licenseApiOpenApi } from '#licensing/openapi'
+import { accountLicensesOpenApi, licenseApiOpenApi } from '#licensing/openapi'
 import { integrationOpenApi } from '#commerce/openapi'
+import { licenseApiScopes } from '#licensing/api_scopes'
 
 /**
- * The demo domain (D8) — delete with it.
- *
- * `listApiScopes` carries the type augmentation that puts `lists:*` and
- * `todos:*` into `ApiScope`, so deleting the file is what makes a leftover
- * `requireScope(ctx, 'lists:read')` stop compiling rather than fail at
- * runtime.
+ * A customer's own licenses (licence plan M5). Carries the type augmentation
+ * that puts `licenses:read` into `ApiScope`.
  */
-for (const [scope, definition] of listApiScopes) {
+for (const [scope, definition] of licenseApiScopes) {
   scopes.register(scope, definition)
 }
 
-openApi.register(listOpenApi)
-
 /**
- * Core scopes, last, because `members:read` reads last on the form.
+ * Core scopes.
  *
  * Members exist whatever the product is, and an integration needs them to
  * resolve an assignee — so this one does not belong to a feature.
  */
 scopes.register('members:read', {
-  description: 'Read the member directory (needed to assign todos)',
+  description: 'Read the member directory',
   default: true,
 })
 
@@ -59,6 +52,7 @@ scopes.register('members:read', {
  * an API key — only its half of the published document.
  */
 openApi.register(licenseApiOpenApi)
+openApi.register(accountLicensesOpenApi)
 
 /**
  * The integration API (licence plan §6, M4) — our own website's backend.

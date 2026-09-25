@@ -8,7 +8,8 @@ import audit, { AUDIT_ACTIONS } from '#audit/audit_service'
 import billing from '#billing/billing_service'
 import search from '#admin/search_service'
 import memberships from '#organizations/membership_service'
-import { LIMIT_KEYS, plans as planCatalogue, type PlanKey } from '#config/plans'
+import Subscription from '#models/subscription'
+import { LIMIT_KEYS } from '#config/plans'
 
 /**
  * Organisations in the back-office (plan §12).
@@ -42,7 +43,10 @@ export default class AdminOrganizationController {
     const [members, subscription, payments, usage, files, keys, trail, canManage, canOverride] =
       await Promise.all([
         memberships.members(organization),
-        billing.activeSubscription(organization),
+        Subscription.query()
+          .where('organization_id', organization.id)
+          .orderBy('id', 'desc')
+          .first(),
         billing.payments(organization, 12),
         plans.usage(organization),
         File.query()
@@ -70,7 +74,6 @@ export default class AdminOrganizationController {
       trail,
       canManage,
       canOverride,
-      planKeys: Object.keys(planCatalogue),
       limitKeys: LIMIT_KEYS,
     })
   }
@@ -124,48 +127,9 @@ export default class AdminOrganizationController {
   }
 
   /**
-   * Override the plan without a payment behind it (plan §7.4).
-   *
-   * Admin only, because it is a discount nobody invoiced. It writes
-   * `plan_key` and nothing else — the subscription mirror keeps saying what
-   * the provider actually thinks, so `billing:sync` will report the
-   * difference rather than the two silently agreeing on a lie.
-   */
-  async overridePlan(ctx: HttpContext) {
-    const { params, request, response, session, staffBouncer } = ctx
-    await staffBouncer.with('StaffPolicy').authorize('overridePlan')
-
-    const organization = await Organization.query().where('public_id', params.id).firstOrFail()
-    const planKey = String(request.input('plan_key', ''))
-
-    if (!(planKey in planCatalogue)) {
-      session.flash('error', 'That plan does not exist.')
-      return response.redirect().back()
-    }
-
-    const previous = organization.planKey
-    await plans.applyPlan(organization, planKey as PlanKey)
-
-    await audit.recordStaffAction(ctx, {
-      action: AUDIT_ACTIONS.planOverridden,
-      organization,
-      subjectType: 'Organization',
-      subjectId: organization.publicId,
-      metadata: {
-        from: previous,
-        to: planKey,
-        reason: String(request.input('reason', '')) || null,
-      },
-    })
-
-    session.flash('success', `${organization.name} moved from ${previous} to ${planKey}.`)
-    return response.redirect().back()
-  }
-
-  /**
-   * Raise a single limit without changing the plan (plan §7.4) — the
-   * standard "just let this customer have five more lists while we sort out
-   * billing" request.
+   * Raise a single account limit (plan §7.4) — the standard "just let this
+   * agency have fifty seats" request. Admin only: it grants something nobody
+   * pays for.
    */
   async overrideLimits(ctx: HttpContext) {
     const { params, request, response, session, staffBouncer } = ctx
@@ -184,7 +148,7 @@ export default class AdminOrganizationController {
     const submitted = request.input('value')
     const rawValue = submitted === null || submitted === undefined ? '' : String(submitted).trim()
 
-    if (!(limit in planCatalogue.free.limits)) {
+    if (!(LIMIT_KEYS as string[]).includes(limit)) {
       session.flash('error', 'That is not a limit.')
       return response.redirect().back()
     }

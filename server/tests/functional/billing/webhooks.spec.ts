@@ -6,9 +6,13 @@ import Job from '#models/job'
 import Payment from '#models/payment'
 import Subscription from '#models/subscription'
 import Organization from '#models/organization'
+import License from '#models/license'
 import WebhookEvent from '#models/webhook_event'
+import orders from '#commerce/order_service'
 import {
+  createSellablePlan,
   createWorkspace,
+  creemLicensing,
   queuedMailsTo,
   restorePaymentProvider,
   runQueue,
@@ -165,57 +169,68 @@ test.group('Webhooks — applying an event', (group) => {
     return WebhookEvent.query().orderBy('id', 'desc').firstOrFail()
   }
 
-  test('an activation moves the organisation onto the plan that was bought', async ({
-    client,
-    assert,
-  }) => {
-    const { organization } = await createWorkspace()
+  /**
+   * A subscription on the licensing path, with a checkout of ours behind it.
+   */
+  async function subscribed(client: any, createdAt?: string) {
+    const { plan } = await createSellablePlan({ billing: 'yearly', licenseTerm: 'subscription' })
+    const { order } = await orders.startCheckout({
+      plan,
+      email: 'owner@example.com',
+      successUrl: 'https://example.com/thanks',
+    })
 
     const ledger = await deliver(
       client,
-      subscriptionWebhook({ organizationPublicId: organization.publicId })
+      creemLicensing.subscription({
+        orderPublicId: order.publicId,
+        productId: plan.providerProductId!,
+        createdAt,
+      })
     )
 
-    assert.isNotNull(ledger.processedAt)
+    return { plan, order, ledger }
+  }
 
-    await organization.refresh()
-    assert.equal(organization.planKey, 'pro')
-    assert.equal(organization.status, 'active')
-
-    const subscription = await Subscription.query().firstOrFail()
-    assert.equal(subscription.organizationId, organization.id)
-    assert.equal(subscription.planKey, 'pro')
-    assert.equal(subscription.status, 'active')
-    assert.equal(subscription.providerCustomerId, 'cus_test_1')
-  })
-
-  /**
-   * Entitlements follow the provider, and the tenant is found through the
-   * checkout metadata we put there ourselves (plan §7.5).
-   */
-  test('an event that cannot be attributed to a tenant is parked, not guessed at', async ({
+  test('an activation records the subscription and issues its license', async ({
     client,
     assert,
   }) => {
+    const { ledger, plan } = await subscribed(client)
+
+    assert.isNotNull(ledger.processedAt)
+
+    const subscription = await Subscription.query().firstOrFail()
+    assert.equal(subscription.planId, plan.id)
+    assert.equal(subscription.status, 'active')
+    assert.equal(subscription.providerCustomerId, 'cus_test_1')
+    assert.lengthOf(await License.all(), 1)
+  })
+
+  /**
+   * The tenant is found through the order id we put in the checkout
+   * metadata, or a catalog plan mapped to the product — nothing else. A
+   * subscription for a product we do not sell is parked, not guessed at.
+   */
+  test('a subscription that maps to nothing we sell is parked', async ({ client, assert }) => {
     await createWorkspace()
 
     const ledger = await deliver(client, subscriptionWebhook({}))
 
     assert.isNull(ledger.processedAt, 'never marked done')
-    assert.match(ledger.lastError ?? '', /could not be attributed/)
+    assert.match(ledger.lastError ?? '', /maps to no catalog plan/)
+    assert.lengthOf(await Subscription.all(), 0)
   })
 
   test('a second delivery of the same subscription updates one row', async ({ client, assert }) => {
-    const { organization } = await createWorkspace()
+    const { plan } = await subscribed(client)
 
-    await deliver(client, subscriptionWebhook({ organizationPublicId: organization.publicId }))
     await deliver(
       client,
-      subscriptionWebhook({
-        eventId: 'evt_2',
+      creemLicensing.subscription({
         eventType: 'subscription.past_due',
+        productId: plan.providerProductId!,
         status: 'past_due',
-        organizationPublicId: organization.publicId,
       })
     )
 
@@ -223,10 +238,6 @@ test.group('Webhooks — applying an event', (group) => {
 
     const subscription = await Subscription.query().firstOrFail()
     assert.equal(subscription.status, 'past_due')
-
-    await organization.refresh()
-    assert.equal(organization.status, 'past_due')
-    assert.equal(organization.planKey, 'pro', 'past_due keeps the plan — nothing is taken away')
   })
 
   /**
@@ -234,102 +245,66 @@ test.group('Webhooks — applying an event', (group) => {
    * `active` that superseded it (plan §7.5).
    */
   test('an event older than what the row already knows is ignored', async ({ client, assert }) => {
-    const { organization } = await createWorkspace()
+    const { plan } = await subscribed(client, '2026-09-07T12:00:00.000Z')
 
     await deliver(
       client,
-      subscriptionWebhook({
-        organizationPublicId: organization.publicId,
-        createdAt: '2026-09-07T12:00:00.000Z',
-      })
-    )
-
-    await deliver(
-      client,
-      subscriptionWebhook({
-        eventId: 'evt_stale',
+      creemLicensing.subscription({
         eventType: 'subscription.past_due',
+        productId: plan.providerProductId!,
         status: 'past_due',
-        organizationPublicId: organization.publicId,
         createdAt: '2020-01-01T00:00:00.000Z',
       })
     )
 
     const subscription = await Subscription.query().firstOrFail()
     assert.equal(subscription.status, 'active', 'the stale event did not win')
-
-    await organization.refresh()
-    assert.equal(organization.status, 'active')
   })
 
   /**
-   * The downgrade path (plan §7.4): plan key to free, and nothing else. No
-   * data job, no archiving.
+   * One email on the transition to past due, never one per redelivery.
    */
-  test('a cancellation drops the plan to free and touches nothing else', async ({
-    client,
-    assert,
-  }) => {
-    const { user, organization } = await createWorkspace()
-
-    await deliver(client, subscriptionWebhook({ organizationPublicId: organization.publicId }))
-
-    const { default: lists } = await import('#modules/lists/services/list_service')
-    for (const name of ['One', 'Two', 'Three', 'Four']) {
-      await lists.create(organization, user, { name })
+  test('a failed renewal emails the owner once', async ({ client, assert }) => {
+    const { plan } = await subscribed(client)
+    const pastDue = {
+      eventType: 'subscription.past_due',
+      productId: plan.providerProductId!,
+      status: 'past_due',
     }
 
-    await deliver(
-      client,
-      subscriptionWebhook({
-        eventId: 'evt_cancel',
-        eventType: 'subscription.canceled',
-        status: 'canceled',
-        organizationPublicId: organization.publicId,
-      })
-    )
+    await deliver(client, creemLicensing.subscription(pastDue))
+    await deliver(client, creemLicensing.subscription(pastDue))
 
-    await organization.refresh()
-    assert.equal(organization.planKey, 'free')
-    assert.equal(organization.status, 'active', 'a cancellation is not a suspension')
-
-    assert.equal(await lists.count(organization), 4, 'every list survived the downgrade')
+    const mails = await queuedMailsTo('owner@example.com')
+    const failed = mails.filter((message) => message.subject.includes('could not renew'))
+    assert.lengthOf(failed, 1)
   })
 
   test('a payment is recorded once and emails one receipt', async ({ client, assert }) => {
-    const { user, organization } = await createWorkspace()
+    const { plan } = await createSellablePlan()
+    const { order } = await orders.startCheckout({
+      plan,
+      email: 'owner@example.com',
+      successUrl: 'https://example.com/thanks',
+    })
 
-    await deliver(client, subscriptionWebhook({ organizationPublicId: organization.publicId }))
+    const body = creemLicensing.oneTimeCheckout({
+      orderPublicId: order.publicId,
+      providerOrderId: 'ord_1',
+      amountCents: 2900,
+    })
 
-    const paid = {
-      id: 'evt_paid',
-      eventType: 'subscription.paid',
-      created_at: new Date().toISOString(),
-      object: {
-        id: 'sub_test_1',
-        status: 'active',
-        customer: { id: 'cus_test_1' },
-        product: { id: 'prod_test_pro' },
-        order: {
-          id: 'ord_1',
-          amount: 2900,
-          currency: 'usd',
-          created_at: new Date().toISOString(),
-          description: 'Pro plan — monthly',
-        },
-      },
-    }
-
-    await deliver(client, paid)
+    await deliver(client, body)
+    await deliver(client, { ...body, id: 'evt_redelivered' })
 
     const payments = await Payment.all()
     assert.lengthOf(payments, 1)
     assert.equal(payments[0].amountCents, 2900)
-    assert.equal(payments[0].currency, 'USD')
+    assert.equal(payments[0].currency, 'EUR')
     assert.equal(payments[0].status, 'succeeded')
     assert.match(payments[0].publicId, /^pay_/)
 
-    const queued = await queuedMailsTo(user.email)
+    const queued = await queuedMailsTo('owner@example.com')
     const receipts = queued.filter((message) => message.subject.includes('payment'))
     assert.lengthOf(receipts, 1, 'one charge, one receipt')
   })
@@ -338,37 +313,22 @@ test.group('Webhooks — applying an event', (group) => {
     client,
     assert,
   }) => {
-    const { organization } = await createWorkspace()
-
-    await deliver(client, subscriptionWebhook({ organizationPublicId: organization.publicId }))
-
-    const order = {
-      id: 'ord_1',
-      amount: 2900,
-      currency: 'usd',
-      created_at: new Date().toISOString(),
-    }
-
-    await deliver(client, {
-      id: 'evt_paid',
-      eventType: 'subscription.paid',
-      created_at: new Date().toISOString(),
-      object: { id: 'sub_test_1', customer: { id: 'cus_test_1' }, order },
+    const { plan } = await createSellablePlan()
+    const { order } = await orders.startCheckout({
+      plan,
+      email: 'owner@example.com',
+      successUrl: 'https://example.com/thanks',
     })
 
-    await deliver(client, {
-      id: 'evt_refund',
-      eventType: 'refund.created',
-      created_at: new Date().toISOString(),
-      object: {
-        id: 'ref_1',
-        order: { id: 'ord_1' },
-        subscription: 'sub_test_1',
-        refund_amount: 1000,
-        currency: 'usd',
-        created_at: new Date().toISOString(),
-      },
-    })
+    await deliver(
+      client,
+      creemLicensing.oneTimeCheckout({
+        orderPublicId: order.publicId,
+        providerOrderId: 'ord_1',
+        amountCents: 2900,
+      })
+    )
+    await deliver(client, creemLicensing.refund({ providerOrderId: 'ord_1', amountCents: 1000 }))
 
     const payments = await Payment.all()
     assert.lengthOf(payments, 1, 'one order, one row')
@@ -378,37 +338,26 @@ test.group('Webhooks — applying an event', (group) => {
     assert.equal(payments[0].netAmountCents, 1900)
   })
 
-  test('a dispute marks the payment and changes nothing about access', async ({
-    client,
-    assert,
-  }) => {
-    const { organization } = await createWorkspace()
-
-    await deliver(client, subscriptionWebhook({ organizationPublicId: organization.publicId }))
-
-    await deliver(client, {
-      id: 'evt_paid',
-      eventType: 'subscription.paid',
-      created_at: new Date().toISOString(),
-      object: {
-        id: 'sub_test_1',
-        customer: { id: 'cus_test_1' },
-        order: { id: 'ord_1', amount: 2900, currency: 'usd', created_at: new Date().toISOString() },
-      },
+  test('a dispute marks the payment and leaves the account alone', async ({ client, assert }) => {
+    const { plan } = await createSellablePlan()
+    const { order } = await orders.startCheckout({
+      plan,
+      email: 'owner@example.com',
+      successUrl: 'https://example.com/thanks',
     })
 
-    await deliver(client, {
-      id: 'evt_dispute',
-      eventType: 'dispute.created',
-      created_at: new Date().toISOString(),
-      object: { id: 'dis_1', order: { id: 'ord_1' } },
-    })
+    await deliver(
+      client,
+      creemLicensing.oneTimeCheckout({ orderPublicId: order.publicId, providerOrderId: 'ord_1' })
+    )
+    await deliver(client, creemLicensing.dispute({ providerOrderId: 'ord_1' }))
 
     const payment = await Payment.query().firstOrFail()
     assert.equal(payment.status, 'disputed')
 
-    const fresh = await Organization.findOrFail(organization.id)
-    assert.equal(fresh.status, 'active', 'suspending over a dispute is a human decision')
+    await order.refresh()
+    const organization = await Organization.findOrFail(order.organizationId)
+    assert.equal(organization.status, 'active', 'suspending an account is a human decision')
   })
 
   /**
@@ -416,12 +365,7 @@ test.group('Webhooks — applying an event', (group) => {
    * runs twice must leave the same rows (plan §9).
    */
   test('applying the same stored event twice changes nothing', async ({ client, assert }) => {
-    const { organization } = await createWorkspace()
-
-    const ledger = await deliver(
-      client,
-      subscriptionWebhook({ organizationPublicId: organization.publicId })
-    )
+    const { ledger } = await subscribed(client)
 
     const { default: webhooks } = await import('#billing/webhook_handler')
     const { paymentProvider } = await import('#billing/provider')
@@ -431,8 +375,6 @@ test.group('Webhooks — applying an event', (group) => {
     )
 
     assert.lengthOf(await Subscription.all(), 1)
-
-    await organization.refresh()
-    assert.equal(organization.planKey, 'pro')
+    assert.lengthOf(await License.all(), 1)
   })
 })
