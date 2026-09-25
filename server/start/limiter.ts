@@ -232,3 +232,31 @@ export const adminLoginThrottle = limiter.define('admin_login', (ctx) => {
       error.setMessage('Too many sign-in attempts.')
     })
 })
+
+/**
+ * The public license API (licence plan §6, §9), by address.
+ *
+ * Generous, because one address is often a shared host running hundreds of
+ * WordPress sites, each validating on its own schedule. The SDKs cache for
+ * `validation_interval_hours`, so real traffic sits far below this; what it
+ * stops is somebody enumerating keys from one machine.
+ */
+export const licenseApiAddressThrottle = limiter.define('license_api_address', (ctx) => {
+  return limiter.allowRequests(120).every('1 minute').usingKey(addressKey(ctx))
+})
+
+/**
+ * The public license API, by the license key in the body.
+ *
+ * A key that is being validated thirty times a minute is either a broken
+ * client in a loop or a leaked key on a lot of machines — both worth slowing
+ * down, neither worth letting one key cost everyone else on the address.
+ * Hashed like the account keys above, and keyed on the raw input rather than
+ * the parsed key so a malformed key is counted too.
+ */
+export const licenseApiKeyThrottle = limiter.define('license_api_key', (ctx) => {
+  return limiter
+    .allowRequests(30)
+    .every('1 minute')
+    .usingKey(`license:${accountKey(ctx.request.input('license_key'))}`)
+})

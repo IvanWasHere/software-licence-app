@@ -427,9 +427,14 @@ Each milestone ends green in CI and can be demoed.
 - **Lists removal moved to M5** (see §2).
 - ✅ 58 new tests: the full reason-code matrix, key parsing, dev hosts, a signer round-trip and tamper check, the services (including the racing-activation case) and the admin screens. Suite at 764/764.
 
-**M3: License API (≈3 days)**
-- Implement validate, activate, deactivate, the product endpoint and `/keys`, with rate limits and OpenAPI docs.
-- ✅ Functional tests for each endpoint and state; a curl walkthrough in `docs/`.
+**M3: License API (≈3 days)** ✅ done
+- Built `POST /api/v1/licenses/{validate,activate,deactivate}`, `GET /api/v1/products/:slug` and `GET /api/v1/keys` in their own route group (`start/routes/license_api.ts`), separate from the org API.
+- `LicenseApiMiddleware` provides CORS for any origin (no credentials), `x-request-id`, `cache-control: no-store` and the preflight answer.
+- Rate limits: 120/min per address and 30/min per license key.
+- Every answer is signed. `product`, `instance_id` and an optional client `nonce` are echoed inside the signed payload, so a signed answer can't be replayed for a different product, installation or request.
+- The OpenAPI docs use the *License API* tag with `security: []`. There's a walkthrough in `server/docs/license-api.md`.
+- ✅ 25 new tests (every endpoint and state, signature round-trip, CORS/preflight, the per-key limit, and the keyless OpenAPI entries). Suite at 789/789.
+- Follow-up for M8: the router-level session and shield middleware still set cookies on `/api/*` responses. They're harmless here (never read, and CORS sends no credentials), but they're wasted bytes for every plugin. Exempt `/api/*` from the session middleware during hardening.
 - **← First usable MVP**: licenses issued by hand, validated by software.
 
 **M4: Payments → licenses (≈4 days)**

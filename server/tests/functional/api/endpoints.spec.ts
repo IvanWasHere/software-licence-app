@@ -643,6 +643,33 @@ test.group('API — the published document', () => {
   })
 
   /**
+   * The license API is documented beside the organisation API, and marked
+   * as needing no API key — a generated client that attached one would be
+   * wrong in a way nobody notices.
+   */
+  test('documents the license API as keyless', async ({ client, assert }) => {
+    const response = await client.get('/openapi.json')
+    const document = response.body()
+
+    for (const [path, method] of [
+      ['/licenses/validate', 'post'],
+      ['/licenses/activate', 'post'],
+      ['/licenses/deactivate', 'post'],
+      ['/products/{slug}', 'get'],
+      ['/keys', 'get'],
+    ]) {
+      assert.property(document.paths, path, path)
+      assert.deepEqual(document.paths[path][method].security, [], path)
+    }
+
+    assert.include(
+      document.paths['/licenses/validate'].post.responses['200'].content['application/json'].schema
+        .properties.reason.enum,
+      'activation_limit_reached'
+    )
+  })
+
+  /**
    * Schemas and the usage block are assembled rather than written out —
    * features contribute schemas through the OpenAPI registry, and the
    * `/organization` usage properties are built from the quota registry so

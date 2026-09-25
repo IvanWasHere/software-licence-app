@@ -26,6 +26,7 @@ import scopes from '#api/scopes'
 import { openApi } from '#api/openapi'
 import { listApiScopes } from '#modules/lists/api_scopes'
 import { listOpenApi } from '#modules/lists/openapi'
+import { licenseApiOpenApi } from '#licensing/openapi'
 
 /**
  * The demo domain (D8) — delete with it.
@@ -51,3 +52,9 @@ scopes.register('members:read', {
   description: 'Read the member directory (needed to assign todos)',
   default: true,
 })
+
+/**
+ * The public license API (licence plan §6). No scopes — it is not called with
+ * an API key — only its half of the published document.
+ */
+openApi.register(licenseApiOpenApi)

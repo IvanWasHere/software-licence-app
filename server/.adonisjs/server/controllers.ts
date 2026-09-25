@@ -27,7 +27,9 @@ export const controllers = {
   },
   api: {
     v1: {
+      License: () => import('#app/controllers/api/v1/license_controller'),
       Organization: () => import('#app/controllers/api/v1/organization_controller'),
+      Product: () => import('#app/controllers/api/v1/product_controller'),
     },
   },
   auth: {

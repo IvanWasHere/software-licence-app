@@ -15,6 +15,7 @@ import { controllers } from '#generated/controllers'
 import '#start/routes/auth'
 import '#start/routes/web'
 import '#start/routes/billing'
+import '#start/routes/license_api'
 import '#start/routes/api'
 import '#start/routes/admin'
 

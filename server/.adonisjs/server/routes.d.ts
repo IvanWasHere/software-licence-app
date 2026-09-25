@@ -128,6 +128,12 @@ export type ScannedRoutes = {
     'settings.security.two_factor.confirm': { paramsTuple?: []; params?: {} }
     'settings.security.two_factor.recovery_codes': { paramsTuple?: []; params?: {} }
     'settings.security.two_factor.disable': { paramsTuple?: []; params?: {} }
+    'license_api.validate': { paramsTuple?: []; params?: {} }
+    'license_api.activate': { paramsTuple?: []; params?: {} }
+    'license_api.deactivate': { paramsTuple?: []; params?: {} }
+    'license_api.preflight': { paramsTuple: [...ParamValue[]]; params: {'*': ParamValue[]} }
+    'license_api.product': { paramsTuple: [ParamValue]; params: {'slug': ParamValue} }
+    'license_api.keys': { paramsTuple?: []; params?: {} }
     'admin.session.create': { paramsTuple?: []; params?: {} }
     'admin.session.store': { paramsTuple?: []; params?: {} }
     'admin.two_factor.create': { paramsTuple?: []; params?: {} }
@@ -272,6 +278,8 @@ export type ScannedRoutes = {
     'notifications.index': { paramsTuple?: []; params?: {} }
     'members.index': { paramsTuple?: []; params?: {} }
     'settings.security': { paramsTuple?: []; params?: {} }
+    'license_api.product': { paramsTuple: [ParamValue]; params: {'slug': ParamValue} }
+    'license_api.keys': { paramsTuple?: []; params?: {} }
     'admin.session.create': { paramsTuple?: []; params?: {} }
     'admin.two_factor.create': { paramsTuple?: []; params?: {} }
     'admin.dashboard': { paramsTuple?: []; params?: {} }
@@ -375,6 +383,8 @@ export type ScannedRoutes = {
     'notifications.index': { paramsTuple?: []; params?: {} }
     'members.index': { paramsTuple?: []; params?: {} }
     'settings.security': { paramsTuple?: []; params?: {} }
+    'license_api.product': { paramsTuple: [ParamValue]; params: {'slug': ParamValue} }
+    'license_api.keys': { paramsTuple?: []; params?: {} }
     'admin.session.create': { paramsTuple?: []; params?: {} }
     'admin.two_factor.create': { paramsTuple?: []; params?: {} }
     'admin.dashboard': { paramsTuple?: []; params?: {} }
@@ -462,6 +472,9 @@ export type ScannedRoutes = {
     'settings.security.two_factor.confirm': { paramsTuple?: []; params?: {} }
     'settings.security.two_factor.recovery_codes': { paramsTuple?: []; params?: {} }
     'settings.security.two_factor.disable': { paramsTuple?: []; params?: {} }
+    'license_api.validate': { paramsTuple?: []; params?: {} }
+    'license_api.activate': { paramsTuple?: []; params?: {} }
+    'license_api.deactivate': { paramsTuple?: []; params?: {} }
     'admin.session.store': { paramsTuple?: []; params?: {} }
     'admin.two_factor.store': { paramsTuple?: []; params?: {} }
     'admin.session.destroy': { paramsTuple?: []; params?: {} }
@@ -507,6 +520,9 @@ export type ScannedRoutes = {
   PATCH: {
     'api.lists.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'api.todos.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+  }
+  OPTIONS: {
+    'license_api.preflight': { paramsTuple: [...ParamValue[]]; params: {'*': ParamValue[]} }
   }
 }
 declare module '@adonisjs/core/types/http' {
