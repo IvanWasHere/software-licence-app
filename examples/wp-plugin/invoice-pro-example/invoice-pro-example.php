@@ -28,7 +28,7 @@ require_once $invoice_pro_sdk;
  * time — never fetched at runtime. Overridable in wp-config.php for local
  * testing against your own server.
  */
-defined('INVOICE_PRO_LICENSE_SERVER') || define('INVOICE_PRO_LICENSE_SERVER', 'https://licenses.example.com/api/v1');
+defined('INVOICE_PRO_LICENSE_SERVER') || define('INVOICE_PRO_LICENSE_SERVER', 'https://licensing.example.com/api/v1');
 defined('INVOICE_PRO_LICENSE_PUBLIC_KEYS') || define('INVOICE_PRO_LICENSE_PUBLIC_KEYS', ['k1' => 'REPLACE-WITH-YOUR-PUBLIC-KEY']);
 
 /**

@@ -25,13 +25,14 @@ export default class AdminDashboardController {
     const requested = String(request.input('range', '30d'))
     const range = (requested in REVENUE_RANGES ? requested : '30d') as RevenueRange
 
-    const [figures, revenue, growth, attention, signups, trail] = await Promise.all([
+    const [figures, revenue, growth, attention, signups, trail, licenseApi] = await Promise.all([
       metrics.collect(),
       metrics.revenue(range),
       metrics.growth(),
       metrics.needsAttention(),
       metrics.recentSignups(),
       audit.search({ limit: 10 }),
+      metrics.licenseApi(),
     ])
 
     return view.render('pages/admin/dashboard', {
@@ -41,6 +42,7 @@ export default class AdminDashboardController {
       attention,
       signups,
       trail,
+      licenseApi,
       ranges: Object.keys(REVENUE_RANGES),
     })
   }

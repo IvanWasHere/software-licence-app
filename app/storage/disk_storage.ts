@@ -34,6 +34,22 @@ export class DiskStorage implements FileStorage {
     })
   }
 
+  async putBytes(input: {
+    disk: StorageDisk
+    key: string
+    bytes: Uint8Array
+    contentType: string
+  }): Promise<void> {
+    await drive.use(input.disk).put(input.key, input.bytes, {
+      contentType: input.contentType,
+      visibility: input.disk === 'public' ? 'public' : 'private',
+    })
+  }
+
+  async readBytes(input: { disk: StorageDisk; key: string }): Promise<Buffer> {
+    return Buffer.from(await drive.use(input.disk).getBytes(input.key))
+  }
+
   async delete(input: { disk: StorageDisk; key: string }): Promise<void> {
     await drive.use(input.disk).delete(input.key)
   }

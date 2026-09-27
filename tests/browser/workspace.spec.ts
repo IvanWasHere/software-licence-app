@@ -51,17 +51,28 @@ test.group('Buying a license', (group) => {
 
     /**
      * The request the browser issues is the assertion, not the page it lands
-     * on. The fake provider's checkout host does not exist — nothing should
-     * leave the machine to prove a handoff — and a form POST answering with
-     * an off-site redirect is subject to `form-action`, enforced across the
-     * redirect and failing silently (config/shield.ts). Blocked, the browser
-     * issues no request at all and this times out.
+     * on. The fake provider's checkout host cannot exist (`checkout.invalid`,
+     * see `tests/helpers.ts`) — nothing leaves the machine to prove a
+     * handoff — and a form POST answering with an off-site redirect is
+     * subject to `form-action`, enforced across the redirect and failing
+     * silently (config/shield.ts). Blocked, the browser issues no request at
+     * all and this times out.
+     *
+     * A route stub would not help here: Playwright does not intercept the
+     * request a redirect leads to, so the browser follows the 302 itself.
      */
     const [request] = await Promise.all([
-      page.waitForRequest('https://checkout.test/**'),
+      page.waitForRequest('https://checkout.invalid/**'),
       page.click('button:has-text("Buy Lifetime")'),
     ])
     assert.include(request.url(), plan.providerProductId!)
+
+    /**
+     * That handoff can only fail, and the browser commits its own error page
+     * for it a moment *after* the click has returned. Let it land before
+     * going anywhere else, or the next `goto` is the navigation it interrupts.
+     */
+    await page.waitForURL((url) => !url.pathname.startsWith('/pricing/'), { waitUntil: 'commit' })
 
     const order = await Order.firstOrFail()
 

@@ -90,7 +90,17 @@ test.group('Job registry', () => {
 
   test('nothing is scheduled on an interval no job asked for', ({ assert }) => {
     assert.isEmpty(jobs.due('5m'))
-    assert.isEmpty(jobs.due('hourly'))
+  })
+
+  /**
+   * The abuse check runs hourly (licence plan M8), so a key being passed
+   * around is flagged the same day rather than the next morning.
+   */
+  test('the hourly sweep is the abuse check', ({ assert }) => {
+    assert.deepEqual(
+      jobs.due('hourly').map((entry) => entry.handler.name),
+      ['detect_license_abuse']
+    )
   })
 
   /**

@@ -13,6 +13,8 @@ import { sessionApiClient } from '@adonisjs/session/plugins/api_client'
 import { sessionBrowserClient } from '@adonisjs/session/plugins/browser_client'
 import { shieldApiClient } from '@adonisjs/shield/plugins/api_client'
 
+import traffic from '#licensing/traffic'
+
 /**
  * This file is imported by the "bin/test.ts" entrypoint file
  */
@@ -49,7 +51,13 @@ export const runnerHooks: Required<Pick<Config, 'setup' | 'teardown'>> = {
    * engines (CONTRIBUTING.md).
    */
   setup: [() => testUtils.db().migrate()],
-  teardown: [],
+  /**
+   * The license API traffic buffer (`app/licensing/traffic.ts`) is written
+   * out when the application terminates — after the migrations above have
+   * been rolled back, so whatever the last tests counted would be flushed
+   * into tables that no longer exist and logged as an error. Forget it first.
+   */
+  teardown: [() => traffic.reset()],
 }
 
 /**

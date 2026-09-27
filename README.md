@@ -34,13 +34,15 @@ rows in the database, so adding a tenth product needs no code change.
   - Answers are **signed with Ed25519**, so a cached answer or a fake local server can't unlock anything.
   - An invalid license is a normal `200` answer with a permanent reason code, never an error.
 - 🖥️ **Activations with limits.** "3 sites" means 3.
-  - Development and staging sites (`localhost`, `*.test`, `staging.*`, …) are free.
+  - Development and staging sites (`localhost`, `*.test`, `staging.*`, …) are recognised and
+    shown as such. They use a slot like any other site, unless a product is set to let them be free.
   - Activating the same installation twice counts once.
 - 💳 **Payments through [Creem](https://creem.io).**
   - One-time purchases issue perpetual licenses; subscriptions keep a license alive period by period.
   - Refunds revoke, disputes suspend, and a failed renewal gets a grace period before the license lapses.
 - 🛒 **A pricing page and checkout**, or an **integration API** if your marketing site lives somewhere else.
-- 👤 **A customer portal.** Keys, where each one is installed, a button to free a slot, orders and invoices.
+- 👤 **A customer portal.** Keys, where each one is installed, a button to free a slot, orders and charges,
+  and a numbered **receipt PDF** for every charge (Creem, as merchant of record, issues the tax invoice).
   Accounts are one person by default: no uploads and no API keys. Staff can switch any of these on
   per account.
 - 🔄 **Releases and updates.** Upload a build, publish it, and licensed installations are offered it.
@@ -200,7 +202,7 @@ offline grace) in about 3 KB:
 import { createLicenseClient } from '@licence-app/sdk'
 
 const license = createLicenseClient({
-  baseUrl: 'https://licenses.example.com/api/v1',
+  baseUrl: 'https://licensing.example.com/api/v1',
   product: 'invoice-pro',
   publicKey: { k1: '<from GET /api/v1/keys, pinned in your build>' },
 })
@@ -226,7 +228,7 @@ function invoice_pro_license(): \LicenceApp\Sdk\Client
         'plugin_file' => __FILE__,
         'version'     => '1.2.0',
         'name'        => 'Invoice Pro',
-        'base_url'    => 'https://licenses.example.com/api/v1',
+        'base_url'    => 'https://licensing.example.com/api/v1',
         'product'     => 'invoice-pro',
         'public_key'  => ['k1' => '<from GET /api/v1/keys>'],
     ]);

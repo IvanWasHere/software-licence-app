@@ -31,7 +31,7 @@
           <div>
             <h1 class="hero-title">Thank you — your key is on its way</h1>
             <p class="hero-subtitle">
-              We have emailed it to {{ order.email }}. It is also in your account under Licenses.
+              We have emailed it to {{ email }}. It is also in your account under Licenses.
             </p>
             <div class="hero-actions">
               @!link({ route: 'licenses.index', text: 'Open your licenses', class: 'btn btn-primary' })
@@ -43,7 +43,7 @@
             <h1 class="hero-title">Confirming your payment…</h1>
             <p class="hero-subtitle">
               This usually takes a few seconds. You can close this page — the key will be emailed to
-              {{ order.email }} as soon as the payment is confirmed.
+              {{ email }} as soon as the payment is confirmed.
             </p>
           </div>
         </template>

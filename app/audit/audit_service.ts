@@ -43,6 +43,7 @@ export const AUDIT_ACTIONS = {
   releaseUploaded: 'catalog.release.uploaded',
   releasePublished: 'catalog.release.published',
   releaseYanked: 'catalog.release.yanked',
+  releaseDiscarded: 'catalog.release.discarded',
 
   licenseIssued: 'license.issued',
   licenseKeyRevealed: 'license.key_revealed',
@@ -53,6 +54,7 @@ export const AUDIT_ACTIONS = {
   licenseExpiryChanged: 'license.expiry_changed',
   licenseActivationsLimitChanged: 'license.activations_limit_changed',
   licenseActivationRemoved: 'license.activation_removed',
+  licenseFlagResolved: 'license.flag_resolved',
 
   notificationCreated: 'notification.created',
   notificationPublished: 'notification.published',

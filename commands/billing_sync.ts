@@ -8,7 +8,7 @@ import type { CommandOptions } from '@adonisjs/core/types/ace'
  * this is what somebody reaches for when a customer says "I upgraded but
  * nothing changed" and the webhook is nowhere in the ledger.
  *
- *   node ace billing:sync             # report and correct statuses
+ *   node ace billing:sync             # report; correct statuses and dates that would cut a customer short
  *   node ace billing:sync --dry-run   # report only
  */
 export default class BillingSync extends BaseCommand {
@@ -57,7 +57,9 @@ export default class BillingSync extends BaseCommand {
     if (this.dryRun) {
       this.logger.info('dry run — nothing was changed')
     } else if (report.corrected > 0) {
-      this.logger.success(`corrected ${report.corrected} subscription status(es)`)
+      this.logger.success(
+        `made ${report.corrected} correction(s): statuses, missed renewals and short license expiries`
+      )
     }
 
     /**

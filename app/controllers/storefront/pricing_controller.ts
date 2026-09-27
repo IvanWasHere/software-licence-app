@@ -118,7 +118,15 @@ export default class PricingController {
   async return({ request, view }: HttpContext) {
     const order = await orders.find(String(request.input('order', '')))
 
-    return view.render('pages/storefront/return', { order })
+    /**
+     * The address is masked (licence plan M8 security review): this URL is
+     * the one a buyer may paste into a support chat or a screenshot, and the
+     * order id in it is all it takes to open.
+     */
+    return view.render('pages/storefront/return', {
+      order,
+      email: order ? maskEmail(order.email) : null,
+    })
   }
 
   /**
@@ -133,4 +141,13 @@ export default class PricingController {
       fulfilled: Boolean(order?.fulfilledAt),
     })
   }
+}
+
+/**
+ * `j•••@example.com` — enough for the buyer to recognise, not enough to
+ * harvest.
+ */
+export function maskEmail(email: string): string {
+  const [local, domain] = email.split('@')
+  return domain ? `${local.slice(0, 1)}•••@${domain}` : '•••'
 }

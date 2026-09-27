@@ -18,11 +18,16 @@
 import router from '@adonisjs/core/services/router'
 import { middleware } from '#start/kernel'
 import { controllers } from '#generated/controllers'
+import { publicIdMatcher } from '#models/public_id'
 
 router
   .group(() => {
     router.get('/billing', [controllers.billing.Billing, 'index']).as('billing.index')
     router.post('/billing/portal', [controllers.billing.Billing, 'portal']).as('billing.portal')
+    router
+      .get('/billing/receipts/:id', [controllers.billing.Billing, 'receipt'])
+      .as('billing.receipt')
+      .where('id', publicIdMatcher('payment'))
 
     /**
      * API keys sit in this owner-only group rather than with the tenant

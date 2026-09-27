@@ -53,6 +53,11 @@ server.use([
  * requests with a registered route.
  */
 router.use([
+  /**
+   * First, so it sees the response after session and shield have added their
+   * cookies — and strips them from `/api/*` (licence plan M8).
+   */
+  () => import('#middleware/api_without_cookies'),
   () => import('@adonisjs/core/bodyparser_middleware'),
   () => import('@adonisjs/session/session_middleware'),
   () => import('@adonisjs/shield/shield_middleware'),

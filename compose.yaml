@@ -17,7 +17,7 @@
 # want to check something engine-specific, or the built image itself.
 # ==============================================================================
 
-name: saas-starter
+name: licence-app-local
 
 services:
   # The web process. Serves HTTP; runs no jobs.

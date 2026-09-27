@@ -39,6 +39,19 @@ export class MailerService {
       const compiled = message.message.toJSON() as SendMailPayload['compiled']
 
       /**
+       * An attachment's bytes (a receipt PDF, licence plan M9) would
+       * otherwise be serialised as a Buffer's JSON form — an array of
+       * numbers four times the size. Base64 is what nodemailer expects for
+       * string content anyway; `SendMailJob` turns it back into bytes.
+       */
+      for (const attachment of compiled.message.attachments ?? []) {
+        if (Buffer.isBuffer(attachment.content)) {
+          attachment.content = attachment.content.toString('base64')
+          attachment.encoding = 'base64'
+        }
+      }
+
+      /**
        * `sendCompiled` sends exactly what it is given, so the from-address
        * that `send` would have filled in from config never gets applied.
        * Owning it here is what §8 asks of this class anyway — one place

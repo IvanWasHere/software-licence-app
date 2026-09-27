@@ -1,6 +1,9 @@
 import { DateTime } from 'luxon'
 import type { HttpContext } from '@adonisjs/core/http'
 
+import LicenseFlag from '#models/license_flag'
+import abuse from '#licensing/abuse_service'
+
 import Plan from '#models/plan'
 import License from '#models/license'
 import Product from '#models/product'
@@ -36,6 +39,7 @@ export default class AdminLicenseController {
     const status = ['active', 'suspended', 'revoked'].includes(request.input('status'))
       ? (request.input('status') as License['status'])
       : null
+    const flagged = request.input('flagged') === '1'
     const productPublicId = String(request.input('product', ''))
     const product = productPublicId
       ? await Product.query().where('public_id', productPublicId).first()
@@ -44,9 +48,10 @@ export default class AdminLicenseController {
     return view.render('pages/admin/licenses/index', {
       term,
       status,
+      flagged,
       productPublicId: product?.publicId ?? '',
       products: await Product.query().orderBy('name', 'asc'),
-      licenses: await search.licenses(term, { status, productId: product?.id ?? null }),
+      licenses: await search.licenses(term, { status, productId: product?.id ?? null, flagged }),
       canManage: await staffBouncer.with('StaffPolicy').allows('manageLicenses'),
     })
   }
@@ -122,11 +127,16 @@ export default class AdminLicenseController {
       return response.redirect().toRoute('admin.licenses.index')
     }
 
-    const [rows, usage, entitlements, history, canManage, canAssist] = await Promise.all([
+    const [rows, usage, entitlements, history, flags, canManage, canAssist] = await Promise.all([
       activations.all(license),
       activations.usage(license),
       licenses.entitlements(license),
       licenses.history(license),
+      LicenseFlag.query()
+        .where('license_id', license.id)
+        .preload('resolvedBy')
+        .orderBy('id', 'desc')
+        .limit(20),
       staffBouncer.with('StaffPolicy').allows('manageLicenses'),
       staffBouncer.with('StaffPolicy').allows('assistLicense'),
     ])
@@ -137,6 +147,7 @@ export default class AdminLicenseController {
       usage,
       entitlements: Object.entries(entitlements),
       history,
+      flags,
       canManage,
       canAssist,
       revealedKey: session.flashMessages.get('revealedKey') ?? null,
@@ -257,6 +268,45 @@ export default class AdminLicenseController {
     })
 
     session.flash('success', `${activation.displayName} deactivated. The slot is free.`)
+    return response.redirect().toRoute('admin.licenses.show', { id: license.publicId })
+  }
+
+  /**
+   * Close an abuse flag (licence plan §9, M8) — "looked at it, it is an
+   * agency", or "suspended it". Support-level: triage is part of the job, and
+   * resolving changes nothing about the license itself.
+   */
+  async resolveFlag(ctx: HttpContext) {
+    const { params, request, response, session, staffBouncer } = ctx
+    await staffBouncer.with('StaffPolicy').authorize('assistLicense')
+
+    const license = await this.find(params.id)
+    const flag = license
+      ? await LicenseFlag.query()
+          .where('license_id', license.id)
+          .where('public_id', params.flagId)
+          .first()
+      : null
+
+    if (!license || !flag) {
+      session.flash('error', 'That flag no longer exists.')
+      return response.redirect().toRoute('admin.licenses.index')
+    }
+
+    if (flag.isOpen) {
+      const note = String(request.input('note', '')).slice(0, 500)
+      await abuse.resolve(flag, ctx.auth.use('staff').user!.id, note)
+
+      await audit.recordStaffAction(ctx, {
+        action: AUDIT_ACTIONS.licenseFlagResolved,
+        organization: { id: license.organizationId },
+        subjectType: 'License',
+        subjectId: license.publicId,
+        metadata: { flag: flag.publicId, kind: flag.kind, note: flag.resolutionNote },
+      })
+    }
+
+    session.flash('success', 'Flag resolved.')
     return response.redirect().toRoute('admin.licenses.show', { id: license.publicId })
   }
 

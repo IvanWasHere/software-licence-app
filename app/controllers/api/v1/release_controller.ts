@@ -7,6 +7,7 @@ import Product from '#models/product'
 import License from '#models/license'
 import type Release from '#models/release'
 import licenses from '#licensing/license_service'
+import traffic from '#licensing/traffic'
 import activations from '#licensing/activation_service'
 import releases, { DOWNLOAD_LINK_TTL } from '#catalog/release_service'
 import { ApiException, ApiNotFoundException } from '#api/errors'
@@ -60,6 +61,11 @@ export default class ReleaseApiController {
       : null
     const license =
       check?.license && check.license.product.slug === product.slug ? check.license : null
+
+    traffic.hit(product.id, 'latest', !access?.allowed)
+    if (license) {
+      traffic.saw(license.id, request.ip())
+    }
 
     return response.ok(
       withSignature({

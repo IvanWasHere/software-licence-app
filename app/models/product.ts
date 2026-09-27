@@ -31,7 +31,7 @@ export default class Product extends compose(ProductSchema, withPublicId('produc
     product.status ??= 'draft'
     product.validationIntervalHours ??= 24
     product.offlineGraceDays ??= 7
-    product.countDevSites ??= false
+    product.countDevSites ??= true
   }
 
   get isDraft() {

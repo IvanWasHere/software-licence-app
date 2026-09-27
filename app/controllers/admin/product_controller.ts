@@ -36,6 +36,11 @@ export default class AdminProductController {
     const payload = await request.validateUsing(productValidator)
 
     try {
+      /**
+       * A checkbox that is off is absent from the form, so "missing" means
+       * "no" here. New products start with it ticked (`_form.edge`): dev
+       * sites count unless staff say otherwise (licence plan §5.4).
+       */
       const product = await catalog.createProduct({
         ...payload,
         countDevSites: payload.countDevSites ?? false,

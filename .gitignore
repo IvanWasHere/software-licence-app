@@ -45,3 +45,6 @@ sdk/js/dist
 
 # The example plugin's packaged zips (examples/wp-plugin/build.sh).
 examples/wp-plugin/dist
+
+# Production secrets (deploy/compose.yaml reads deploy/.env).
+deploy/.env

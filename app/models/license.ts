@@ -9,6 +9,7 @@ import Product from '#models/product'
 import Organization from '#models/organization'
 import Subscription from '#models/subscription'
 import LicenseEvent from '#models/license_event'
+import LicenseFlag from '#models/license_flag'
 import LicenseActivation from '#models/license_activation'
 import { LicenseSchema } from '#database/schema'
 import { withPublicId } from '#models/mixins/with_public_id'
@@ -42,6 +43,9 @@ export default class License extends compose(LicenseSchema, withPublicId('licens
 
   @hasMany(() => LicenseEvent)
   declare events: HasMany<typeof LicenseEvent>
+
+  @hasMany(() => LicenseFlag)
+  declare flags: HasMany<typeof LicenseFlag>
 
   @beforeCreate()
   static applyDefaults(license: License) {

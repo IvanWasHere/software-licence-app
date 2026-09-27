@@ -15,6 +15,9 @@ export const LICENSE_EVENT_TYPES = [
   'activated',
   'reactivated',
   'deactivated',
+  'expiry_reminder_sent',
+  'flagged',
+  'flag_resolved',
 ] as const
 
 export type LicenseEventType = (typeof LICENSE_EVENT_TYPES)[number]

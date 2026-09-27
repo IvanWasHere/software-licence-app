@@ -129,6 +129,36 @@ test.group('Tenant isolation', (group) => {
     assert.equal(b.member.role, 'member')
   })
 
+  /**
+   * Receipts (licence plan M9) are keyed by the payment's public id, which
+   * is guessable in shape; the lookup is scoped to the organisation.
+   */
+  test("another workspace's receipt is not found", async ({ client, assert }) => {
+    const { a, b } = await twoWorkspaces()
+    const { default: Payment } = await import('#models/payment')
+    const { DateTime } = await import('luxon')
+    const payment = await Payment.create({
+      organizationId: b.organization.id,
+      provider: 'creem',
+      providerOrderId: 'ord_b',
+      amountCents: 100,
+      currency: 'EUR',
+      status: 'succeeded',
+      occurredAt: DateTime.utc(),
+    })
+
+    const response = await client
+      .get(`/billing/receipts/${payment.publicId}`)
+      .loginAs(a.user)
+      .redirects(0)
+
+    response.assertStatus(302)
+    response.assertFlashMessage('error', 'No such payment.')
+
+    const { default: Receipt } = await import('#models/receipt')
+    assert.lengthOf(await Receipt.all(), 0, 'nothing was issued for B by A')
+  })
+
   test('settings show only your own workspace', async ({ client, assert }) => {
     const { a, b } = await twoWorkspaces()
 

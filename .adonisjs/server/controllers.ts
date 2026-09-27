@@ -16,6 +16,7 @@ export const controllers = {
     Organization: () => import('#app/controllers/admin/organization_controller'),
     Plan: () => import('#app/controllers/admin/plan_controller'),
     Product: () => import('#app/controllers/admin/product_controller'),
+    Receipt: () => import('#app/controllers/admin/receipt_controller'),
     Release: () => import('#app/controllers/admin/release_controller'),
     Session: () => import('#app/controllers/admin/session_controller'),
     Staff: () => import('#app/controllers/admin/staff_controller'),

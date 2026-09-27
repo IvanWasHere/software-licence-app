@@ -69,7 +69,26 @@ export class ActivationService {
       const live = rows.filter((row) => row.isLive)
       const existing = live.find((row) => row.instanceId === input.instanceId)
 
+      const max = locked.maxActivations ?? null
+      const countsAgainstLimit = product.countDevSites || !isDev
+
       if (existing) {
+        /**
+         * Re-activating is free — unless it turns a development install,
+         * which did not count, into one that does (licence plan M8 security
+         * review). Otherwise any number of `localhost` activations could be
+         * moved onto production sites one by one, past the limit.
+         */
+        const startsCounting = countsAgainstLimit && existing.isDev && !product.countDevSites
+
+        if (startsCounting && max !== null) {
+          const used = this.countUsed(live, product.countDevSites)
+
+          if (used >= max) {
+            return { ok: false as const, reason: 'activation_limit_reached' as const, used, max }
+          }
+        }
+
         existing.useTransaction(trx)
         existing.merge(this.details(input, hostname, isDev))
         existing.lastSeenAt = now
@@ -77,9 +96,6 @@ export class ActivationService {
 
         return { ok: true as const, activation: existing, created: false }
       }
-
-      const max = locked.maxActivations ?? null
-      const countsAgainstLimit = product.countDevSites || !isDev
 
       if (countsAgainstLimit && max !== null) {
         const used = this.countUsed(live, product.countDevSites)

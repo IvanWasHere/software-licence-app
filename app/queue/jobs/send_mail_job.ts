@@ -47,6 +47,17 @@ class SendMailJob implements JobHandler<SendMailPayload> {
       'X-Job-Id': String(job.id),
     }
 
+    /**
+     * Attachments travelled as base64 (`MailerService`); every transport
+     * takes bytes.
+     */
+    for (const attachment of payload.compiled.message.attachments ?? []) {
+      if (typeof attachment.content === 'string' && attachment.encoding === 'base64') {
+        attachment.content = Buffer.from(attachment.content, 'base64')
+        delete attachment.encoding
+      }
+    }
+
     await mailer.sendCompiled(payload.compiled as any)
   }
 }

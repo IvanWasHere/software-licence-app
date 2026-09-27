@@ -105,7 +105,11 @@ export class AdminSearchService {
    */
   async licenses(
     term: string,
-    filters: { status?: License['status'] | null; productId?: number | null } = {},
+    filters: {
+      status?: License['status'] | null
+      productId?: number | null
+      flagged?: boolean
+    } = {},
     limit = 50
   ): Promise<License[]> {
     const needle = term.trim()
@@ -113,8 +117,13 @@ export class AdminSearchService {
       .preload('product')
       .preload('plan')
       .preload('organization')
+      .withCount('flags', (flags) => flags.whereNull('resolved_at').as('open_flags'))
       .orderBy('id', 'desc')
       .limit(limit)
+
+    if (filters.flagged) {
+      query.whereHas('flags', (flags) => flags.whereNull('resolved_at'))
+    }
 
     if (filters.status) {
       query.where('status', filters.status)

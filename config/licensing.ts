@@ -22,10 +22,19 @@ const licensingConfig = {
   signingKeyId: env.get('LICENSE_SIGNING_KEY_ID') ?? 'k1',
 
   /**
-   * Hostnames treated as development or staging installs (§5.4). They do not
-   * count toward a plan's activation limit unless the product says they
-   * should. A leading `*.` matches any subdomain; a trailing `.*` matches a
-   * first label, e.g. `staging.*` is `staging.example.com`.
+   * Public keys published on `/keys` beside the active one, for a rotation
+   * (docs/runbooks.md): the *next* key, announced before the switch so SDK
+   * builds can pin it, and the *previous* one for a while after.
+   * `kid:base64url,kid:base64url`. They sign nothing.
+   */
+  extraPublicKeys: env.get('LICENSE_SIGNING_EXTRA_PUBLIC_KEYS', ''),
+
+  /**
+   * Hostnames treated as development or staging installs (§5.4). They are
+   * marked `is_dev` and count toward the activation limit like any other
+   * site, unless a product is set not to count them. A leading `*.` matches
+   * any subdomain; a trailing `.*` matches a first label, e.g. `staging.*` is
+   * `staging.example.com`.
    */
   devHostPatterns: [
     'localhost',
@@ -63,6 +72,33 @@ const licensingConfig = {
    * anybody, the expiry does it.
    */
   renewalGraceDays: 30,
+
+  /**
+   * Days before a license that will not renew by itself expires on which its
+   * owner is emailed (licence plan §5.5). Each is sent once per expiry date.
+   */
+  expiryReminderDays: [14, 3],
+
+  /**
+   * When the abuse job flags a license for a human to look at (licence plan
+   * §9, M8). Nothing is revoked automatically; these only decide what is
+   * worth a look. Allowances scale with the license's size — an agency
+   * license on 50 sites is not suspicious for being busy.
+   */
+  abuse: {
+    /** Distinct addresses in one day: at least this many are always fine… */
+    ipsPerDayFloor: 20,
+    /** …and a license may have this many per activation slot (or live activation). */
+    ipsPerDayPerSlot: 3,
+    /** New activations in 24 hours: at least this many are always fine… */
+    activationsPerDayFloor: 10,
+    /** …and this many per slot — churning installs is how a shared key looks. */
+    activationsPerDayPerSlot: 2,
+    /** Live development/staging activations, which do not count toward the limit. */
+    devSites: 25,
+    /** How long address sightings are kept. */
+    ipRetentionDays: 30,
+  },
 }
 
 export default licensingConfig

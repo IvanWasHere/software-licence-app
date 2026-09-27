@@ -9,7 +9,9 @@ import { DateTime } from 'luxon'
 import { jsonColumn, bigIntColumn, booleanColumn, encryptedColumn, encryptedJsonColumn } from '#database/columns'
 import type { ApiScope } from '#api/scopes'
 import type { EntitlementValue, EntitlementValues } from '#catalog/entitlements'
+import type { LicenseApiEndpoint } from '#licensing/traffic'
 import type { LicenseEventType } from '#licensing/events'
+import type { LicenseFlagKind } from '#licensing/abuse'
 
 export class ApiKeySchema extends BaseModel {
   static $columns = ['createdAt', 'createdByUserId', 'expiresAt', 'id', 'keyHash', 'lastUsedAt', 'name', 'organizationId', 'prefix', 'publicId', 'revokedAt', 'scopes', 'updatedAt'] as const
@@ -291,6 +293,23 @@ export class LicenseActivationSchema extends BaseModel {
   declare userAgent: string | null
 }
 
+export class LicenseApiDaySchema extends BaseModel {
+  static $columns = ['day', 'endpoint', 'id', 'productId', 'refused', 'requests'] as const
+  $columns = LicenseApiDaySchema.$columns
+  @column()
+  declare day: string
+  @column()
+  declare endpoint: LicenseApiEndpoint
+  @column({ isPrimary: true })
+  declare id: number
+  @column()
+  declare productId: number
+  @column()
+  declare refused: number
+  @column()
+  declare requests: number
+}
+
 export class LicenseEventSchema extends BaseModel {
   static $columns = ['actorId', 'actorType', 'createdAt', 'id', 'licenseId', 'metadata', 'type'] as const
   $columns = LicenseEventSchema.$columns
@@ -308,6 +327,46 @@ export class LicenseEventSchema extends BaseModel {
   declare metadata: Record<string, any> | null
   @column()
   declare type: LicenseEventType
+}
+
+export class LicenseFlagSchema extends BaseModel {
+  static $columns = ['createdAt', 'day', 'details', 'id', 'kind', 'licenseId', 'publicId', 'resolutionNote', 'resolvedAt', 'resolvedByStaffId', 'updatedAt'] as const
+  $columns = LicenseFlagSchema.$columns
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column()
+  declare day: string
+  @jsonColumn()
+  declare details: Record<string, any> | null
+  @column({ isPrimary: true })
+  declare id: number
+  @column()
+  declare kind: LicenseFlagKind
+  @column()
+  declare licenseId: number
+  @column()
+  declare publicId: string
+  @column()
+  declare resolutionNote: string | null
+  @column.dateTime()
+  declare resolvedAt: DateTime | null
+  @column()
+  declare resolvedByStaffId: number | null
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime | null
+}
+
+export class LicenseIpDaySchema extends BaseModel {
+  static $columns = ['day', 'id', 'ipHash', 'licenseId'] as const
+  $columns = LicenseIpDaySchema.$columns
+  @column()
+  declare day: string
+  @column({ isPrimary: true })
+  declare id: number
+  @column()
+  declare ipHash: string
+  @column()
+  declare licenseId: number
 }
 
 export class LicenseSchema extends BaseModel {
@@ -607,6 +666,33 @@ export class RateLimitSchema extends BaseModel {
   declare key: string
   @column()
   declare points: number
+}
+
+export class ReceiptSchema extends BaseModel {
+  static $columns = ['amountCents', 'createdAt', 'currency', 'id', 'issuedAt', 'number', 'organizationId', 'paymentId', 'publicId', 'storageKey', 'updatedAt'] as const
+  $columns = ReceiptSchema.$columns
+  @column()
+  declare amountCents: number
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column()
+  declare currency: string
+  @column({ isPrimary: true })
+  declare id: number
+  @column.dateTime()
+  declare issuedAt: DateTime
+  @column()
+  declare number: string
+  @column()
+  declare organizationId: number
+  @column()
+  declare paymentId: number
+  @column()
+  declare publicId: string
+  @column()
+  declare storageKey: string
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime | null
 }
 
 export class ReleaseSchema extends BaseModel {

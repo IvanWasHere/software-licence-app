@@ -114,7 +114,7 @@
     @if(payments.length)
       <div class="table-scroll">
         <table class="tx-table">
-          <thead><tr><th>Reference</th><th>Description</th><th>Date</th><th>Amount</th><th>Status</th></tr></thead>
+          <thead><tr><th>Reference</th><th>Description</th><th>Date</th><th>Amount</th><th>Status</th><th>Receipt</th></tr></thead>
           <tbody>
             @each(payment in payments)
               <tr>
@@ -128,6 +128,7 @@
                     tone: payment.isRefunded ? 'refunded' : 'success',
                   })
                 </td>
+                <td><a href="{{ urlFor('admin.receipts.download', { id: payment.publicId }) }}">PDF</a></td>
               </tr>
             @end
           </tbody>

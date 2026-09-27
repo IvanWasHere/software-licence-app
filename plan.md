@@ -115,7 +115,7 @@ The first three tables were **built in M1**:
 - `products`: `slug` (unique, used by SDKs), `name`, `description`, `status` (`draft|active|retired`), `kind` (`wordpress_plugin|app|library|other`), `key_prefix` (e.g. `WIPRO`), `homepage_url`, `docs_url`, plus three columns that make up the SDK policy:
   - `validation_interval_hours` (default 24)
   - `offline_grace_days` (default 7)
-  - `count_dev_sites` (default false; see §5.4)
+  - `count_dev_sites` (default true since the launch decisions; see §5.4)
 - `plans`:
   - Identity and status: `product_id`, `slug` (unique per product), `name`, `status` (`active|archived`), `is_public`, `sort_order`.
   - Money: `billing` (`one_time|monthly|yearly`), `price_cents`, `currency`.
@@ -237,13 +237,14 @@ A payment is attributed **only** through the order id we put into the checkout m
 
 ### 5.4 Dev and staging sites
 
-Hostnames matching `localhost`, `*.local`, `*.test`, `staging.*`, `dev.*` or `*.wpengine.com`-style staging patterns are marked `is_dev`. They don't count toward `max_activations` unless the product sets `count_dev_sites`. The pattern list lives in config.
+Hostnames matching `localhost`, `*.local`, `*.test`, `staging.*`, `dev.*` or `*.wpengine.com`-style staging patterns are marked `is_dev`. They count toward `max_activations` like any other site unless the product clears `count_dev_sites`; that is the launch decision (§13 Q5), so a new product starts with it set. The pattern list lives in config.
 
 ### 5.5 Scheduled jobs (via `schedule_run`)
 - ~~`suspend_past_due_licenses`~~: dropped in M4. The subscription license's expiry (`period_end + grace`) does the dunning.
 - `license_expiry_reminders`: runs daily and emails 14 and 3 days before a non-renewing license expires.
 - `prune_stale_activations`: optional, per product. It flags activations not seen for more than N days; it doesn't delete them.
-- `sync_billing`: already exists. Extend it to reconcile subscription period ends with license `expires_at`.
+- `sync_billing`: already exists. Extended in M8 to reconcile subscription period ends with license `expires_at`.
+- `detect_license_abuse`: runs hourly and flags shared-looking keys for staff (§9, M8). It never suspends or revokes.
 
 ---
 
@@ -302,7 +303,7 @@ POST /api/v1/licenses/:id/{suspend|resume|revoke|reissue}
 
 **Customer portal** (session, `web` guard). This is the meaning of "login via API" in the original ask:
 - `/account/licenses`: show keys, activations, remove an activation, download releases.
-- `/account/billing`: orders and invoices, plus a "Manage subscription" button that calls `createPortalSession`.
+- `/account/billing`: orders, charges and their receipt PDFs (M9), plus a "Manage subscription" button that calls `createPortalSession`.
 - `/pricing/:product` → a checkout redirect. Anonymous checkout creates the customer account from the webhook email and sends a magic "set password" link.
 
 The software itself **never needs a customer login**. It uses the license key and `instance_id`. An optional later addition is a device-login flow, in which the plugin opens the portal, the customer picks a license, and the portal returns the key to the plugin. It is listed under §11.
@@ -365,7 +366,7 @@ Both SDKs share the same behaviour contract. The flow is:
 - **Customers** (orgs): profile, orders, subscriptions, licenses, activations, audit trail. Impersonation (existing) for support.
 - **Licenses:** search by last4, email or order. Staff can issue manually, suspend/resume/revoke, reissue, extend, override activations or entitlements, and view the `license_events` timeline.
 - **Activations:** list with last seen, force-deactivate, flag abuse (e.g. more than N distinct IPs per day).
-- **Payments and webhooks:** existing ledger and replay UI.
+- **Payments and webhooks:** existing ledger and replay UI. Each payment's receipt PDF is downloadable from the order page and the customer's payments list (M9).
 - **API keys:** integration keys for the system org.
 - **Dashboard:** active licenses per product, MRR (from subscriptions), new orders, failed webhooks, validate traffic.
 
@@ -453,7 +454,7 @@ Each milestone ends green in CI and can be demoed.
 - Every answer is signed. `product`, `instance_id` and an optional client `nonce` are echoed inside the signed payload, so a signed answer can't be replayed for a different product, installation or request.
 - The OpenAPI docs use the *License API* tag with `security: []`. There's a walkthrough in `docs/license-api.md`.
 - ✅ 25 new tests (every endpoint and state, signature round-trip, CORS/preflight, the per-key limit, and the keyless OpenAPI entries). Suite at 789/789.
-- Follow-up for M8: the router-level session and shield middleware still set cookies on `/api/*` responses. They're harmless here (never read, and CORS sends no credentials), but they're wasted bytes for every plugin. Exempt `/api/*` from the session middleware during hardening.
+- ~~Follow-up for M8~~ (done in M8, `ApiWithoutCookiesMiddleware`): the router-level session and shield middleware still set cookies on `/api/*` responses. They're harmless here (never read, and CORS sends no credentials), but they're wasted bytes for every plugin. Exempt `/api/*` from the session middleware during hardening.
 - **← First usable MVP**: licenses issued by hand, validated by software.
 
 **M4: Payments → licenses (≈4 days)** ✅ done
@@ -470,7 +471,7 @@ Each milestone ends green in CI and can be demoed.
 - Admin `/admin/orders` list and detail pages. License pages link to their order.
 - ✅ 21 new tests covering the integration API, one-time purchases, subscriptions (including the three-events-one-license race, renewal, past_due and expiry), refunds, disputes, SaaS-path isolation and the admin screens. Suite at 810/810.
 - **Deferred:**
-  - Expiry reminder emails (§5.5) and extending `sync_billing` to license expiry: M8.
+  - ~~Expiry reminder emails (§5.5) and extending `sync_billing` to license expiry: M8.~~ Done in M8.
   - `POST /api/v1/licenses` manual issue over the API: the admin UI covers it for now.
   - MRR in the admin dashboard still counted SaaS tiers only. Fixed in M5: it now counts license subscriptions.
 
@@ -560,12 +561,39 @@ Original scope:
     - with the window closed it says `updates_expired` while the license still validates.
 - ✅ Server suite at **750/750** plus **10/10** browser: 30 new release tests (API, download links, back-office, portal, semver, access rules) and the 4 PHP contract tests. CI adds a `sdk-php` job on PHP 7.4, 8.1 and 8.4, and installs PHP for the contract test.
 
-**M8: Hardening and launch (≈3 days)**
-- Add the abuse flags, admin dashboard metrics and backups.
-- Load-test validate: target p95 under 50 ms at 200 rps on a single node.
-- Security review, production deploy, runbooks.
+**M8: Hardening and launch (≈3 days)** ✅ done (the deploy itself is the next step; see below)
+- **License API traffic** (`app/licensing/traffic.ts`, `license_api_days`, `license_ip_days`):
+  - A request only bumps a counter in memory; counts are written about once a minute and on shutdown, so validate gains no write per request.
+  - Per product, endpoint and UTC day, with the refused answers counted separately. Only known products are counted.
+  - Which addresses used a license on a day is stored as an HMAC under the app key: countable, not reversible. Pruned after 30 days.
+- **Abuse flags** (§9; `app/licensing/abuse.ts`, `abuse_service.ts`, `license_flags`, `detect_license_abuse` hourly):
+  - Three rules, each an allowance that grows with the license's size: `many_ips`, `activation_churn`, `many_dev_sites`. Thresholds live in `config/licensing.ts`.
+  - A flag changes nothing about the license. It emails the admins, shows on the license page and in a *flagged* filter on the list, and staff resolve it with a note (audited). A finding is once per day, so resolving it doesn't raise it again an hour later.
+- **Expiry reminders** (§5.5; `expiry_reminders.ts`, `license_expiry_reminders` daily): 14 and 3 days before a license that won't renew by itself expires. The smallest reached threshold is sent, once per expiry date, so a job that skipped a week sends one email, not two.
+- **`sync_billing`** now also corrects a license expiring before its subscription's period says it should, and a period end the provider knows to be later. It never shortens anything.
+- **Dashboard**: calls per day (14-day sparkline), refused in the last 7 days, traffic per product, installations seen in 24 h, and open flags.
+- **Security review** and its fixes:
+  - The per-key rate limit counts per *license*, not per spelling of the key, and covers `releases/latest` too. Both limits are configurable (`LICENSE_API_RATE_PER_ADDRESS`, `_PER_KEY`).
+  - Nothing under `/api/*` sets a cookie any more (`ApiWithoutCookiesMiddleware`, the M3 follow-up).
+  - The validate/activate answer describes the product that was asked about, never the one a mismatched key belongs to.
+  - The checkout return page masks the buyer's address, since that URL gets pasted into support chats.
+  - `/ready` also proves the signing key can sign; `/keys` can publish extra public keys for a rotation (`LICENSE_SIGNING_EXTRA_PUBLIC_KEYS`).
+- **Load test** (`scripts/load/validate.mjs`, open-loop, zero dependencies; `node ace licensing:load-fixture` seeds it): one web process on a laptop answered at **p95 7 ms at 400 validations/s**, saturating around 580/s. Target was p95 < 50 ms at 200 rps.
+- **Deploy kit** (`deploy/`): a Compose stack for one VPS with Caddy (HTTPS), web, worker, a scheduler container, Postgres, and a backup container that dumps nightly and copies off the machine with rclone. `backup.sh`/`restore.sh`, and CI checks the kit still resolves. `docs/deployment.md` has the first-deploy steps.
+- **Runbooks** (`docs/runbooks.md`): ship a version, the API is down, a webhook never applied, a license was flagged, rotate the signing key, restore a backup, it is getting slow, back-office access.
+- ✅ Suite at **786/786** plus **10/10** browser: 36 new tests (traffic counting, the abuse rules and job, reminders, flag resolution, the per-license limit, cookie-free API, `/ready`, `/keys`, reconciliation of dates).
+- **Still to do, by hand:** the first production deploy (§13 Q7: hosting), pinning the public key in the SDK builds, and pointing Creem's webhook at it.
 
-Total **≈30 working days** for one developer.
+**M9: Receipts (≈1 day)** ✅ done — the launch decision on §13 Q6
+- Creem is the merchant of record, so its invoice is the tax document. This server issues the **order receipt from the company**: one numbered PDF (`R-2026-000042`) per successful charge, renewals included (`receipts` table, `app/billing/receipt_service.ts`, `receipt_pdf.ts` on pdfkit).
+- Issued when the payment is recorded, attached to the receipt email, downloadable from the billing screen (`/billing/receipts/:payment`) and by staff from the order page and the customer's payments list. A charge from before receipts existed is issued one on its first download; a PDF missing from storage is drawn again from the row.
+- Lines come from the order the payment settled, or the subscription's plan for a renewal; when the lines and the charge disagree an *Adjustment* line makes the total match the card. The account name and the order's email are the "billed to"; nothing new is collected at checkout.
+- The company on the receipt is `COMPANY_NAME` / `COMPANY_ADDRESS` / `COMPANY_EMAIL` / `COMPANY_TAX_ID` (`config/receipts.ts`), falling back to the app name and mail sender.
+- Attachments now survive the mail queue: `MailerService` stores them as base64 and `SendMailJob` turns them back into bytes.
+- ✅ 15 new tests: the PDF renderer, issue-once, content per source, the adjustment rule, the owner/member/other-tenant/staff download rules, the lazy issue and the redraw.
+- **Not built:** VAT lines, reverse charge, credit notes for refunds, billing details at checkout. Those are the "full VAT invoice" reading of Q6, which conflicts with Creem being merchant of record.
+
+Total **≈31 working days** for one developer.
 
 **Later:**
 - A second payment provider.
@@ -591,6 +619,6 @@ Total **≈30 working days** for one developer.
 2. **Creem fit.** Confirm Creem supports everything we need: one-time and recurring products, the customer portal, refunds and the webhook events in §5.3. Creem may also offer its own license-key feature. If so, we deliberately don't use it, because our server stays the source of truth.
 3. ~~**Dunning window and renewal grace.**~~ Decided in M5: 30 days after the paid period, with no separate suspension step.
 4. ~~**Expired perpetual-update licenses.**~~ Decided in M7: they stay `valid`. `releases/latest` answers `updates_expired` for builds published after `updates_until`.
-5. **Activation limits.** Are the defaults per plan right (e.g. 1 / 5 / unlimited sites)? Should dev sites be free?
-6. **VAT and invoices.** Is Creem's merchant-of-record invoice enough, or do we need our own invoice PDFs?
+5. **Activation limits.** Per plan, set by staff when the products are created. ~~Should dev sites be free?~~ Decided at launch: **no**, they count; a product can still be set to let them be free.
+6. ~~**VAT and invoices.**~~ Decided at launch: Creem's merchant-of-record invoice is the tax document; the server issues its own **order receipt PDF** per charge (M9).
 7. **Hosting target.** Docker on a VPS with Postgres, per the starter's `compose.yaml`, or somewhere else?

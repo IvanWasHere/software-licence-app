@@ -1,0 +1,30 @@
+# HTTPS in front of the web process (licence plan M8). Certificates are
+# issued and renewed by Caddy itself; point DOMAIN's A/AAAA records at this
+# machine before the first start.
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	# Nothing is served on the way in except by the application. The license
+	# API answers `no-store` itself; static assets carry their own caching.
+	reverse_proxy web:3333 {
+		# The app trusts one proxy hop (TRUST_PROXY=true): this one.
+		header_up X-Forwarded-For {remote_host}
+		health_uri /health
+		health_interval 10s
+	}
+
+	# Readiness is for probes on this machine, not for the internet.
+	@ready path /ready
+	respond @ready 404
+
+	header -Server
+
+	log {
+		output stdout
+		format json
+	}
+}

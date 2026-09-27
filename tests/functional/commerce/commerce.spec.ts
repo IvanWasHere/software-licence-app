@@ -89,7 +89,7 @@ test.group('Commerce — the integration API', (group) => {
       data: {
         order_id: order.publicId,
         status: 'pending',
-        checkout_url: `https://checkout.test/${plan.providerProductId}`,
+        checkout_url: `https://checkout.invalid/${plan.providerProductId}`,
       },
     })
 

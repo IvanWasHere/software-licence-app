@@ -1,5 +1,6 @@
 import { DateTime } from 'luxon'
 import db from '@adonisjs/lucid/services/db'
+import app from '@adonisjs/core/services/app'
 import logger from '@adonisjs/core/services/logger'
 
 import Payment from '#models/payment'
@@ -13,6 +14,7 @@ import mailer from '#mail/mailer_service'
 import { paymentProvider } from '#billing/provider'
 import type { NormalizedEvent, ProviderSubscription } from '#billing/contracts'
 import PaymentReceiptNotification from '#mail/mails/payment_receipt_notification'
+import receipts from '#billing/receipt_service'
 import PaymentFailedNotification from '#mail/mails/payment_failed_notification'
 
 /**
@@ -413,9 +415,10 @@ export class WebhookHandler {
      */
     if (isNew && !isRefund) {
       const owner = await this.ownerOf(organization)
+      const receipt = await this.receiptFor(payment)
 
       if (owner) {
-        await mailer.send(new PaymentReceiptNotification(owner, organization, payment))
+        await mailer.send(new PaymentReceiptNotification(owner, organization, payment, receipt))
       }
     }
 
@@ -483,6 +486,26 @@ export class WebhookHandler {
       .where('public_id', event.organizationPublicId)
       .whereNull('deleted_at')
       .first()
+  }
+
+  /**
+   * The numbered receipt PDF (licence plan M9). Its failure must not fail
+   * the payment: the charge is recorded, the email still goes, and the
+   * portal issues the receipt on the first download instead.
+   */
+  private async receiptFor(payment: Payment) {
+    try {
+      const receipt = await receipts.issue(payment)
+      return { receipt, pdf: await receipts.pdf(receipt) }
+    } catch (error) {
+      logger.error({ err: error, paymentId: payment.id }, 'could not issue a receipt')
+
+      if (app.inTest) {
+        throw error
+      }
+
+      return null
+    }
   }
 
   private async ownerOf(organization: Organization) {

@@ -22,9 +22,15 @@
       <td style="padding: 12px 16px; font-size: 12px; color: #111827; text-align: right; font-family: monospace;">{{ payment.publicId }}</td>
     </tr>
   </table>
+  @if(receipt)
+    <p style="margin: 0 0 20px; font-size: 14px; line-height: 1.6; color: #4b5563;">
+      Your receipt <strong>{{ receipt.number }}</strong> is attached as a PDF, and stays available
+      under Billing in your account.
+    </p>
+  @end
   <p style="margin: 0 0 24px;">
-    <a href="{{ payment.receiptUrl ?? url }}" style="display: inline-block; background: #3b82f6; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 600; padding: 12px 20px; border-radius: 8px;">
-      {{ payment.receiptUrl ? 'View invoice' : 'View billing' }}
+    <a href="{{ receiptUrl ?? payment.receiptUrl ?? url }}" style="display: inline-block; background: #3b82f6; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 600; padding: 12px 20px; border-radius: 8px;">
+      {{ receiptUrl ? 'Download receipt' : payment.receiptUrl ? 'View invoice' : 'View billing' }}
     </a>
   </p>
 @end

@@ -321,6 +321,19 @@ export default {
       },
     },
 
+    license_api_days: {
+      columns: {
+        endpoint: typeRef('LicenseApiEndpoint', '#licensing/traffic', ['LicenseApiEndpoint']),
+      },
+    },
+
+    license_flags: {
+      columns: {
+        kind: typeRef('LicenseFlagKind', '#licensing/abuse', ['LicenseFlagKind']),
+        details: json('Record<string, any>'),
+      },
+    },
+
     license_events: {
       columns: {
         type: typeRef('LicenseEventType', '#licensing/events', ['LicenseEventType']),

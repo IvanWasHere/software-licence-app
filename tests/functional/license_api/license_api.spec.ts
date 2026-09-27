@@ -3,11 +3,12 @@ import { DateTime } from 'luxon'
 import testUtils from '@adonisjs/core/services/test_utils'
 
 import signer from '#licensing/signer'
+import licensingConfig from '#config/licensing'
 import catalog from '#catalog/catalog_service'
 import LicenseEvent from '#models/license_event'
 import activations from '#licensing/activation_service'
 import licenses, { SYSTEM_ACTOR } from '#licensing/license_service'
-import { createCatalogPlan, createLicense } from '#tests/helpers'
+import { clearRateLimits, createCatalogPlan, createLicense } from '#tests/helpers'
 
 /**
  * The public license API (licence plan §6): what customers' software calls.
@@ -123,15 +124,25 @@ test.group('License API — validate', (group) => {
   test('a key for another product is product_mismatch and says nothing more', async ({
     client,
   }) => {
-    const { key } = await licensed()
+    const { key, product: own } = await licensed()
+    own.offlineGraceDays = 30
+    await own.save()
     const { product: other } = await createCatalogPlan()
 
-    const response = await client
-      .post('/api/v1/licenses/validate')
-      .json({ product: other.slug, license_key: key })
+    for (const action of ['validate', 'activate']) {
+      const response = await client
+        .post(`/api/v1/licenses/${action}`)
+        .json({ product: other.slug, license_key: key, instance_id: 'site-1' })
 
-    response.assertStatus(200)
-    response.assertBodyContains({ valid: false, reason: 'product_mismatch', license: null })
+      response.assertStatus(200)
+      response.assertBodyContains({ valid: false, reason: 'product_mismatch', license: null })
+
+      /**
+       * The policy of the product that was asked about — not the key's own
+       * product, whose settings are none of this caller's business.
+       */
+      response.assertBodyContains({ policy: { offline_grace_days: other.offlineGraceDays } })
+    }
   })
 
   test('suspended, revoked and expired licenses each say why', async ({ client }) => {
@@ -406,6 +417,29 @@ test.group('License API — products and keys', (group) => {
     assert.equal(key.alg, 'Ed25519')
     assert.equal(Buffer.from(key.public_key, 'base64url').length, 32)
   })
+
+  /**
+   * A rotation (docs/runbooks.md): the next key is announced before the
+   * switch, the previous one kept after. The active key always comes first.
+   */
+  test('publishes announced keys after the active one, skipping bad ones', async ({
+    client,
+    assert,
+  }) => {
+    const next = Buffer.alloc(32, 7).toString('base64url')
+    const original = licensingConfig.extraPublicKeys
+    licensingConfig.extraPublicKeys = `k-next:${next}, broken:abc, ${signer.keyId}:${next}`
+
+    try {
+      const response = await client.get('/api/v1/keys')
+      const kids = response.body().data.map((key: { kid: string }) => key.kid)
+
+      assert.deepEqual(kids, [signer.keyId, 'k-next'])
+      assert.equal(response.body().data[1].public_key, next)
+    } finally {
+      licensingConfig.extraPublicKeys = original
+    }
+  })
 })
 
 test.group('License API — transport', (group) => {
@@ -446,6 +480,31 @@ test.group('License API — transport', (group) => {
   })
 
   /**
+   * Licence plan M8: the session and shield middleware used to leave a
+   * session cookie and an XSRF token on every plugin's every call.
+   */
+  test('sets no cookies, while the web still does', async ({ client, assert }) => {
+    const { product } = await createCatalogPlan()
+
+    const responses = [
+      await client
+        .post('/api/v1/licenses/validate')
+        .json({ product: product.slug, license_key: 'x' }),
+      await client.post('/api/v1/licenses/validate').json({}),
+      await client.get(`/api/v1/products/${product.slug}`),
+      await client.get('/api/v1/keys'),
+      await client.get('/api/v1/members'),
+    ]
+
+    for (const [index, response] of responses.entries()) {
+      assert.notExists(response.header('set-cookie'), `response ${index}`)
+    }
+
+    const page = await client.get('/login')
+    assert.exists(page.header('set-cookie'), 'the web keeps its session')
+  })
+
+  /**
    * One key hammered from anywhere is slowed down on its own, as the API's
    * error shape rather than the limiter's plain text.
    */
@@ -472,6 +531,62 @@ test.group('License API — transport', (group) => {
       .post('/api/v1/licenses/validate')
       .json({ product: other.product.slug, license_key: other.key })
     fine.assertStatus(200)
+  })
+
+  /**
+   * Licence plan M8 security review: the lookup ignores case, separators,
+   * look-alike letters and any prefix, so the limit must too — or every
+   * spelling of one key gets its own thirty a minute.
+   */
+  test('every spelling of one key shares its budget, update checks included', async ({
+    client,
+  }) => {
+    await clearRateLimits()
+    const { key, product } = await licensed()
+    product.status = 'active'
+    await product.save()
+    const spellings = [
+      key,
+      key.toLowerCase(),
+      key.replaceAll('-', ''),
+      `junk-${key}`,
+      key.replaceAll('0', 'O'),
+    ]
+
+    for (let i = 0; i < 30; i++) {
+      const spelling = spellings[i % spellings.length]
+      const response =
+        i % 3 === 0
+          ? await client.get(
+              `/api/v1/products/${product.slug}/releases/latest?license_key=${encodeURIComponent(spelling)}`
+            )
+          : await client
+              .post('/api/v1/licenses/validate')
+              .json({ product: product.slug, license_key: spelling })
+      response.assertStatus(200)
+    }
+
+    const limited = await client
+      .post('/api/v1/licenses/validate')
+      .json({ product: product.slug, license_key: `other-junk-${key.toLowerCase()}` })
+    limited.assertStatus(429)
+
+    const latest = await client.get(
+      `/api/v1/products/${product.slug}/releases/latest?license_key=${key}`
+    )
+    latest.assertStatus(429)
+  })
+
+  test('an update check without a key is not counted per key', async ({ client }) => {
+    await clearRateLimits()
+    const { product } = await licensed()
+    product.status = 'active'
+    await product.save()
+
+    for (let i = 0; i < 35; i++) {
+      const response = await client.get(`/api/v1/products/${product.slug}/releases/latest`)
+      response.assertStatus(200)
+    }
   })
 
   test('the organisation API still requires its key', async ({ client }) => {

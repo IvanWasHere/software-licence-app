@@ -54,6 +54,7 @@ The navigation is gated by role, so nobody is offered a screen that would then r
 | [The back office](back-office.md) | Staff screens, impersonation, operations and the audit log |
 | [Development](development.md) | Running it, seeding it, testing it |
 | [Deployment](deployment.md) | Putting it somewhere |
+| [Runbooks](runbooks.md) | What to do when something is wrong, step by step |
 | [Security](security.md) | What it defends against, and what it leaves to you |
 | [Replacing the demo domain](modules.md) | Removing lists and todos, and putting your own product in |
 

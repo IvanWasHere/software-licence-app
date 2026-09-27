@@ -4,6 +4,7 @@ import env from '#start/env'
 
 import type User from '#models/user'
 import type Payment from '#models/payment'
+import type Receipt from '#models/receipt'
 import type Organization from '#models/organization'
 
 /**
@@ -17,13 +18,22 @@ export default class PaymentReceiptNotification extends BaseMail {
   constructor(
     private user: User,
     private organization: Organization,
-    private payment: Payment
+    private payment: Payment,
+    /**
+     * The numbered receipt (licence plan M9), attached as a PDF. Optional
+     * because issuing it can fail without the charge being any less real;
+     * the portal issues it again on the first download.
+     */
+    private receipt: { receipt: Receipt; pdf: Buffer } | null = null
   ) {
     super()
   }
 
   prepare() {
     const url = `${env.get('APP_URL')}${router.makeUrl('billing.index')}`
+    const receiptUrl = this.receipt
+      ? `${env.get('APP_URL')}${router.makeUrl('billing.receipt', { id: this.payment.publicId })}`
+      : null
 
     const data = {
       user: this.user,
@@ -32,6 +42,15 @@ export default class PaymentReceiptNotification extends BaseMail {
       amount: this.payment.formattedAmount,
       paidAt: this.payment.occurredAt.setZone(this.organization.timezone),
       url,
+      receipt: this.receipt?.receipt ?? null,
+      receiptUrl,
+    }
+
+    if (this.receipt) {
+      this.message.attachData(this.receipt.pdf, {
+        filename: this.receipt.receipt.fileName,
+        contentType: 'application/pdf',
+      })
     }
 
     this.message

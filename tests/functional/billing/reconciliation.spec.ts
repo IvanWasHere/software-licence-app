@@ -65,7 +65,12 @@ async function localSubscription(organization: Organization, overrides: Record<s
     source: 'order',
     actor: SYSTEM_ACTOR,
     subscriptionId: subscription.id,
-    expiresAt: DateTime.utc().plus({ days: 10 }),
+    /**
+     * What the webhook would have set: the period end plus the renewal grace.
+     */
+    expiresAt: subscription.currentPeriodEnd
+      ? subscription.currentPeriodEnd.plus({ days: licensingConfig.renewalGraceDays })
+      : DateTime.utc().plus({ days: 10 }),
   })
 
   return { subscription, license, product }
@@ -157,17 +162,45 @@ test.group('Reconciliation', (group) => {
   })
 
   /**
-   * Everything except a status is reported and left alone, for the same
-   * reason `ReconcileCountersJob` alerts rather than repairs: a job that
-   * quietly fixes the same drift every night hides the bug producing it.
+   * Licence plan M8: a later period on a renewing subscription is a renewal
+   * whose webhook never arrived. Left alone, the customer who paid loses the
+   * license 30 days after the old period — so it is corrected.
    */
-  test('reports a period that has moved without silently rewriting it', async ({ assert }) => {
+  test('adopts a later period, and the license moves with it', async ({ assert }) => {
     const { organization } = await createWorkspace()
-    await localSubscription(organization)
+    const { license } = await localSubscription(organization)
+    const renewedTo = DateTime.fromISO('2027-10-01T00:00:00.000Z', { zone: 'utc' })
+
+    provider.subscriptions.set('sub_1', theirs({ currentPeriodEnd: renewedTo }))
+
+    const report = await reconciliation.reconcile()
+
+    assert.equal(report.drifted[0].field, 'currentPeriodEnd', 'still reported')
+    assert.equal(report.corrected, 1)
+
+    const subscription = await Subscription.query().firstOrFail()
+    assert.equal(subscription.currentPeriodEnd?.toMillis(), renewedTo.toMillis())
+
+    await license.refresh()
+    assert.equal(
+      license.expiresAt!.toMillis(),
+      renewedTo.plus({ days: licensingConfig.renewalGraceDays }).toMillis()
+    )
+  })
+
+  /**
+   * Everything that could cut somebody short is reported and left alone:
+   * a job that quietly shortens licenses on the provider's word, with nobody
+   * looking, is worse than the drift.
+   */
+  test('reports an earlier period without rewriting it', async ({ assert }) => {
+    const { organization } = await createWorkspace()
+    const { license } = await localSubscription(organization)
+    const before = license.expiresAt!.toMillis()
 
     provider.subscriptions.set(
       'sub_1',
-      theirs({ currentPeriodEnd: DateTime.fromISO('2026-11-01T00:00:00.000Z', { zone: 'utc' }) })
+      theirs({ currentPeriodEnd: DateTime.fromISO('2026-09-15T00:00:00.000Z', { zone: 'utc' }) })
     )
 
     const report = await reconciliation.reconcile()
@@ -177,11 +210,70 @@ test.group('Reconciliation', (group) => {
     assert.equal(report.corrected, 0)
 
     const subscription = await Subscription.query().firstOrFail()
-    assert.equal(
-      subscription.currentPeriodEnd?.toUTC().toISO(),
-      '2026-10-01T00:00:00.000Z',
-      'unchanged'
+    assert.equal(subscription.currentPeriodEnd?.toUTC().toISO(), '2026-10-01T00:00:00.000Z')
+    await license.refresh()
+    assert.equal(license.expiresAt!.toMillis(), before)
+  })
+
+  test('a later period on a cancelled subscription is not adopted', async ({ assert }) => {
+    const { organization } = await createWorkspace()
+    await localSubscription(organization, { cancelAtPeriodEnd: true })
+
+    provider.subscriptions.set(
+      'sub_1',
+      theirs({
+        status: 'canceled',
+        currentPeriodEnd: DateTime.fromISO('2027-10-01T00:00:00.000Z', { zone: 'utc' }),
+      })
     )
+
+    await reconciliation.reconcile()
+
+    const subscription = await Subscription.query().firstOrFail()
+    assert.equal(subscription.currentPeriodEnd?.toUTC().toISO(), '2026-10-01T00:00:00.000Z')
+  })
+
+  test('a license that would expire before its subscription says is moved out', async ({
+    assert,
+  }) => {
+    const { organization } = await createWorkspace()
+    const { license } = await localSubscription(organization)
+    license.expiresAt = DateTime.utc().plus({ days: 3 })
+    await license.save()
+
+    provider.subscriptions.set('sub_1', theirs())
+
+    const report = await reconciliation.reconcile()
+
+    assert.equal(report.corrected, 1)
+    await license.refresh()
+    assert.equal(
+      license.expiresAt!.toUTC().toISO(),
+      DateTime.fromISO('2026-10-01T00:00:00.000Z', { zone: 'utc' })
+        .plus({ days: licensingConfig.renewalGraceDays })
+        .toUTC()
+        .toISO()
+    )
+  })
+
+  test('a license staff extended past its subscription is reported, not shortened', async ({
+    assert,
+  }) => {
+    const { organization } = await createWorkspace()
+    const { license } = await localSubscription(organization)
+    const extended = DateTime.utc().plus({ years: 3 }).set({ millisecond: 0 })
+    license.expiresAt = extended
+    await license.save()
+
+    provider.subscriptions.set('sub_1', theirs())
+
+    const report = await reconciliation.reconcile()
+
+    assert.lengthOf(report.drifted, 1)
+    assert.match(report.drifted[0].field, /^license lic_\w+ expiresAt$/)
+    assert.equal(report.corrected, 0)
+    await license.refresh()
+    assert.equal(license.expiresAt!.toMillis(), extended.toMillis())
   })
 
   test('a subscription the provider has never heard of is reported, never deleted', async ({

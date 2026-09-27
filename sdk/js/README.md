@@ -22,7 +22,7 @@ npm install @licence-app/sdk
 import { createLicenseClient } from '@licence-app/sdk'
 
 const license = createLicenseClient({
-  baseUrl: 'https://licenses.example.com/api/v1',
+  baseUrl: 'https://licensing.example.com/api/v1',
   product: 'invoice-pro',
   // From GET /api/v1/keys → data[0]. Pin it in your build; never fetch it at runtime.
   publicKey: { k1: 'p8Yx…32-byte-key-base64url' },

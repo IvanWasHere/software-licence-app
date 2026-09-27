@@ -1,0 +1,9 @@
+{{ flags.length === 1 ? 'A license was flagged for review' : `${flags.length} licenses were flagged for review` }}
+
+Nothing has been changed. A busy agency and a shared key can look alike — open each one and decide.
+@each(flag in flags)
+
+- {{ flag.product }} · {{ flag.account }} · key ending {{ flag.keySuffix }}
+  {{ flag.description }}: {{ flag.summary }}.
+  {{ flag.url }}
+@end

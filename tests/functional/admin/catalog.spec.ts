@@ -119,6 +119,26 @@ test.group('Catalog — access', (group) => {
     response.assertStatus(403)
   })
 
+  /**
+   * The launch decision (licence plan §5.4, §13 Q5): dev sites count. A new
+   * product starts with the box ticked; an existing one shows what it has.
+   */
+  test('a new product proposes counting dev sites', async ({ client, assert }) => {
+    const admin = await createStaff({ role: 'admin' })
+
+    const fresh = await client.get('/admin/products/new').withGuard('staff').loginAs(admin)
+    fresh.assertStatus(200)
+    assert.match(fresh.text(), /name="countDevSites"[^>]*checked/)
+
+    const product = await createProduct({ countDevSites: false })
+    const existing = await client
+      .get(`/admin/products/${product.publicId}`)
+      .withGuard('staff')
+      .loginAs(admin)
+    existing.assertStatus(200)
+    assert.notMatch(existing.text(), /name="countDevSites"[^>]*checked/)
+  })
+
   test('an unknown product id sends you back to the list', async ({ client }) => {
     const admin = await createStaff()
 

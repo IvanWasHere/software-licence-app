@@ -21,3 +21,8 @@ docs
 # The SDKs and example integrations live beside the server, not in it.
 sdk
 examples
+
+# The production deploy kit — and its secrets — are never part of the image.
+deploy
+examples
+scripts

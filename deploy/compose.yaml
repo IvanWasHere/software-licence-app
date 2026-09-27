@@ -1,0 +1,144 @@
+# ==============================================================================
+# Production on one VPS (licence plan M8): Caddy for HTTPS, the web process,
+# the worker, a scheduler, Postgres, and nightly backups — one
+# `docker compose up -d` away.
+#
+#   cd /srv/licence-app/deploy
+#   cp .env.example .env        # fill it in — one file for everything
+#   docker compose up -d --build
+#
+# docs/deployment.md walks through the first deploy; docs/runbooks.md covers
+# updates, rollbacks, restores and key rotation.
+#
+# One web replica on purpose. It served 400 validations a second at a p95 of
+# 7 ms in the M8 load test; the first thing to scale is the machine, not the
+# number of processes (docs/runbooks.md, "It is getting slow").
+# ==============================================================================
+
+name: licence-app
+
+x-app: &app
+  build:
+    context: ..
+  image: licence-app:${IMAGE_TAG:-latest}
+  env_file: .env
+  environment:
+    NODE_ENV: production
+    HOST: 0.0.0.0
+    PORT: 3333
+    APP_URL: https://${DOMAIN}
+    DB_CONNECTION: postgres
+    # POSTGRES_PASSWORD must be URL-safe: `openssl rand -hex 24`.
+    DATABASE_URL: postgres://${POSTGRES_USER:-licence}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-licence}
+    # Caddy is the one hop in front; see the Caddyfile.
+    TRUST_PROXY: 'true'
+  restart: unless-stopped
+  volumes:
+    - uploads:/app/storage
+  logging:
+    driver: json-file
+    options: { max-size: '20m', max-file: '5' }
+
+services:
+  # Applies migrations, then exits. Web and worker wait for it, so a new
+  # version never serves traffic against the old schema (docs/deployment.md,
+  # "The release").
+  migrate:
+    <<: *app
+    command: ['node', 'ace', 'migration:run', '--force']
+    restart: 'no'
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    <<: *app
+    command: ['node', 'bin/server.js']
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    # SIGTERM, then this long to finish in-flight requests and write the
+    # buffered license API counters.
+    stop_grace_period: 30s
+
+  # Mail, webhooks and every scheduled job. Not optional: without it payments
+  # never turn into licenses.
+  worker:
+    <<: *app
+    command: ['node', 'ace', 'queue:work']
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    stop_grace_period: 60s
+
+  # Cron, without cron: dispatches the 5-minute, hourly and daily schedules.
+  # It only *queues* jobs; the worker runs them.
+  scheduler:
+    <<: *app
+    command: ['sh', '/deploy/scheduler.sh']
+    volumes:
+      - ./scheduler.sh:/deploy/scheduler.sh:ro
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-licence}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+      POSTGRES_DB: ${POSTGRES_DB:-licence}
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    # No ports: only the containers on this network can reach it.
+
+  # Nightly pg_dump, kept locally for 14 days and copied off the machine when
+  # BACKUP_REMOTE is set. A backup that only lives on the server it backs up
+  # is not a backup.
+  backup:
+    build:
+      context: .
+      dockerfile: backup.Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-licence}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB:-licence}
+    volumes:
+      - backups:/backups
+      - uploads:/uploads:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in deploy/.env}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in deploy/.env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+
+volumes:
+  postgres:
+  uploads:
+  backups:
+  caddy_data:
+  caddy_config:

@@ -7,10 +7,11 @@ import type { JobHandler } from '#queue/contracts'
  * Nightly reconciliation (plan §7.5).
  *
  * Cheap insurance against a webhook that never arrived. It **reports** every
- * difference it finds and only corrects the one that costs somebody money —
- * a status that disagrees. Leaving a customer on a plan the provider says
- * they cancelled costs us; leaving them off one they are paying for costs us
- * the customer.
+ * difference it finds and only corrects what costs somebody money — a status
+ * that disagrees, and a date that would end a paying customer's license early
+ * (licence plan M8). Leaving a customer on a plan the provider says they
+ * cancelled costs us; leaving them off one they are paying for costs us the
+ * customer.
  *
  * Everything else is logged and left alone, for the same reason
  * `ReconcileCountersJob` alerts rather than repairs: a job that quietly fixes

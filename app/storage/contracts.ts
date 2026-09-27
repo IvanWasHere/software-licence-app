@@ -27,6 +27,23 @@ export interface FileStorage {
     contentType: string
   }): Promise<void>
 
+  /**
+   * Write bytes the application produced itself — a receipt PDF (licence
+   * plan M9) — as opposed to a file a customer uploaded.
+   */
+  putBytes(input: {
+    disk: StorageDisk
+    key: string
+    bytes: Uint8Array
+    contentType: string
+  }): Promise<void>
+
+  /**
+   * The whole object, for something small enough to hold in memory and
+   * hand to a response or an email. Throws when the key does not exist.
+   */
+  readBytes(input: { disk: StorageDisk; key: string }): Promise<Buffer>
+
   delete(input: { disk: StorageDisk; key: string }): Promise<void>
 
   exists(input: { disk: StorageDisk; key: string }): Promise<boolean>

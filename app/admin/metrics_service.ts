@@ -1,4 +1,5 @@
 import { DateTime } from 'luxon'
+import db from '@adonisjs/lucid/services/db'
 
 import User from '#models/user'
 import Payment from '#models/payment'
@@ -9,6 +10,8 @@ import queue from '#queue/queue_service'
 import Plan from '#models/plan'
 import Order from '#models/order'
 import License from '#models/license'
+import LicenseFlag from '#models/license_flag'
+import LicenseActivation from '#models/license_activation'
 
 /**
  * One figure with the same figure a month earlier beside it. The direction is
@@ -213,6 +216,16 @@ function sparkline(values: number[]): string {
  * view of the business — and where that disagrees with the provider,
  * `billing:sync` is the tool that says so.
  */
+export interface LicenseApiMetrics {
+  days: { day: string; requests: number; refused: number }[]
+  sparkline: string
+  today: { requests: number; refused: number }
+  lastWeek: { requests: number; refused: number }
+  byProduct: { name: string; requests: number; refused: number }[]
+  installationsSeen24h: number
+  openFlags: number
+}
+
 export class MetricsService {
   async collect(): Promise<AdminMetrics> {
     const [subscriptions, organizations, payments, jobCounts, webhooks] = await Promise.all([
@@ -303,6 +316,79 @@ export class MetricsService {
       revenueThisMonthCents: payments
         .filter((payment) => payment.occurredAt.toUTC().toFormat('yyyy-MM') === thisMonth)
         .reduce((total, payment) => total + payment.netAmountCents, 0),
+    }
+  }
+
+  /**
+   * License API traffic and health (licence plan §8, M8): calls per day from
+   * the buffered counters, installations that checked in within a day, and
+   * abuse flags nobody has looked at.
+   *
+   * The counters trail real traffic by up to a minute (`LicenseTraffic`).
+   */
+  async licenseApi(daysBack = 14): Promise<LicenseApiMetrics> {
+    const now = DateTime.utc()
+    const days = Array.from({ length: daysBack }, (_, index) =>
+      now.minus({ days: daysBack - 1 - index }).toFormat('yyyy-LL-dd')
+    )
+
+    const rows = await db
+      .from('license_api_days')
+      .join('products', 'products.id', 'license_api_days.product_id')
+      .whereIn('license_api_days.day', days)
+      .select(
+        'license_api_days.day',
+        'products.name',
+        'license_api_days.requests',
+        'license_api_days.refused'
+      )
+
+    const perDay = new Map(days.map((day) => [day, { day, requests: 0, refused: 0 }]))
+    const lastWeekDays = new Set(days.slice(-7))
+    const perProduct = new Map<string, { name: string; requests: number; refused: number }>()
+
+    for (const row of rows) {
+      const entry = perDay.get(String(row.day))!
+      entry.requests += Number(row.requests)
+      entry.refused += Number(row.refused)
+
+      if (lastWeekDays.has(String(row.day))) {
+        const product = perProduct.get(row.name) ?? { name: row.name, requests: 0, refused: 0 }
+        product.requests += Number(row.requests)
+        product.refused += Number(row.refused)
+        perProduct.set(row.name, product)
+      }
+    }
+
+    const series = [...perDay.values()]
+    const lastWeek = series.slice(-7).reduce(
+      (total, day) => ({
+        requests: total.requests + day.requests,
+        refused: total.refused + day.refused,
+      }),
+      { requests: 0, refused: 0 }
+    )
+
+    /**
+     * Live activations only, filtered in JavaScript (CONTRIBUTING): the
+     * heartbeat writes `last_seen_at` at most hourly, so "seen in a day" is
+     * an installation that is actually running.
+     */
+    const live = await LicenseActivation.query().whereNull('deactivated_at').select('last_seen_at')
+    const dayAgo = now.minus({ days: 1 }).toMillis()
+
+    const [flags] = await LicenseFlag.query().whereNull('resolved_at').count('* as total')
+
+    return {
+      days: series,
+      sparkline: sparkline(series.map((day) => day.requests)),
+      today: series[series.length - 1],
+      lastWeek,
+      byProduct: [...perProduct.values()].sort((a, b) => b.requests - a.requests),
+      installationsSeen24h: live.filter(
+        (activation) => activation.lastSeenAt && activation.lastSeenAt.toMillis() >= dayAgo
+      ).length,
+      openFlags: Number(flags.$extras.total),
     }
   }
 

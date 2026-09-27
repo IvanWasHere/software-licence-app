@@ -219,6 +219,10 @@ router
           ])
           .as('admin.licenses.deactivate_activation')
           .where('activationId', publicIdMatcher('licenseActivation'))
+        router
+          .post('/:id/flags/:flagId/resolve', [controllers.admin.License, 'resolveFlag'])
+          .as('admin.licenses.resolve_flag')
+          .where('flagId', publicIdMatcher('licenseFlag'))
       })
       .prefix('/licenses')
       .where('id', publicIdMatcher('license'))
@@ -231,6 +235,14 @@ router
       .get('/orders/:id', [controllers.admin.Order, 'show'])
       .as('admin.orders.show')
       .where('id', publicIdMatcher('order'))
+
+    /**
+     * Receipts (licence plan M9), by the payment they are for.
+     */
+    router
+      .get('/payments/:id/receipt', [controllers.admin.Receipt, 'download'])
+      .as('admin.receipts.download')
+      .where('id', publicIdMatcher('payment'))
 
     router.get('/webhooks', [controllers.admin.Webhook, 'index']).as('admin.webhooks.index')
     router.get('/webhooks/:id', [controllers.admin.Webhook, 'show']).as('admin.webhooks.show')

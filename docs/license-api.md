@@ -8,14 +8,14 @@ nav_order: 8
 What our software calls to ask "is this license good?" (licence plan §6). It is a different API
 from the organisation API in [The API](./api.md), and the two must not be confused:
 
-| | License API | Organisation API |
-|---|---|---|
-| Called by | plugins and apps on customers' machines | servers we or customers control |
-| Authenticated by | product slug + license key in the body | `Authorization: Bearer sk_live_…` |
-| CORS | any origin, no credentials | none |
-| Routes | `start/routes/license_api.ts` | `start/routes/api.ts` |
+|                  | License API                             | Organisation API                  |
+| ---------------- | --------------------------------------- | --------------------------------- |
+| Called by        | plugins and apps on customers' machines | servers we or customers control   |
+| Authenticated by | product slug + license key in the body  | `Authorization: Bearer sk_live_…` |
+| CORS             | any origin, no credentials              | none                              |
+| Routes           | `start/routes/license_api.ts`           | `start/routes/api.ts`             |
 
-The full contract is in `/docs` under the *License API* tag, generated from
+The full contract is in `/docs` under the _License API_ tag, generated from
 `app/licensing/openapi.ts`.
 
 ## The rules clients rely on
@@ -75,7 +75,8 @@ curl -s $BASE/licenses/activate -H 'content-type: application/json' \
 
 At the limit the answer is `activated: false`, `reason: "activation_limit_reached"` and the
 numbers in `license.activations`. Development hostnames (`localhost`, `*.test`, `staging.*`, …
-see `config/licensing.ts`) do not count unless the product is set to count them.
+see `config/licensing.ts`) are reported as `is_dev` and count like any other site, unless the
+product is set to let them be free.
 
 **Is this installation activated?** — the call a client makes on its schedule:
 
@@ -85,7 +86,7 @@ curl -s $BASE/licenses/validate -H 'content-type: application/json' \
   | jq '{valid, reason, activation, policy}'
 ```
 
-This also refreshes the activation's *last seen*, at most once an hour.
+This also refreshes the activation's _last seen_, at most once an hour.
 
 **Release the slot:**
 
@@ -128,11 +129,11 @@ covers this build. It works for **10 minutes**, for this license and this build 
 to the file. The license is checked again when the link is used, so a link issued before a refund
 stops working.
 
-| `reason` | |
-|---|---|
-| any license reason | The license itself is not valid (`license_expired`, `not_activated`, …) |
-| `updates_expired` | A perpetual license whose `updates_until` is before the release's publication. The license **still validates**; it just doesn't get builds from after its window |
-| `license_required` | No key was sent, and this build needs one. A build uploaded as a free download is linked for anybody |
+| `reason`           |                                                                                                                                                                  |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| any license reason | The license itself is not valid (`license_expired`, `not_activated`, …)                                                                                          |
+| `updates_expired`  | A perpetual license whose `updates_until` is before the release's publication. The license **still validates**; it just doesn't get builds from after its window |
+| `license_required` | No key was sent, and this build needs one. A build uploaded as a free download is linked for anybody                                                             |
 
 Each release answer is signed like every other, `checksum_sha256` included, so a client can check
 the bytes it downloaded against a value it can trust. The PHP SDK does this before WordPress
@@ -140,13 +141,13 @@ unpacks anything.
 
 ## Where things live
 
-| | |
-|---|---|
-| Controllers | `app/controllers/api/v1/license_controller.ts`, `product_controller.ts`, `release_controller.ts` |
-| Releases | `app/catalog/release_service.ts` (upload, publish, withdraw, who may download), `app/catalog/semver.ts` |
-| Response shapes | `app/licensing/api_payload.ts` |
-| Decision rules | `app/licensing/validation.ts` (pure), `license_service.ts`, `activation_service.ts` |
-| Signing | `app/licensing/signer.ts`, `config/licensing.ts` |
-| CORS, request id, preflight | `app/middleware/license_api.ts` |
-| Tests | `tests/functional/license_api/`, `tests/unit/licensing.spec.ts` |
-| JS SDK | [`sdk/js`](../sdk/js) — and its contract test against this API, `tests/functional/sdk/` |
+|                             |                                                                                                         |
+| --------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Controllers                 | `app/controllers/api/v1/license_controller.ts`, `product_controller.ts`, `release_controller.ts`        |
+| Releases                    | `app/catalog/release_service.ts` (upload, publish, withdraw, who may download), `app/catalog/semver.ts` |
+| Response shapes             | `app/licensing/api_payload.ts`                                                                          |
+| Decision rules              | `app/licensing/validation.ts` (pure), `license_service.ts`, `activation_service.ts`                     |
+| Signing                     | `app/licensing/signer.ts`, `config/licensing.ts`                                                        |
+| CORS, request id, preflight | `app/middleware/license_api.ts`                                                                         |
+| Tests                       | `tests/functional/license_api/`, `tests/unit/licensing.spec.ts`                                         |
+| JS SDK                      | [`sdk/js`](../sdk/js) — and its contract test against this API, `tests/functional/sdk/`                 |

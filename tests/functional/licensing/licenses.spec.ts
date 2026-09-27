@@ -315,6 +315,69 @@ test.group('Licenses — activations', (group) => {
     assert.isFalse(refused.ok)
   })
 
+  /**
+   * Licence plan M8 security review: a free development install must not be
+   * moved onto a production site past the limit by re-activating it.
+   */
+  test('a dev install re-activated on a production site is held to the limit', async ({
+    assert,
+  }) => {
+    const { license } = await createLicense({ plan: { maxActivations: 1 } })
+
+    await activations.activate(
+      license,
+      { instanceId: 'prod', siteUrl: 'shop.example.com' },
+      SYSTEM_ACTOR
+    )
+    const local = await activations.activate(
+      license,
+      { instanceId: 'copy', siteUrl: 'http://localhost' },
+      SYSTEM_ACTOR
+    )
+    assert.isTrue(local.ok)
+
+    const moved = await activations.activate(
+      license,
+      { instanceId: 'copy', siteUrl: 'https://second-shop.example.com' },
+      SYSTEM_ACTOR
+    )
+
+    assert.isFalse(moved.ok)
+    assert.equal(!moved.ok && moved.reason, 'activation_limit_reached')
+    assert.deepEqual(await activations.usage(license), { used: 1, max: 1 })
+
+    const live = await activations.live(license)
+    const copy = live.find((row) => row.instanceId === 'copy')!
+    assert.isTrue(copy.isDev, 'the refused re-activation changed nothing')
+
+    /**
+     * With a free slot, the same move is fine.
+     */
+    const roomy = await createLicense({ plan: { maxActivations: 2 } })
+    await activations.activate(
+      roomy.license,
+      { instanceId: 'copy', siteUrl: 'localhost' },
+      SYSTEM_ACTOR
+    )
+    const allowed = await activations.activate(
+      roomy.license,
+      { instanceId: 'copy', siteUrl: 'https://shop.example.com' },
+      SYSTEM_ACTOR
+    )
+    assert.isTrue(allowed.ok)
+
+    /**
+     * And re-activating a counted install where it already is stays free at
+     * the limit — a retry must never cost a slot.
+     */
+    const retry = await activations.activate(
+      license,
+      { instanceId: 'prod', siteUrl: 'shop.example.com' },
+      SYSTEM_ACTOR
+    )
+    assert.isTrue(retry.ok)
+  })
+
   test('deactivating frees the slot, and coming back reuses the row', async ({ assert }) => {
     const { license } = await createLicense({ plan: { maxActivations: 1 } })
 

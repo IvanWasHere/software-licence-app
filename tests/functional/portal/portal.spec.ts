@@ -185,7 +185,7 @@ test.group('Portal — the pricing page', (group) => {
       .redirects(0)
 
     response.assertStatus(302)
-    response.assertHeader('location', `https://checkout.test/${plan.providerProductId}`)
+    response.assertHeader('location', `https://checkout.invalid/${plan.providerProductId}`)
 
     const order = await Order.firstOrFail()
     assert.equal(order.email, 'anon@example.com')
@@ -252,6 +252,12 @@ test.group('Portal — the pricing page', (group) => {
 
     const page = await client.get(`/checkout/return?order=${order.publicId}`)
     page.assertStatus(200)
+
+    /**
+     * Whoever holds the URL sees a masked address, not the buyer's.
+     */
+    assert.notInclude(page.text(), order.email)
+    assert.include(page.text(), `${order.email[0]}•••@${order.email.split('@')[1]}`)
 
     const license = await License.firstOrFail()
     assert.notInclude(page.text(), license.keyEncrypted)

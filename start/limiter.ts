@@ -41,7 +41,9 @@
 
 import { createHash } from 'node:crypto'
 import type { HttpContext } from '@adonisjs/core/http'
+import env from '#start/env'
 import limiter from '@adonisjs/limiter/services/main'
+import { licenseKeyHash } from '#licensing/keys'
 
 import { twoFactorChallengeSubject } from '#auth/two_factor_challenge'
 
@@ -242,24 +244,45 @@ export const adminLoginThrottle = limiter.define('admin_login', (ctx) => {
  * stops is somebody enumerating keys from one machine.
  */
 export const licenseApiAddressThrottle = limiter.define('license_api_address', (ctx) => {
-  return limiter.allowRequests(120).every('1 minute').usingKey(addressKey(ctx))
+  return limiter
+    .allowRequests(env.get('LICENSE_API_RATE_PER_ADDRESS', 120))
+    .every('1 minute')
+    .usingKey(addressKey(ctx))
 })
 
 /**
- * The public license API, by the license key in the body.
+ * The public license API, by the license key.
  *
  * A key that is being validated thirty times a minute is either a broken
  * client in a loop or a leaked key on a lot of machines — both worth slowing
  * down, neither worth letting one key cost everyone else on the address.
- * Hashed like the account keys above, and keyed on the raw input rather than
- * the parsed key so a malformed key is counted too.
+ *
+ * Counted per **license**, not per spelling (licence plan M8 security
+ * review): the key is read the way the lookup reads it — separators, case,
+ * look-alike letters and any prefix ignored — so `WIPRO-7K4DX-…`,
+ * `wipro7k4dx…` and `junk-WIPRO-7K4DX-…` share one budget. Input that is no
+ * key at all is counted by its raw text, so it cannot escape a limit either.
+ *
+ * Also on `releases/latest`, where the key arrives in the query string; an
+ * update check without a key (a free build) has no key to count and is left
+ * to the address limit.
  */
 export const licenseApiKeyThrottle = limiter.define('license_api_key', (ctx) => {
-  return limiter
-    .allowRequests(30)
-    .every('1 minute')
-    .usingKey(`license:${accountKey(ctx.request.input('license_key'))}`)
+  const input = ctx.request.input('license_key')
+
+  if (input === undefined || input === null || input === '') {
+    return ctx.request.method() === 'GET' ? limiter.noLimit() : keyLimit(accountKey(input))
+  }
+
+  return keyLimit(licenseKeyHash(input) ?? accountKey(input))
 })
+
+function keyLimit(key: string) {
+  return limiter
+    .allowRequests(env.get('LICENSE_API_RATE_PER_KEY', 30))
+    .every('1 minute')
+    .usingKey(`license:${key}`)
+}
 
 /**
  * Starting a checkout from the public pricing page (licence plan §6, M5), by

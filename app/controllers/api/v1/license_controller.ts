@@ -2,6 +2,8 @@ import type { HttpContext } from '@adonisjs/core/http'
 
 import Product from '#models/product'
 import signer from '#licensing/signer'
+import traffic, { type LicenseApiEndpoint } from '#licensing/traffic'
+import type License from '#models/license'
 import activations from '#licensing/activation_service'
 import licenses, { type LicenseActor } from '#licensing/license_service'
 import {
@@ -48,8 +50,14 @@ export default class LicenseApiController {
       await activations.touch(activation)
     }
 
-    const product = license?.product ?? (await Product.findBy('slug', payload.product))
+    /**
+     * The product that was asked about, never the one a mismatched key
+     * belongs to: its policy and its traffic are nobody else's business.
+     */
     const matched = license && license.product.slug === payload.product
+    const product = matched ? license.product : await Product.findBy('slug', payload.product)
+
+    this.count(ctx, 'validate', matched ? license : null, product, !result.valid)
 
     return ctx.response.ok(
       withSignature({
@@ -58,7 +66,7 @@ export default class LicenseApiController {
         license: matched ? licenseSummary(license, await activations.usage(license)) : null,
         activation: result.valid && activation ? activationSummary(activation) : null,
         entitlements: result.valid ? await licenses.entitlements(license!) : {},
-        policy: policyFor(matched ? license.product : product),
+        policy: policyFor(product),
         ...this.envelope(ctx, payload),
       })
     )
@@ -74,6 +82,10 @@ export default class LicenseApiController {
     const { result, license } = await licenses.check(payload.license_key, payload.product)
 
     if (!result.valid) {
+      const matched = license && license.product.slug === payload.product
+      const product = matched ? license.product : await Product.findBy('slug', payload.product)
+      this.count(ctx, 'activate', matched ? license : null, product, true)
+
       return ctx.response.ok(
         withSignature({
           activated: false,
@@ -85,7 +97,7 @@ export default class LicenseApiController {
               : null,
           activation: null,
           entitlements: {},
-          policy: policyFor(license?.product ?? null),
+          policy: policyFor(product),
           ...this.envelope(ctx, payload),
         })
       )
@@ -105,6 +117,7 @@ export default class LicenseApiController {
     )
 
     const usage = await activations.usage(license!)
+    this.count(ctx, 'activate', license!, license!.product, !outcome.ok)
 
     if (!outcome.ok) {
       return ctx.response.ok(
@@ -148,6 +161,8 @@ export default class LicenseApiController {
     const { license } = await licenses.check(payload.license_key, payload.product)
 
     if (!license || license.product.slug !== payload.product) {
+      this.count(ctx, 'deactivate', null, await Product.findBy('slug', payload.product), true)
+
       return ctx.response.ok(
         withSignature({
           deactivated: false,
@@ -158,6 +173,7 @@ export default class LicenseApiController {
     }
 
     const deactivated = await activations.deactivate(license, payload.instance_id, CLIENT)
+    this.count(ctx, 'deactivate', license, license.product, false)
 
     return ctx.response.ok(
       withSignature({
@@ -183,6 +199,26 @@ export default class LicenseApiController {
    */
   async preflight({ response }: HttpContext) {
     return response.noContent()
+  }
+
+  /**
+   * Traffic for the dashboard and the abuse job (licence plan M8). In memory
+   * only; see `LicenseTraffic`. Unknown products are not counted.
+   */
+  private count(
+    ctx: HttpContext,
+    endpoint: LicenseApiEndpoint,
+    license: License | null,
+    product: Product | null,
+    refused: boolean
+  ) {
+    if (product) {
+      traffic.hit(product.id, endpoint, refused)
+    }
+
+    if (license) {
+      traffic.saw(license.id, ctx.request.ip())
+    }
   }
 
   private envelope(

@@ -6,7 +6,7 @@ nav_order: 8
 # Billing and plans
 
 Three plans, one payment provider, and a rule that runs through all of it: **nothing is ever taken
-away from a workspace that stops paying.** A plan decides what you can *create* from now on, not
+away from a workspace that stops paying.** A plan decides what you can _create_ from now on, not
 what you keep.
 
 ---
@@ -16,15 +16,15 @@ what you keep.
 The catalogue lives in code, at `config/plans.ts`. There is no plans table, so adding a tier is a
 pull request rather than a migration.
 
-| | Free | Pro | Business |
-|---|---|---|---|
-| Price | $0 | $29.00/month | $99.00/month |
-| Seats | 2 | 10 | 50 |
-| Lists | 3 | 25 | unlimited |
-| Todos per list | 50 | 500 | unlimited |
-| Storage | 100 MB | 5 GB | 100 GB |
-| API keys | — | 5 | 25 |
-| API calls | — | 50,000/month | 1,000,000/month |
+|                | Free   | Pro          | Business        |
+| -------------- | ------ | ------------ | --------------- |
+| Price          | $0     | $29.00/month | $99.00/month    |
+| Seats          | 2      | 10           | 50              |
+| Lists          | 3      | 25           | unlimited       |
+| Todos per list | 50     | 500          | unlimited       |
+| Storage        | 100 MB | 5 GB         | 100 GB          |
+| API keys       | —      | 5            | 25              |
+| API calls      | —      | 50,000/month | 1,000,000/month |
 
 Two values in that config mean very different things, and they are easy to read the wrong way
 round:
@@ -124,13 +124,13 @@ The things that make this survive a bad day:
 
 ## Subscription states
 
-| State | Entitles? | What it means |
-|---|---|---|
-| `trialing` | yes | Trial, still inside the trial window |
-| `active` | yes | Paying |
-| `past_due` | **yes** | A charge failed. Dunning, not a lockout |
-| `paused` | no | Entitlement drops to Free |
-| `canceled` / `expired` | no | Entitlement drops to Free |
+| State                  | Entitles? | What it means                           |
+| ---------------------- | --------- | --------------------------------------- |
+| `trialing`             | yes       | Trial, still inside the trial window    |
+| `active`               | yes       | Paying                                  |
+| `past_due`             | **yes**   | A charge failed. Dunning, not a lockout |
+| `paused`               | no        | Entitlement drops to Free               |
+| `canceled` / `expired` | no        | Entitlement drops to Free               |
 
 The one to notice is `past_due`. It still entitles, deliberately: the customer's team, lists and
 todos are exactly where they were, and a banner asks them to fix the card.
@@ -160,6 +160,35 @@ provider's portal is the complete record.
 
 ---
 
+## Receipts
+
+Creem is the merchant of record: the customer's contract of sale, and the VAT, are Creem's, so the
+**tax invoice is the one Creem issues** and the provider's portal is where a customer downloads
+it. What this server issues is the **order receipt from your company** (licence plan M9): the
+document a customer files under the product's name.
+
+- **One per successful charge**, renewals included, numbered `R-2026-000042`. The number is
+  permanent; a redelivered webhook or a refund never issues a second one. A refund grows the
+  payment row and leaves the receipt as it was, because it records what was charged then.
+- **Issued when the payment lands**, attached to the receipt email as a PDF, and downloadable from
+  the _Transaction history_ on the billing screen for as long as the account exists. A charge from
+  before receipts existed gets one on its first download.
+- **What it says:** your company (`COMPANY_NAME`, `COMPANY_ADDRESS`, `COMPANY_EMAIL`,
+  `COMPANY_TAX_ID`), the account name and the email the order was placed with, one line per order
+  item — or the subscription's plan for a renewal — the total charged, Creem's order reference, and
+  a note naming Creem as the merchant of record. When the lines and the charge disagree (a
+  discount, say), the charge wins and an _Adjustment_ line says by how much: the PDF never
+  disagrees with the card statement.
+- **Where it lives:** the `receipts` table is the record; the PDF is on the private disk under
+  `receipts/{account}/{number}.pdf` and is drawn again from the row if storage has lost it.
+- **Staff** download any receipt from the order page or the customer's payments list.
+
+Nothing is collected at checkout beyond an email. If a customer needs their company name or
+address on the receipt, that is a change to the account name today, and a billing-details form
+if it comes up often.
+
+---
+
 ## Staff overrides
 
 Staff can change what a workspace is entitled to without touching the payment provider:
@@ -183,12 +212,20 @@ The subscriptions table is a **mirror**. Only webhooks and reconciliation write 
 
 ```bash
 node ace billing:sync --dry-run   # report drift, change nothing
-node ace billing:sync             # report drift, correct status
+node ace billing:sync             # report drift, correct what would cut a customer short
 ```
 
 It walks every non-terminal subscription, asks the provider what it thinks, and compares status,
-plan key and period end. It corrects **status only**. A wrong plan key or period end is reported and
-left alone, because silently correcting those would paper over the missing webhook that caused them.
+plan and period end, plus each license's expiry against its subscription. Everything is reported.
+Three things are also **corrected**, because leaving them costs somebody:
+
+- a **status** that disagrees with the provider;
+- a **later period end** on a renewing subscription, which is a renewal whose webhook never
+  arrived. The licenses move with it, so a customer who paid doesn't lapse;
+- a license that **expires earlier** than its subscription says it should.
+
+Nothing it corrects can shorten anything. An earlier period end, a different plan, or a license
+that staff extended past its subscription is only reported.
 A subscription the provider no longer knows about is reported as missing. Any drift at all exits
 non-zero, so cron or CI can shout.
 

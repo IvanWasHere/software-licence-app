@@ -12,7 +12,7 @@ import type {
 } from './types.js'
 
 export interface LicenseClientOptions {
-  /** The license API, e.g. `https://licenses.example.com/api/v1`. */
+  /** The license API, e.g. `https://licensing.example.com/api/v1`. */
   baseUrl: string
 
   /** The product slug this software is licensed as. */

@@ -19,7 +19,7 @@ test.group('Health endpoints', () => {
     response.assertStatus(200)
     response.assertBody({
       status: 'ok',
-      checks: { database: 'ok', storage: 'ok' },
+      checks: { database: 'ok', storage: 'ok', signing: 'ok' },
     })
   })
 

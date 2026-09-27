@@ -1,0 +1,20 @@
+@component('emails/layout', {
+  title: 'License expiring',
+  footer: 'You are receiving this because you own this account.',
+})
+  <p style="margin: 0 0 12px; font-size: 20px; font-weight: 700; color: #111827;">
+    Your {{ productName }} license expires on {{ expiresAt.toFormat('d LLLL yyyy') }}
+  </p>
+  <p style="margin: 0 0 20px; font-size: 14px; line-height: 1.6; color: #4b5563;">
+    The {{ planName }} license ending in <strong>{{ keySuffix }}</strong> has {{ daysLeft }} {{ daysLeft === 1 ? 'day' : 'days' }} left.
+    After that it stops validating, and the sites using it lose what it unlocks.
+  </p>
+  <p style="margin: 0 0 24px;">
+    <a href="{{ renewUrl }}" style="display: inline-block; background: #3b82f6; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 600; padding: 12px 20px; border-radius: 8px;">
+      Renew
+    </a>
+  </p>
+  <p style="margin: 0; font-size: 13px; line-height: 1.6; color: #6b7280;">
+    See the license and where it is installed: <a href="{{ licenseUrl }}" style="color: #3b82f6;">{{ licenseUrl }}</a>
+  </p>
+@end

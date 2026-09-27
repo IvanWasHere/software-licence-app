@@ -8,7 +8,7 @@
  *
  * Configure with environment variables (a real app compiles these in):
  *
- *   LICENSE_API         https://licenses.example.com/api/v1   (default: http://localhost:3333/api/v1)
+ *   LICENSE_API         https://licensing.example.com/api/v1   (default: http://localhost:3333/api/v1)
  *   LICENSE_PRODUCT     the product slug                       (default: invoice-pro)
  *   LICENSE_PUBLIC_KEY  from GET /api/v1/keys → data[0].public_key
  *   LICENSE_KEY_ID      the matching kid                       (default: any)

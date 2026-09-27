@@ -1,6 +1,7 @@
 import db from '@adonisjs/lucid/services/db'
 import drive from '@adonisjs/drive/services/main'
 import logger from '@adonisjs/core/services/logger'
+import signer from '#licensing/signer'
 import type { HttpContext } from '@adonisjs/core/http'
 
 /**
@@ -41,21 +42,24 @@ export default class HealthController {
 
   /**
    * Readiness: the database this application cannot serve a page without,
-   * and the disk it stores uploads on.
+   * the disk it stores uploads on, and the key every license answer is signed
+   * with (licence plan M8).
    *
    * Both are checked even when the first has already failed, so one probe
    * reports everything that is wrong rather than the first thing.
    */
   async ready({ response }: HttpContext) {
     const [database, storage] = await Promise.all([this.checkDatabase(), this.checkStorage()])
+    const signing = signer.canSign()
 
-    const ok = database && storage
+    const ok = database && storage && signing
 
     return response.status(ok ? 200 : 503).send({
       status: ok ? 'ok' : 'unavailable',
       checks: {
         database: database ? 'ok' : 'unreachable',
         storage: storage ? 'ok' : 'unreachable',
+        signing: signing ? 'ok' : 'unavailable',
       },
     })
   }

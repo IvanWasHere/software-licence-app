@@ -1,0 +1,5 @@
+# The backup image needs only its two scripts.
+*
+!backup.sh
+!restore.sh
+!backup.Dockerfile

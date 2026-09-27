@@ -78,6 +78,13 @@ export default await Env.create(new URL('../', import.meta.url), {
   */
   LICENSE_SIGNING_KEY: Env.schema.secret.optional(),
   LICENSE_SIGNING_KEY_ID: Env.schema.string.optional(),
+  LICENSE_SIGNING_EXTRA_PUBLIC_KEYS: Env.schema.string.optional(),
+  /**
+   * License API rate limits per minute (licence plan §9). Defaults 120 per
+   * address, 30 per key.
+   */
+  LICENSE_API_RATE_PER_ADDRESS: Env.schema.number.optional(),
+  LICENSE_API_RATE_PER_KEY: Env.schema.number.optional(),
 
   /*
   |--------------------------------------------------------------------------
@@ -169,6 +176,22 @@ export default await Env.create(new URL('../', import.meta.url), {
   */
   QUEUE_WORKER_CONCURRENCY: Env.schema.number.optional(),
   QUEUE_POLL_INTERVAL_MS: Env.schema.number.optional(),
+
+  /*
+  |--------------------------------------------------------------------------
+  | Receipts — licence plan M9
+  |--------------------------------------------------------------------------
+  |
+  | Who the receipt PDF is from. The name falls back to APP_NAME and the
+  | email to MAIL_FROM_ADDRESS; the address is optional and `|` separates
+  | its lines. Creem is the merchant of record, so this is the *order
+  | receipt* from your company, not the tax invoice.
+  |
+  */
+  COMPANY_NAME: Env.schema.string.optional(),
+  COMPANY_ADDRESS: Env.schema.string.optional(),
+  COMPANY_EMAIL: Env.schema.string.optional(),
+  COMPANY_TAX_ID: Env.schema.string.optional(),
 
   /*
   |--------------------------------------------------------------------------

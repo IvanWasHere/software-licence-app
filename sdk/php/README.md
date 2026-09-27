@@ -35,7 +35,7 @@ function my_plugin_license(): \LicenceApp\Sdk\Client
         'plugin_file' => __FILE__,
         'version'     => '1.2.0',                  // this build's version
         'name'        => 'Invoice Pro',
-        'base_url'    => 'https://licenses.example.com/api/v1',
+        'base_url'    => 'https://licensing.example.com/api/v1',
         'product'     => 'invoice-pro',
         // From GET /api/v1/keys → data[0]. Pin it in your build; never fetch it at runtime.
         'public_key'  => ['k1' => 'p8Yx…32-byte-key-base64url'],
@@ -86,7 +86,7 @@ use LicenceApp\Sdk\Client;
 use LicenceApp\Sdk\Storage\FileStorage;
 
 $license = new Client([
-    'base_url'   => 'https://licenses.example.com/api/v1',
+    'base_url'   => 'https://licensing.example.com/api/v1',
     'product'    => 'invoice-pro',
     'public_key' => ['k1' => '…'],
     'storage'    => new FileStorage(getenv('HOME') . '/.invoice-pro/license.json'), // mode 0600

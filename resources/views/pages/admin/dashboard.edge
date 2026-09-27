@@ -9,7 +9,7 @@
   incident.
 --}}
 @component('layouts/admin', { title: 'Dashboard' })
-  @if(metrics.failedJobs > 0 || metrics.unprocessedWebhooks > 0 || attention.length > 0)
+  @if(metrics.failedJobs > 0 || metrics.unprocessedWebhooks > 0 || attention.length > 0 || licenseApi.openFlags > 0)
     <div class="info-box info-box-warning">
       <p><strong>Needs attention</strong></p>
       <p>
@@ -21,7 +21,10 @@
           a customer's entitlements and their invoice may disagree.
         @end
         @if(attention.length > 0)
-          {{ attention.length }} workspace{{ attention.length === 1 ? '' : 's' }} past due or suspended.
+          {{ attention.length }} account{{ attention.length === 1 ? '' : 's' }} past due or suspended.
+        @end
+        @if(licenseApi.openFlags > 0)
+          <a href="{{ urlFor('admin.licenses.index') }}?flagged=1">{{ licenseApi.openFlags }} license{{ licenseApi.openFlags === 1 ? '' : 's' }} flagged for review</a> — possibly shared keys.
         @end
       </p>
     </div>
@@ -59,6 +62,69 @@
     trying to collect. It knows nothing about discounts or proration, because nothing here sells
     them yet.
   </p>
+
+  {{--
+    The license API (licence plan M8): what customers' software is doing.
+    Counters trail real traffic by up to a minute.
+  --}}
+  <div class="page-header" style="align-items: center">
+    <div>
+      <h2 class="section-title">License API</h2>
+      <p class="section-desc" style="margin-bottom: 0">
+        Validations, activations and update checks from customers' software.
+      </p>
+    </div>
+  </div>
+
+  <div class="stats-grid">
+    @!statCard({ label: 'Calls today', value: licenseApi.today.requests, icon: 'barChart', tone: 'blue' })
+    @!statCard({
+      label: 'Refused, 7 days',
+      value: licenseApi.lastWeek.requests === 0 ? '—' : `${((licenseApi.lastWeek.refused / licenseApi.lastWeek.requests) * 100).toFixed(1)}%`,
+      icon: 'alert',
+      tone: licenseApi.lastWeek.requests > 0 && licenseApi.lastWeek.refused / licenseApi.lastWeek.requests > 0.25 ? 'red' : 'green',
+    })
+    @!statCard({ label: 'Installations seen, 24h', value: licenseApi.installationsSeen24h, icon: 'check', tone: 'green' })
+    @!statCard({
+      label: 'Open flags',
+      value: licenseApi.openFlags,
+      icon: 'shield',
+      tone: licenseApi.openFlags > 0 ? 'red' : 'green',
+    })
+  </div>
+
+  <div class="panel-grid panel-grid-even">
+    @panel.root({ title: 'Calls per day, 14 days' })
+      <svg viewBox="0 0 100 30" preserveAspectRatio="none" style="width: 100%; height: 80px" aria-label="License API calls per day">
+        <polyline points="{{ licenseApi.sparkline }}" fill="none" stroke="currentColor" stroke-width="1.2" vector-effect="non-scaling-stroke" />
+      </svg>
+      <p class="chart-note">
+        {{ licenseApi.lastWeek.requests }} calls in the last 7 days, {{ licenseApi.lastWeek.refused }} of them answered no —
+        an invalid key, a full license or an update the license does not cover. A refusal rate that jumps is worth a look.
+      </p>
+    @end
+
+    @panel.root({ title: 'By product, 7 days', flush: true })
+      @if(licenseApi.byProduct.length)
+        <div class="table-scroll">
+          <table class="orders-table">
+            <thead><tr><th>Product</th><th>Calls</th><th>Refused</th></tr></thead>
+            <tbody>
+              @each(product in licenseApi.byProduct)
+                <tr>
+                  <td>{{ product.name }}</td>
+                  <td>{{ product.requests }}</td>
+                  <td>{{ product.requests ? ((product.refused / product.requests) * 100).toFixed(1) : '0.0' }}%</td>
+                </tr>
+              @end
+            </tbody>
+          </table>
+        </div>
+      @else
+        @!emptyState({ icon: 'barChart', title: 'No calls yet', description: 'Counts appear within a minute of the first validation.' })
+      @end
+    @end
+  </div>
 
   {{--
     Volume through the account (plan §12). The window is a query string, so
@@ -297,10 +363,9 @@
       @end
 
       <p class="chart-note">
-        {{ growth.payingWorkspaces }} of {{ metrics.organizations }} workspaces
-        {{ growth.payingWorkspaces === 1 ? 'is' : 'are' }} on a paid plan
-        ({{ growth.payingPercent.toFixed(0) }}%). Counted from each workspace's current
-        entitlement, so a staff override counts as the plan the customer actually has.
+        {{ growth.payingWorkspaces }} of {{ metrics.organizations }} accounts
+        {{ growth.payingWorkspaces === 1 ? 'has' : 'have' }} bought a license
+        ({{ growth.payingPercent.toFixed(0) }}%).
       </p>
     @end
   </div>

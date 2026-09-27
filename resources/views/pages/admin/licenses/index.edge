@@ -15,7 +15,7 @@
     @end
   @end
 
-  <form method="GET" action="{{ urlFor('admin.licenses.index') }}" class="field-row" style="grid-template-columns: 3fr 1fr 1fr auto; align-items: end">
+  <form method="GET" action="{{ urlFor('admin.licenses.index') }}" class="field-row" style="grid-template-columns: 3fr 1fr 1fr auto auto; align-items: end">
     <div class="field">
       <label class="field-label" for="q">Search</label>
       <input class="field-input" id="q" name="q" value="{{ term }}" placeholder="Key, last 4, lic_…, org_… or email" />
@@ -37,6 +37,9 @@
           <option value="{{ value }}" {{ value === status ? 'selected' : '' }}>{{ value }}</option>
         @end
       </select>
+    </div>
+    <div class="field">
+      <label class="field-hint"><input type="checkbox" name="flagged" value="1" {{ flagged ? 'checked' : '' }} /> Flagged only</label>
     </div>
     <div class="field">
       @!button({ text: 'Search', type: 'submit', size: 'sm', variant: 'outline' })
@@ -62,7 +65,12 @@
                 </td>
                 <td>{{ license.product.name }} · {{ license.plan.name }}</td>
                 <td style="white-space: nowrap">{{ license.expiresAt ? license.expiresAt.toFormat('d LLL yyyy') : 'Never' }}</td>
-                <td>@include('pages/admin/licenses/_status')</td>
+                <td>
+                  @include('pages/admin/licenses/_status')
+                  @if(Number(license.$extras.open_flags) > 0)
+                    @!badge({ text: 'Flagged', tone: 'warning' })
+                  @end
+                </td>
               </tr>
             @end
           </tbody>

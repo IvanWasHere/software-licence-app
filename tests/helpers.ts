@@ -215,11 +215,18 @@ export class FakePaymentProvider implements PaymentProvider {
     webhookSecret: CREEM_TEST_SECRET,
   })
 
+  /**
+   * The checkout host is `.invalid` (RFC 2606): no resolver anywhere answers
+   * it, and — unlike `.test` — no local dev tool claims it either. A machine
+   * with a resolver for `.test` (Valet, Yerd, dnsmasq) would otherwise route
+   * the browser test's handoff into whatever that resolver does, or hang on
+   * it if it is not running.
+   */
   async createCheckoutSession(input: CheckoutInput) {
     this.throwIfFailing()
     this.checkouts.push(input)
 
-    return { url: `https://checkout.test/${input.productId}`, sessionId: 'ch_test_1' }
+    return { url: `https://checkout.invalid/${input.productId}`, sessionId: 'ch_test_1' }
   }
 
   async createPortalSession(input: { customerId: string; returnUrl: string }) {

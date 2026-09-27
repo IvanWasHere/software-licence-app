@@ -25,7 +25,7 @@ export const licensingDemoSeeder: DemoSeeder = {
       description: 'Invoices, recurring billing and PDF export for WooCommerce.',
       validationIntervalHours: 24,
       offlineGraceDays: 7,
-      countDevSites: false,
+      countDevSites: true,
     })
 
     await catalog.createEntitlement(product, {
@@ -105,7 +105,7 @@ export const licensingDemoSeeder: DemoSeeder = {
       status: 'active',
       validationIntervalHours: 24,
       offlineGraceDays: 7,
-      countDevSites: false,
+      countDevSites: true,
     })
 
     const { license: agency } = await licenses.issue({

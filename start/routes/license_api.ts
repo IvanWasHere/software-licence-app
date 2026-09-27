@@ -18,7 +18,8 @@
 |   licenseApi                 — CORS for any origin, a request id, no-store,
 |                                and the answer to a browser's preflight.
 |   licenseApiAddressThrottle  — per address, generous (shared hosting).
-|   licenseApiKeyThrottle      — per license key, on the POSTs that carry one.
+|   licenseApiKeyThrottle      — per license (not per spelling of its key), on
+|                                every call that carries one.
 |
 | `/webhooks/*` and `/api/*` are CSRF-exempt in `config/shield.ts`; nothing
 | here reads a cookie, which is what makes the open CORS policy safe.
@@ -54,6 +55,7 @@ router
     router
       .get('/products/:slug/releases/latest', [controllers.api.v1.Release, 'latest'])
       .as('license_api.releases.latest')
+      .use(licenseApiKeyThrottle)
     router
       .get('/releases/:id/download', [controllers.api.v1.Release, 'download'])
       .as('license_api.release_download')

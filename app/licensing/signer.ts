@@ -79,10 +79,46 @@ export class ResponseSigner {
     return ok ? JSON.parse(bytes.toString('utf8')) : null
   }
 
+  /**
+   * The active key first, then any announced for a rotation. A malformed
+   * extra is skipped with a warning rather than taking `/keys` down: the
+   * active key is what every client needs today.
+   */
   publishedKeys(): PublishedKey[] {
     const jwk = this.publicKey().export({ format: 'jwk' })
+    const keys: PublishedKey[] = [{ kid: this.keyId, alg: 'Ed25519', public_key: jwk.x! }]
 
-    return [{ kid: this.keyId, alg: 'Ed25519', public_key: jwk.x! }]
+    for (const entry of licensingConfig.extraPublicKeys.split(',')) {
+      const [kid, publicKey] = entry.trim().split(':')
+
+      if (!kid || !publicKey) {
+        continue
+      }
+
+      if (Buffer.from(publicKey, 'base64url').length !== 32) {
+        logger.warn({ kid }, 'LICENSE_SIGNING_EXTRA_PUBLIC_KEYS has a key that is not 32 bytes')
+        continue
+      }
+
+      if (!keys.some((key) => key.kid === kid)) {
+        keys.push({ kid, alg: 'Ed25519', public_key: publicKey })
+      }
+    }
+
+    return keys
+  }
+
+  /**
+   * Can this process sign? For `/ready`: a production server whose key is
+   * missing or broken otherwise boots happily and fails every license call.
+   */
+  canSign(): boolean {
+    try {
+      return this.verify(this.sign({ probe: true })) !== null
+    } catch (error) {
+      logger.error({ err: error }, 'the response-signing key is unusable')
+      return false
+    }
   }
 
   private privateKey(): KeyObject {

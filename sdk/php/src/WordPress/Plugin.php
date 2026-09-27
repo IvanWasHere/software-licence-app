@@ -11,7 +11,7 @@ use LicenceApp\Sdk\Client;
  *         'plugin_file' => __FILE__,
  *         'version'     => '1.2.0',
  *         'name'        => 'Invoice Pro',
- *         'base_url'    => 'https://licenses.example.com/api/v1',
+ *         'base_url'    => 'https://licensing.example.com/api/v1',
  *         'product'     => 'invoice-pro',
  *         'public_key'  => ['k1' => '…'],
  *     ]);

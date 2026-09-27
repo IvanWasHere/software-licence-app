@@ -32,6 +32,8 @@ import purgeDeletedFilesJob from '#queue/jobs/purge_deleted_files_job'
 import rollupApiUsageJob from '#queue/jobs/rollup_api_usage_job'
 import pruneAuditLogsJob from '#queue/jobs/prune_audit_logs_job'
 import pruneNotificationsJob from '#queue/jobs/prune_notifications_job'
+import licenseExpiryRemindersJob from '#queue/jobs/license_expiry_reminders_job'
+import detectLicenseAbuseJob from '#queue/jobs/detect_license_abuse_job'
 
 /**
  * Dispatched by application code, not by cron.
@@ -53,8 +55,7 @@ jobs.register(pruneNotificationsJob, {
 })
 
 /**
- * The demo domain (D8) — delete with it.
- *
- * `normalize_positions` is also dispatched directly, with a `listId`, after a
- * reorder that ran the gaps down; the daily sweep is the catch-all.
+ * Licensing (licence plan §5.5, M8).
  */
+jobs.register(licenseExpiryRemindersJob, { interval: 'daily', label: 'license expiry reminders' })
+jobs.register(detectLicenseAbuseJob, { interval: 'hourly', label: 'flag shared license keys' })

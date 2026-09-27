@@ -25,6 +25,54 @@
     </div>
   @end
 
+  {{--
+    Abuse flags (M8). Open ones first-class, above everything else: somebody
+    opened this page from the email that listed them.
+  --}}
+  @if(flags.length)
+    @panel.root({ title: 'Flags', flush: true })
+      <div class="table-scroll">
+        <table class="tx-table">
+          <tbody>
+            @each(flag in flags)
+              <tr>
+                <td>
+                  @if(flag.isOpen)
+                    @!badge({ text: 'Open', tone: 'warning' })
+                  @else
+                    @!badge({ text: 'Resolved', tone: 'neutral' })
+                  @end
+                </td>
+                <td>
+                  <strong>{{ flag.description }}</strong>
+                  <div class="field-hint">{{ flag.summary }}.</div>
+                  @if(!flag.isOpen)
+                    <div class="field-hint">
+                      Resolved {{ flag.resolvedAt.toFormat('d LLL yyyy HH:mm') }}{{ flag.resolvedBy ? ' by ' + (flag.resolvedBy.fullName || flag.resolvedBy.email) : '' }}{{ flag.resolutionNote ? ': ' + flag.resolutionNote : '' }}
+                    </div>
+                  @end
+                </td>
+                <td>
+                  @if(flag.isOpen && canAssist)
+                    @form({ route: 'admin.licenses.resolve_flag', routeParams: { id: license.publicId, flagId: flag.publicId }, method: 'POST' })
+                      <div class="btn-row">
+                        <input class="field-input" name="note" placeholder="What you found (optional)" aria-label="Note" maxlength="500" />
+                        @!button({ text: 'Resolve', size: 'xs', variant: 'outline', type: 'submit' })
+                      </div>
+                    @end
+                  @end
+                </td>
+              </tr>
+            @end
+          </tbody>
+        </table>
+      </div>
+      <p class="field-hint" style="padding: 0 16px 12px">
+        Flags change nothing by themselves. Check the activations and history below, then suspend, free slots, or resolve.
+      </p>
+    @end
+  @end
+
   @if(license.statusReason)
     <div class="settings-card">
       <p class="section-desc" style="margin: 0">

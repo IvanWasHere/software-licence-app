@@ -54,6 +54,47 @@ its lease.
 
 ---
 
+## A VPS with Docker Compose
+
+The supported production setup (licence plan M8): one Linux machine running
+[`deploy/compose.yaml`](../deploy/compose.yaml). **Caddy** terminates HTTPS and gets its own
+certificates. Also in the stack: the **web** process, the **worker**, a **scheduler** that queues
+the timed jobs, **Postgres**, and a **backup** container that dumps the database nightly and copies
+it off the machine. Two cores and 4 GB is plenty to start with (see _It is getting slow_ in the
+[runbooks](./runbooks.md)).
+
+**The first deploy:**
+
+1. A machine with Docker and the Compose plugin, a firewall allowing 22, 80 and 443, and the
+   domain's A/AAAA records pointing at it.
+2. `git clone` the repository to `/srv/licence-app`.
+3. `cd deploy && cp .env.example .env && chmod 600 .env`, then fill it in:
+   - `APP_KEY`: `node ace generate:key --show`, run on a laptop.
+   - `LICENSE_SIGNING_KEY`: `node ace licensing:keygen`. **Keep an offline copy of both halves.**
+     Losing it means every installed copy of your software stops trusting the server.
+   - `POSTGRES_PASSWORD`: `openssl rand -hex 24`.
+   - Creem, Resend and R2 credentials, and `ADMIN_IP_ALLOWLIST`.
+   - `COMPANY_*`: what the receipt PDFs say your company is.
+   - `BACKUP_REMOTE` and its `RCLONE_CONFIG_*`, so backups leave the machine.
+4. `docker compose up -d --build`. `migrate` runs and exits, then everything else starts. Caddy
+   fetches a certificate on the first request.
+5. `docker compose exec web node ace staff:create --role=admin`.
+6. In Creem, point the webhook at `https://$DOMAIN/webhooks/creem`, with the secret from `.env`.
+7. Take a backup and restore it into a scratch database (runbooks, _Restore a backup_).
+8. Pin the public key from `https://$DOMAIN/api/v1/keys` in your SDK builds.
+
+The scheduler runs `schedule:run` at the intervals below, in UTC:
+
+| Interval        | Queues                                                                                                                    |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| every 5 minutes | (reserved; nothing is on it yet)                                                                                          |
+| hourly          | abuse flags (`detect_license_abuse`)                                                                                      |
+| daily, 03:00    | expiry reminders, billing reconciliation, file purge, audit and announcement pruning, invitation expiry, API usage rollup |
+
+Updates, rollbacks, restores and key rotation are in [`runbooks.md`](./runbooks.md).
+
+---
+
 ## The image
 
 `Dockerfile` builds it; `compose.yaml` runs the whole stack locally the way it runs deployed.
@@ -81,17 +122,21 @@ docker run … your-image node ace queue:work            # worker
 `.env.example` is the complete list. The ones that decide whether a deployment is correct rather
 than merely running:
 
-| Variable | Set it to | What breaks otherwise |
-|---|---|---|
-| `APP_KEY` | `node ace generate:key`, kept secret, **never rotated casually** | Rotating it invalidates every session and every signed URL in flight |
-| `APP_URL` | the public HTTPS URL | Links in email point at the wrong host |
-| `DB_CONNECTION` | `postgres` | SQLite on a container filesystem is a database that disappears on the next deploy |
-| `DB_SSL` | `true` for a managed database | Traffic to your database is in the clear |
-| `TRUST_PROXY` | `true` **iff** a proxy you control is in front | Every rate limit shares one bucket, and the audit trail records the load balancer |
-| `DRIVE_DISK` | `r2` | Uploads land on a container filesystem and vanish with it |
-| `MAIL_MAILER` | `resend` | Mail is queued and never delivered |
-| `SESSION_DRIVER` | `cookie`, or `database` if you need server-side revocation | — |
-| `ADMIN_IP_ALLOWLIST` | your office or VPN ranges | The back-office login is reachable from anywhere (it is still behind a separate guard and mandatory 2FA) |
+| Variable                                                             | Set it to                                                        | What breaks otherwise                                                                                                                          |
+| -------------------------------------------------------------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `APP_KEY`                                                            | `node ace generate:key`, kept secret, **never rotated casually** | Rotating it invalidates every session and every signed URL in flight                                                                           |
+| `APP_URL`                                                            | the public HTTPS URL                                             | Links in email point at the wrong host                                                                                                         |
+| `DB_CONNECTION`                                                      | `postgres`                                                       | SQLite on a container filesystem is a database that disappears on the next deploy                                                              |
+| `DB_SSL`                                                             | `true` for a managed database                                    | Traffic to your database is in the clear                                                                                                       |
+| `TRUST_PROXY`                                                        | `true` **iff** a proxy you control is in front                   | Every rate limit shares one bucket, and the audit trail records the load balancer                                                              |
+| `DRIVE_DISK`                                                         | `r2`                                                             | Uploads land on a container filesystem and vanish with it                                                                                      |
+| `MAIL_MAILER`                                                        | `resend`                                                         | Mail is queued and never delivered                                                                                                             |
+| `SESSION_DRIVER`                                                     | `cookie`, or `database` if you need server-side revocation       | —                                                                                                                                              |
+| `ADMIN_IP_ALLOWLIST`                                                 | your office or VPN ranges                                        | The back-office login is reachable from anywhere (it is still behind a separate guard and mandatory 2FA)                                       |
+| `LICENSE_SIGNING_KEY`                                                | `node ace licensing:keygen`, backed up offline                   | `/ready` fails and every license answer is a 500. A _new_ key makes every installed SDK reject the server (runbooks, _Rotate the signing key_) |
+| `LICENSE_SIGNING_EXTRA_PUBLIC_KEYS`                                  | only during a rotation                                           | —                                                                                                                                              |
+| `LICENSE_API_RATE_PER_ADDRESS` / `_PER_KEY`                          | defaults 120 / 30 per minute                                     | —                                                                                                                                              |
+| `COMPANY_NAME`, `COMPANY_ADDRESS`, `COMPANY_EMAIL`, `COMPANY_TAX_ID` | your company, as it should read on a receipt                     | Receipt PDFs say `APP_NAME` and the mail sender, with no address                                                                               |
 
 Secrets are declared with `Env.schema.secret()`, so they cannot be logged or serialised by
 accident. Where your platform mounts secrets as files, the `file:` prefix reads them from disk.
@@ -100,10 +145,10 @@ accident. Where your platform mounts secrets as files, the `file:` prefix reads 
 
 ## Health checks
 
-| Endpoint | Question | Point it at |
-|---|---|---|
-| `/health` | Is this process alive? | The **restart** probe. It touches nothing else. |
-| `/ready` | Can it serve a request? | The **load-balancer** probe. Checks the database and the object store, and answers `503` with which one failed. |
+| Endpoint  | Question                | Point it at                                                                                                                                                                             |
+| --------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/health` | Is this process alive?  | The **restart** probe. It touches nothing else.                                                                                                                                         |
+| `/ready`  | Can it serve a request? | The **load-balancer** probe. Checks the database, the object store and the response-signing key, and answers `503` with which one failed. The VPS Caddyfile hides it from the internet. |
 
 Do not wire a dependency check into the restart probe. A brief database blip then becomes every web
 process being killed at once, which turns a blip into an outage.
@@ -128,15 +173,18 @@ including for anything else you host there.
 
 ## Backups and retention
 
-- **Postgres**: nightly `pg_dump`, and restore one somewhere before you need to. A backup that has
-  never been restored is a hypothesis.
-- **Object storage**: enable bucket versioning. Deleted files are soft-deleted for 30 days and then
-  hard-deleted by `PurgeDeletedFilesJob` (§10); versioning is what covers the window after that.
+- **Postgres**: nightly `pg_dump`. The VPS stack's `backup` container does it and copies it off the
+  machine (runbooks, _Restore a backup_). Restore one before you need to: a backup that has never
+  been restored is a hypothesis.
+- **Object storage**: enable bucket versioning. It holds the release zips customers download.
+  Deleted files are soft-deleted for 30 days and then hard-deleted by `PurgeDeletedFilesJob`
+  (§10); versioning covers the window after that.
 - **`webhook_events`** is the billing audit trail. Keep it as long as you keep invoices.
-- The scheduled jobs — counter reconciliation, position normalisation, the overdue digest, the
-  billing drift report, log pruning — are *dispatched* by `node ace schedule:run`, which takes the
-  schedule to run as a flag. Cron calls it; the worker does the work, so a slow task cannot overlap
-  its own next run:
+- **`license_events`** is each license's history, and **`license_api_days`** the traffic per day.
+  Both are small; keep them. **`license_ip_days`** holds hashed addresses and is pruned after 30
+  days by the abuse job.
+- The scheduled jobs are _dispatched_ by `node ace schedule:run`, which takes the schedule to run
+  as a flag. The VPS stack's scheduler container does this. Elsewhere, cron:
 
   ```cron
   */5 * * * *  cd /app && node ace schedule:run --interval=5m
@@ -154,13 +202,14 @@ the client when something goes wrong.
 
 Worth alerting on:
 
-| Signal | Query | Why |
-|---|---|---|
-| Failed jobs | `jobs` where `failed_at` is not null | A failing job is a missing email or an unapplied subscription change |
-| Webhook backlog | `webhook_events` where `processed_at` is null and older than a few minutes | Billing is not applying |
-| Billing drift | the nightly `billing:sync` report | The provider and this database disagree about who is paying |
-| Counter drift | `ReconcileCountersJob` alerts rather than repairing | A quota is being enforced against a number that is wrong |
-| `5xx` rate, `/ready` failures | — | The usual |
+| Signal                        | Query                                                                      | Why                                                                  |
+| ----------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Failed jobs                   | `jobs` where `failed_at` is not null                                       | A failing job is a missing email or an unapplied subscription change |
+| Webhook backlog               | `webhook_events` where `processed_at` is null and older than a few minutes | Billing is not applying                                              |
+| Billing drift                 | the nightly `billing:sync` report                                          | The provider and this database disagree about who is paying          |
+| Open abuse flags              | the dashboard, or the email to admins                                      | A key may be shared                                                  |
+| License API refusals          | the dashboard's _Refused, 7 days_                                          | A jump means a broken client release, or someone trying keys         |
+| `5xx` rate, `/ready` failures | —                                                                          | The usual                                                            |
 
 ---
 
@@ -179,5 +228,6 @@ Worth alerting on:
 9. `ADMIN_IP_ALLOWLIST` set, and a staff account created with `node ace staff:create` — its
    two-factor enrolment is mandatory.
 10. `/health` and `/ready` wired to the right probes.
-11. Backups scheduled, and one restored.
-12. Read [`security.md`](./security.md) once, with your deployment in front of you.
+11. Backups scheduled, copied off the machine, and one restored.
+12. `LICENSE_SIGNING_KEY` set, backed up offline, and its public key pinned in the SDK builds.
+13. Read [`security.md`](./security.md) once, with your deployment in front of you.

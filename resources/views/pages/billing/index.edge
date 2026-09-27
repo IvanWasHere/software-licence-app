@@ -110,7 +110,7 @@
       <div class="table-scroll">
         <table class="tx-table">
           <thead>
-            <tr><th>Reference</th><th>Description</th><th>Date</th><th>Amount</th><th>Status</th></tr>
+            <tr><th>Reference</th><th>Description</th><th>Date</th><th>Amount</th><th>Status</th><th>Receipt</th></tr>
           </thead>
           <tbody>
             @each(payment in payments)
@@ -135,6 +135,9 @@
                   @else
                     @!badge({ text: 'Paid', tone: 'success' })
                   @end
+                </td>
+                <td style="white-space: nowrap">
+                  <a href="{{ urlFor('billing.receipt', { id: payment.publicId }) }}">PDF</a>
                 </td>
               </tr>
             @end
